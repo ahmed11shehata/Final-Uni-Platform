@@ -36,6 +36,26 @@ namespace Presentation.Controllers
             return NoContent();
         }
 
+        [Authorize(Roles = "Admin")]
+        [HttpPost("open-level")]
+        public async Task<IActionResult> OpenCoursesForLevel( OpenCoursesForLevelDto dto)
+        {
+            await _mediator.Send(
+                new OpenCoursesForLevelCommand(dto));
+
+            return Ok("Courses opened successfully.");
+        }
+
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost("grant-exception")]
+        public async Task<IActionResult> GrantException(GrantCourseExceptionDto dto)
+        {
+            await _mediator.Send(
+                new GrantCourseExceptionCommand(dto));
+
+            return Ok("Exception granted.");
+        }
 
         [Authorize(Roles = "Admin")]
         [HttpPost]

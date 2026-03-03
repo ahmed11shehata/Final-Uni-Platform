@@ -63,8 +63,26 @@ namespace AYA_UIS.Application.Handlers.Registrations
                 throw new BadRequestException("You can only register in the active semester, this semester is ended");
 
             // 6️⃣ Check course is open
-            if (course.Status != CourseStatus.Opened)
-                throw new BadRequestException("Course registration is closed");
+            //if (course.Status != CourseStatus.Opened)
+            //    throw new BadRequestException("Course registration is closed");
+
+
+            var offering = await _unitOfWork.CourseOfferings.GetAsync(
+                course.Id,
+                request.RegistrationDto.StudyYearId,
+                request.RegistrationDto.SemesterId,
+                user.Level ?? 0);
+
+            var hasException =
+              await _unitOfWork.StudentCourseExceptions
+               .GetAsync(
+               user.Id,
+               course.Id,
+               request.RegistrationDto.StudyYearId,
+               request.RegistrationDto.SemesterId);
+
+            if ((offering == null || !offering.IsOpen) && hasException == null)
+                throw new BadRequestException("Course is not available for your level");
 
             // 7️⃣ Already registered?
             var isRegistrationExists = await _unitOfWork.Registrations.IsUserRegisteredInCourseAsync(user.Id, course.Id);

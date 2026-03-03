@@ -16,7 +16,8 @@ namespace Domain.Contracts
         IUserStudyYearRepository UserStudyYears { get; }
 
         ICourseResultRepository CourseResults { get; }
-
+        ICourseOfferingRepository CourseOfferings { get; }
+        IStudentCourseExceptionRepository StudentCourseExceptions { get; }
 
         Task<int> SaveChangesAsync();
 

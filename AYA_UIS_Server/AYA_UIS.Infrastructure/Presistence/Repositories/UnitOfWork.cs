@@ -27,7 +27,8 @@ namespace Presistence.Repositories
         private ISemesterRepository? _semesters;
         private IUserStudyYearRepository? _userStudyYears;
         private ICourseResultRepository? _courseResults;
-
+        private ICourseOfferingRepository? _courseOfferings;
+        private IStudentCourseExceptionRepository? _studentCourseExceptions;
 
         public UnitOfWork(UniversityDbContext dbContext)
         {
@@ -71,7 +72,13 @@ namespace Presistence.Repositories
         public ICourseResultRepository CourseResults
             => _courseResults ??= new CourseResultRepository(_dbContext);
 
+        public ICourseOfferingRepository CourseOfferings
+            => _courseOfferings ??=
+                new CourseOfferingRepository(_dbContext);
 
+        public IStudentCourseExceptionRepository StudentCourseExceptions
+               => _studentCourseExceptions ??=
+                  new StudentCourseExceptionRepository(_dbContext);
 
         public async Task<int> SaveChangesAsync()
             => await _dbContext.SaveChangesAsync();

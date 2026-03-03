@@ -35,5 +35,7 @@ namespace Presistence
         public DbSet<UserStudyYear> UserStudyYears { get; set; }
 
         public DbSet<CourseResult> CourseResults { get; set; }
+        public DbSet<CourseOffering> CourseOfferings { get; set; }
+        public DbSet<StudentCourseException> StudentCourseExceptions { get; set; }
     }
 }
