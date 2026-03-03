@@ -12,8 +12,8 @@ using Presistence;
 namespace Presistence.Migrations
 {
     [DbContext(typeof(UniversityDbContext))]
-    [Migration("20260226203004_deleteisactive")]
-    partial class deleteisactive
+    [Migration("20260303203701_InatialCreate")]
+    partial class InatialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -230,12 +230,7 @@ namespace Presistence.Migrations
                     b.Property<int>("PrerequisiteCourseId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("CourseId1")
-                        .HasColumnType("int");
-
                     b.HasKey("CourseId", "PrerequisiteCourseId");
-
-                    b.HasIndex("CourseId1");
 
                     b.HasIndex("PrerequisiteCourseId");
 
@@ -778,10 +773,6 @@ namespace Presistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AYA_UIS.Core.Domain.Entities.Models.Course", null)
-                        .WithMany("Prerequisites")
-                        .HasForeignKey("CourseId1");
-
                     b.HasOne("AYA_UIS.Core.Domain.Entities.Models.Course", "PrerequisiteCourse")
                         .WithMany("DependentCourses")
                         .HasForeignKey("PrerequisiteCourseId")
@@ -1021,8 +1012,6 @@ namespace Presistence.Migrations
                     b.Navigation("DependentCourses");
 
                     b.Navigation("PrerequisiteFor");
-
-                    b.Navigation("Prerequisites");
 
                     b.Navigation("Registrations");
                 });
