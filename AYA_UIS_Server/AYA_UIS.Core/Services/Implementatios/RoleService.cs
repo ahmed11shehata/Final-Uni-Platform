@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using AYA_UIS.Application.Contracts;
 using Shared.Dtos.Auth_Module;
+using AYA_UIS.Core.Abstractions.Contracts;
 
 namespace AYA_UIS.Core.Services.Implementations
 {

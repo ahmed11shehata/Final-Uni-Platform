@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using AYA_UIS.Application.Commands.Courses;
 using AYA_UIS.Application.Commands.CourseUploads;
 using AYA_UIS.Application.Queries.CoursePrequisites;
@@ -22,7 +18,6 @@ namespace Presentation.Controllers
     [Route("api/[controller]")]
     public class CourseController : ControllerBase
     {
-
         private readonly IMediator _mediator;
 
         public CourseController(IMediator mediator)
@@ -30,41 +25,69 @@ namespace Presentation.Controllers
             _mediator = mediator;
         }
 
+
+        [Authorize(Roles = "Admin")]
+        [HttpPatch("{courseId}/status")]
+        public async Task<IActionResult> UpdateStatus(int courseId,[FromQuery] CourseStatus status)
+        {
+            await _mediator.Send(
+                new UpdateCourseStatusCommand(courseId, status));
+
+            return NoContent();
+        }
+
+
+        [Authorize(Roles = "Admin")]
         [HttpPost]
         public async Task<IActionResult> Add(CreateCourseDto courseDto)
         {
-            var result = await _mediator.Send(new CreateCourseCommand(courseDto));
-            //return CreatedAtAction(nameof(GetById), new { id = result.Data?.Id }, result);
+            var result = await _mediator.Send(
+                new CreateCourseCommand(courseDto));
+
             return Ok(result);
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var result = await _mediator.Send(new GetAllCoursesQuery());
-            //return CreatedAtAction(nameof(GetById), new { id = result.Data?.Id }, result);
+            var result = await _mediator.Send(
+                new GetAllCoursesQuery());
+
             return Ok(result);
         }
 
         [HttpGet("{id}/uploads")]
         public async Task<IActionResult> GetCourseUploads(int id)
         {
-            var result = await _mediator.Send(new GetCourseUploadsQuery(id));
+            var result = await _mediator.Send(
+                new GetCourseUploadsQuery(id));
+
             return Ok(result);
         }
 
         [HttpGet("{id}/registrations/{yearId}")]
-        public async Task<IActionResult> GetCourseYearRegistrations(int id, int yearId)
+        public async Task<IActionResult> GetCourseYearRegistrations(
+            int id,
+            int yearId)
         {
-            var result = await _mediator.Send(new GetCourseYearRegistrationsQuery(id, yearId));
+            var result = await _mediator.Send(
+                new GetCourseYearRegistrationsQuery(id, yearId));
+
             return Ok(result);
         }
 
         [Authorize]
         [HttpPost("{courseId}/upload")]
-        public async Task<IActionResult> UploadCourseFile(int courseId, [FromForm] string title, [FromForm] string description, [FromForm] string type, IFormFile file)
+        public async Task<IActionResult> UploadCourseFile(
+            int courseId,
+            [FromForm] string title,
+            [FromForm] string description,
+            [FromForm] string type,
+            IFormFile file)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId =
+                User.FindFirstValue(ClaimTypes.NameIdentifier);
+
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
@@ -89,19 +112,19 @@ namespace Presentation.Controllers
         [HttpGet("department/{departmentId}")]
         public async Task<IActionResult> DeparmentCourses(int departmentId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
-                return Unauthorized();
+            var result = await _mediator.Send(
+                new GetDepartmentCoursesQuery(departmentId));
 
-            var result = await _mediator.Send(new GetDepartmentCoursesQuery(departmentId));
             return Ok(result);
         }
-     
+
         [Authorize]
         [HttpGet("prequisites/{courseId}")]
         public async Task<IActionResult> GetCoursePrequisites(int courseId)
         {
-            var result = await _mediator.Send(new GetCoursePrequisitesQuery(courseId));
+            var result = await _mediator.Send(
+                new GetCoursePrequisitesQuery(courseId));
+
             return Ok(result);
         }
 
@@ -109,18 +132,21 @@ namespace Presentation.Controllers
         [HttpGet("dependencies/{courseId}")]
         public async Task<IActionResult> GetCourseDependencies(int courseId)
         {
-            var result = await _mediator.Send(new GetCourseDependenciesQuery(courseId));
+            var result = await _mediator.Send(
+                new GetCourseDependenciesQuery(courseId));
+
             return Ok(result);
         }
 
         [Authorize]
         [HttpGet("open/department/{departmentId}")]
-        public async Task<IActionResult> GetDepartmentOpenCourses(int departmentId)
+        public async Task<IActionResult> GetDepartmentOpenCourses(
+            int departmentId)
         {
-            var result = await _mediator.Send(new GetDepartmentOpenCoursesQuery(departmentId));
+            var result = await _mediator.Send(
+                new GetDepartmentOpenCoursesQuery(departmentId));
+
             return Ok(result);
         }
-
-
     }
 }

@@ -1,6 +1,7 @@
 using AYA_UIS.Application.Commands.AcademicSchedules;
 using AYA_UIS.Application.Contracts;
 using AYA_UIS.Shared.Exceptions;
+
 using Domain.Contracts;
 using MediatR;
 

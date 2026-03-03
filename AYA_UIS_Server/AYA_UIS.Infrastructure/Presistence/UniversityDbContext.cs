@@ -33,5 +33,7 @@ namespace Presistence
         public DbSet<CourseUpload> CourseUploads { get; set; }
         public DbSet<SemesterGPA> SemesterGPAs { get; set; }
         public DbSet<UserStudyYear> UserStudyYears { get; set; }
+
+        public DbSet<CourseResult> CourseResults { get; set; }
     }
 }

@@ -13,5 +13,6 @@ namespace Shared.Dtos.Info_Module.CourseDtos
         public string Name { get; set; } = string.Empty;
         public CourseStatus Status { get; set; }
         public int Credits { get; set; }
+
     }
 }

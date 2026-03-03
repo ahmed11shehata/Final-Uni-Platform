@@ -1,4 +1,5 @@
-﻿using AYA_UIS.Core.Domain.Entities;
+﻿using AYA_UIS.Core.Domain.Contracts;
+using AYA_UIS.Core.Domain.Entities;
 
 namespace Domain.Contracts
 {
@@ -13,6 +14,9 @@ namespace Domain.Contracts
         ICourseUploadsRepository CourseUploads { get; }
         ISemesterRepository Semesters { get; }
         IUserStudyYearRepository UserStudyYears { get; }
+
+        ICourseResultRepository CourseResults { get; }
+
 
         Task<int> SaveChangesAsync();
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,5 +11,7 @@ namespace Shared.Dtos.Info_Module.CourseDtos
         public string Name { get; set; } = string.Empty;
         public int Credits { get; set; }
         public int DepartmentId { get; set; }
+        public List<string> PrerequisiteCourseCodes { get; set; }
+            = new();
     }
 }

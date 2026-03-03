@@ -7,6 +7,8 @@ using Microsoft.Extensions.Options;
 using AYA_UIS.Core.Services.Implementations; // Fix: Change from Services.Implementatios
 using Shared.Common;
 using Domain.Contracts;
+using AYA_UIS.Core.Abstractions.Contracts;
+using AYA_UIS.Core.Domain.Entities.Models;
 
 namespace AYA_UIS.Core.Services.Implementations
 {
@@ -22,7 +24,9 @@ namespace AYA_UIS.Core.Services.Implementations
             IOptions<JwtOptions> options,
             RoleManager<IdentityRole> roleManager,
             IUserService userService, // Fix: Use the interface instead of concrete class
-            IUnitOfWork unitOfWork) // Fix: Add IUnitOfWork to the constructor
+            IUnitOfWork unitOfWork 
+            
+            ) // Fix: Add IUnitOfWork to the constructor
         {
             _authService = new Lazy<IAuthenticationService>(
                 () => new AuthenticationService(userManager, options, roleManager, unitOfWork));
@@ -30,10 +34,13 @@ namespace AYA_UIS.Core.Services.Implementations
                 () => new RoleService(roleManager, userManager));
             _userService = new Lazy<IUserService>(
                 () => userService);
+
+            
         }
 
         public IAuthenticationService AuthenticationService => _authService.Value;
         public IRoleService RoleService => _roleService.Value;
         public IUserService UserService => _userService.Value;
+
     }
 }

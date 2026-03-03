@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using AYA_UIS.Application.Contracts;
 using Shared.Dtos.Auth_Module;
+using AYA_UIS.Core.Abstractions.Contracts;
 
 namespace Presentation.Controllers
 {

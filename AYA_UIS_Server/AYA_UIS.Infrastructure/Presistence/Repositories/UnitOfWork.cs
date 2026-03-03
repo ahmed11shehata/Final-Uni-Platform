@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AYA_UIS.Core.Domain.Contracts;
 using AYA_UIS.Core.Domain.Entities;
+using AYA_UIS.Core.Domain.Entities.Models;
 using Domain.Contracts;
 using Presistence;
 
@@ -24,6 +26,8 @@ namespace Presistence.Repositories
         private ICourseUploadsRepository? _courseUploads;
         private ISemesterRepository? _semesters;
         private IUserStudyYearRepository? _userStudyYears;
+        private ICourseResultRepository? _courseResults;
+
 
         public UnitOfWork(UniversityDbContext dbContext)
         {
@@ -62,6 +66,12 @@ namespace Presistence.Repositories
             => (IGenericRepository<TEntity, TKey>)_repositories.GetOrAdd(
                 typeof(TEntity).Name,
                 _ => new GenericRepository<TEntity, TKey>(_dbContext));
+
+      
+        public ICourseResultRepository CourseResults
+            => _courseResults ??= new CourseResultRepository(_dbContext);
+
+
 
         public async Task<int> SaveChangesAsync()
             => await _dbContext.SaveChangesAsync();

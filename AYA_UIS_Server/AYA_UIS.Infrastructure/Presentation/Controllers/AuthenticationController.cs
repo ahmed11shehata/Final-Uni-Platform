@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using AYA_UIS.Application.Contracts;
 using Shared.Dtos.Auth_Module;
+using AYA_UIS.Core.Abstractions.Contracts;
 
 namespace Presentation.Controllers
 {

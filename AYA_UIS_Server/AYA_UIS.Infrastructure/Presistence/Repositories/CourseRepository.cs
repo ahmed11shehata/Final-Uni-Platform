@@ -64,5 +64,16 @@ namespace Presistence.Repositories
                 .ToListAsync();
         }
 
+        public async Task<List<Course>> GetByCodesAsync(IEnumerable<string> codes)
+        {
+            return await _dbContext.Courses
+                .Where(c => codes.Contains(c.Code))
+                .ToListAsync();
+        }
+
+        public async Task AddPrerequisiteAsync(CoursePrerequisite prerequisite)
+        {
+            await _dbContext.CoursePrerequisites.AddAsync(prerequisite);
+        }
     }
 }

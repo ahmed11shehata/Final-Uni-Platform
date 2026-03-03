@@ -123,14 +123,8 @@ namespace Presentation.Controllers
             return Ok(result);
         }
 
-        [Authorize(Roles = "Admin")]
-        [HttpPost("promote-student/{acadenicCode}")]
-        public async Task<IActionResult> PromoteStudent(string acadenicCode)
-        {
-            var command = new PromoteStudentCommand(acadenicCode);
-            var result = await _mediator.Send(command);
-            return Ok(result);
-        }
+        
+
 
     }
 }

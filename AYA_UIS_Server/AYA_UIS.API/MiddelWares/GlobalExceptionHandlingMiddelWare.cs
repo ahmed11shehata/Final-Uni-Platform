@@ -1,5 +1,6 @@
 ﻿using AYA_UIS.Shared.Exceptions;
 using Shared.Dtos.ErrorModels;
+using Shared.Exceptions;
 
 namespace AYA_UIS.MiddelWares
 {
@@ -67,6 +68,7 @@ namespace AYA_UIS.MiddelWares
                 NotFoundException => StatusCodes.Status404NotFound,
                 BadRequestException => StatusCodes.Status400BadRequest,
                 ConflictException => StatusCodes.Status409Conflict,
+                PromotionException => StatusCodes.Status400BadRequest,
                 InternalServerErrorException => StatusCodes.Status500InternalServerError,
                 BaseException baseException => baseException.StatusCode,
                 (_) => StatusCodes.Status500InternalServerError

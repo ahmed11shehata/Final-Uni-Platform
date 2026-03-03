@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using AYA_UIS.Core.Domain.Entities.Models;
 using Domain.Contracts;
 using Microsoft.EntityFrameworkCore;
@@ -60,6 +61,18 @@ namespace Presistence.Repositories
                 .Include(usy => usy.StudyYear)
                 .Where(usy => usy.StudyYearId == studyYearId)
                 .AsNoTracking()
+                .ToListAsync();
+        }
+
+        public async Task<bool> ExistsAsync(Expression<Func<UserStudyYear, bool>> predicate)
+        {
+            return await _dbContext.UserStudyYears.AnyAsync(predicate);
+        }
+
+        public async Task<List<UserStudyYear>> GetWhereAsync(Expression<Func<UserStudyYear, bool>> predicate)
+        {
+            return await _dbContext.UserStudyYears
+                .Where(predicate)
                 .ToListAsync();
         }
     }

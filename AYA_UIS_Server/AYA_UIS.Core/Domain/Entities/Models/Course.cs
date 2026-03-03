@@ -16,6 +16,7 @@ namespace AYA_UIS.Core.Domain.Entities.Models
         public Department Department { get; set; } = null!;
         public ICollection<Registration> Registrations { get; set; } = new List<Registration>();
         public ICollection<CourseUpload> CourseUpload { get; set; } = new List<CourseUpload>();
+
         public ICollection<CoursePrerequisite> PrerequisiteFor { get; set; } = new List<CoursePrerequisite>();
         public ICollection<CoursePrerequisite> DependentCourses { get; set; } = new List<CoursePrerequisite>();
     }

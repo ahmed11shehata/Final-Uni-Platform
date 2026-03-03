@@ -9,6 +9,8 @@ namespace Domain.Contracts
         Task<IEnumerable<Course>> GetCourseDependenciesAsync(int courseId);
         Task<IEnumerable<Course>> GetCoursePrerequisitesAsync(int courseId);
         Task<IEnumerable<Course>> GetPassedCoursesByUserAsync(string userId);
+        Task<List<Course>> GetByCodesAsync(IEnumerable<string> codes);
+        Task AddPrerequisiteAsync(CoursePrerequisite prerequisite);
         Task<IEnumerable<Course>> GetOpenCoursesAsync();
     }
 }

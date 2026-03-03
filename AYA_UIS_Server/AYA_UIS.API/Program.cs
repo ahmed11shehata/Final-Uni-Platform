@@ -25,6 +25,8 @@ using AYA_UIS.Application.Mapping;
 using Infrastructure.Services;
 using System.Text.Json.Serialization;
 using Services.Implementatios;
+using AYA_UIS.Core.Abstractions.Contracts;
+using AYA_UIS.Core.Domain.Contracts;
 
 namespace AYA_UIS
 {
@@ -158,8 +160,10 @@ namespace AYA_UIS
             // Infrastructure Services
             builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
+            // Calc Gpa
+            builder.Services.AddScoped<IGpaCalculator, GpaCalculator>();
+
             // GPA Calculation Service
-            builder.Services.AddScoped<IGpaCalculationService, GpaCalculationService>();
 
             builder.Services.AddHttpContextAccessor();
 
