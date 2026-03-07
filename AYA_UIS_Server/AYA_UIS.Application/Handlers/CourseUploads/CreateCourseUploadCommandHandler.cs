@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Abstraction.Contracts;
 using AutoMapper;
 using AYA_UIS.Application.Commands.CourseUploads;
 using AYA_UIS.Application.Contracts;
@@ -15,12 +16,14 @@ namespace AYA_UIS.Application.Handlers.CourseUploads
     public class CreateCourseUploadCommandHandler : IRequestHandler<CreateCourseUploadCommand, Response<int>>
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly ICloudinaryService _cloudinaryService;
+        //private readonly ICloudinaryService _cloudinaryService;
+        private readonly ILocalFileService _localFileService;
         private readonly IMapper _mapper;
-        public CreateCourseUploadCommandHandler(IUnitOfWork unitOfWork, ICloudinaryService cloudinaryService, IMapper mapper)
+        public CreateCourseUploadCommandHandler(IUnitOfWork unitOfWork, ILocalFileService localFileService, /*ICloudinaryService cloudinaryService,*/ IMapper mapper)
         {
             _unitOfWork = unitOfWork;
-            _cloudinaryService = cloudinaryService;
+            //_cloudinaryService = cloudinaryService;
+            _localFileService = localFileService;
             _mapper = mapper;
         }
         public async Task<Response<int>> Handle(CreateCourseUploadCommand request, CancellationToken cancellationToken)
@@ -31,7 +34,14 @@ namespace AYA_UIS.Application.Handlers.CourseUploads
 
             var fileId = Guid.NewGuid().ToString();
 
-            var fileUrl = await _cloudinaryService.UploadCourseFileAsync(request.File, fileId, course.Name, cancellationToken);
+            //var fileUrl = await _cloudinaryService.UploadCourseFileAsync(request.File, fileId, course.Name, cancellationToken);
+
+
+            var fileUrl = await _localFileService.UploadCourseFileAsync(
+                   request.File,
+                   fileId,
+                   course.Name,
+                   cancellationToken);
 
             var courseUpload = _mapper.Map<CourseUpload>(request.CourseUploadDto);
             courseUpload.Url = fileUrl;

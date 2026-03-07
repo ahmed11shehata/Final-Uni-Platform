@@ -27,6 +27,7 @@ using System.Text.Json.Serialization;
 using Services.Implementatios;
 using AYA_UIS.Core.Abstractions.Contracts;
 using AYA_UIS.Core.Domain.Contracts;
+using Abstraction.Contracts;
 
 namespace AYA_UIS
 {
@@ -157,6 +158,9 @@ namespace AYA_UIS
             // Configure Cloudinary Settings
             builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 
+            // Local File Service   
+            builder.Services.AddScoped<ILocalFileService, LocalFileService>();
+
             // Infrastructure Services
             builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
@@ -241,8 +245,8 @@ namespace AYA_UIS
             app.UseAuthentication();
             app.UseAuthorization();
             app.UseHttpsRedirection();
-            app.MapControllers();
             app.UseStaticFiles();
+            app.MapControllers();
             //app.UseRateLimiter();
             //app.MapPost("/Login", (HttpContext context) =>
             //{
