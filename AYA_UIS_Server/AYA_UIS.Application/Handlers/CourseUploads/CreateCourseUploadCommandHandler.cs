@@ -41,6 +41,7 @@ namespace AYA_UIS.Application.Handlers.CourseUploads
                    request.File,
                    fileId,
                    course.Name,
+                   request.CourseUploadDto.Type,
                    cancellationToken);
 
             var courseUpload = _mapper.Map<CourseUpload>(request.CourseUploadDto);

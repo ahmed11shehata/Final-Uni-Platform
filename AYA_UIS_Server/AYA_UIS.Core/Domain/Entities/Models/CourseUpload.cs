@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using AYA_UIS.Core.Domain.Entities;
 using AYA_UIS.Core.Domain.Entities.Identity;
 using AYA_UIS.Core.Domain.Entities.Models;
+using AYA_UIS.Core.Domain.Enums;
 
 namespace AYA_UIS.Core.Domain.Entities.Models
 {
@@ -12,7 +13,7 @@ namespace AYA_UIS.Core.Domain.Entities.Models
     {
         public string Title { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty; // e.g., "sheet", "sheet answer", "material", etc.
+        public UploadType Type { get; set; } // e.g., "sheet", "sheet answer", "material", etc.
         public string FileId { get; set; } = string.Empty;
         public string Url { get; set; } = string.Empty;
         public string UploadedByUserId { get; set; } = string.Empty;

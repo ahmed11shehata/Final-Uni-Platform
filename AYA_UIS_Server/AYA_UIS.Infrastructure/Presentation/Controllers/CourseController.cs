@@ -102,7 +102,7 @@ namespace Presentation.Controllers
             int courseId,
             [FromForm] string title,
             [FromForm] string description,
-            [FromForm] string type,
+            [FromForm] UploadType type,
             IFormFile file)
         {
             var userId =

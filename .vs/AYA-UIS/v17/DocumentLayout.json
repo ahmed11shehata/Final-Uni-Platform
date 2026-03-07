@@ -54,8 +54,7 @@
               "RelativeToolTip": "AYA_UIS_Server\\AYA_UIS.API\\AYA_UIS.API.csproj",
               "ViewState": "AgIAAAgAAAAAAAAAAAAiwCIAAAANAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
-              "WhenOpened": "2026-02-24T19:37:40.05Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-24T19:37:40.05Z"
             },
             {
               "$type": "Document",
@@ -67,8 +66,7 @@
               "RelativeToolTip": "AYA_UIS_Server\\AYA_UIS.Core\\Services\\Services.csproj",
               "ViewState": "AgIAAAgAAAAAAAAAAAASwAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
-              "WhenOpened": "2026-02-24T19:37:23.3Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-24T19:37:23.3Z"
             },
             {
               "$type": "Document",
@@ -80,8 +78,7 @@
               "RelativeToolTip": "AYA_UIS_Server\\AYA_UIS.Core\\Services\\Implementatios\\AuthenticationService.cs",
               "ViewState": "AgIAACsBAAAAAAAAAAAYwD0BAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-24T19:33:12.93Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-24T19:33:12.93Z"
             },
             {
               "$type": "Document",
@@ -91,7 +88,7 @@
               "RelativeDocumentMoniker": "AYA_UIS_Server\\AYA_UIS.Infrastructure\\Presistence\\Data\\DataSeeding.cs",
               "ToolTip": "D:\\Final Project\\AYA-UIS\\AYA_UIS_Server\\AYA_UIS.Infrastructure\\Presistence\\Data\\DataSeeding.cs",
               "RelativeToolTip": "AYA_UIS_Server\\AYA_UIS.Infrastructure\\Presistence\\Data\\DataSeeding.cs",
-              "ViewState": "AgIAAOUAAAAAAAAAAAAYwBsBAABEAAAAAAAAAA==",
+              "ViewState": "AgIAAFwAAAAAAAAAAAAgwA8BAAAMAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-02-24T19:30:40.491Z",
               "EditorCaption": ""

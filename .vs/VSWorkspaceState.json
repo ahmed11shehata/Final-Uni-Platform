@@ -1,9 +1,8 @@
 {
   "ExpandedNodes": [
     "",
-    "\\AYA_UIS_Server",
     "\\AYA_UIS_Server\\AYA_UIS.API"
   ],
-  "SelectedNode": "\\AYA_UIS_Server\\AYA_UIS.API\\AYA_UIS.API.csproj",
+  "SelectedNode": "\\AYA_UIS_Frontend",
   "PreviewInSolutionExplorer": false
 }
