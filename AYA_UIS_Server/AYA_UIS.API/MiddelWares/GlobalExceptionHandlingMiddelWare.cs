@@ -55,7 +55,7 @@ namespace AYA_UIS.MiddelWares
             var response = new ErrorDetails
             {
 
-                ErrorMessage = ex.Message
+                ErrorMessage = ex.ToString()
 
             };
 

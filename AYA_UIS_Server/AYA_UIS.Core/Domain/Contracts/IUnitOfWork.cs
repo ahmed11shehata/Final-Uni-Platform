@@ -19,6 +19,7 @@ namespace Domain.Contracts
         ICourseOfferingRepository CourseOfferings { get; }
         IStudentCourseExceptionRepository StudentCourseExceptions { get; }
 
+        IAssignmentRepository Assignments { get; }
         Task<int> SaveChangesAsync();
 
         IGenericRepository<TEntity, TKey> GetRepository<TEntity, TKey>() where TEntity : BaseEntities<TKey>;

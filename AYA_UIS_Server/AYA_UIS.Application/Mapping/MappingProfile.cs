@@ -1,6 +1,7 @@
 using AutoMapper;
 using AYA_UIS.Core.Domain.Entities.Models;
 using Shared.Dtos.Info_Module.AcademicSheduleDtos;
+using Shared.Dtos.Info_Module.AssignmentDto;
 using Shared.Dtos.Info_Module.CourseDtos;
 using Shared.Dtos.Info_Module.CourseUploadDtos;
 using Shared.Dtos.Info_Module.DepartmentDtos;
@@ -48,8 +49,18 @@ namespace AYA_UIS.Application.Mapping
                 .ReverseMap();
             CreateMap<CreateFeeDto, Fee>();
 
+            CreateMap<Assignment, AssignmentDto>()
+                                                 .ForMember(dest => dest.InstructorName,
+opt => opt.MapFrom(src => src.CreatedBy.UserName));
+
+
+            CreateMap<AssignmentSubmission, AssignmentSubmissionDto>()
+.ForMember(dest => dest.StudentName,
+opt => opt.MapFrom(src => src.Student.UserName));
             // map study year to study year dto
             CreateMap<StudyYear, StudyYearDto>().ReverseMap();
+
+
 
             //user study year to user study year dto
             CreateMap<UserStudyYear, UserStudyYearDetailsDto>();

@@ -23,6 +23,34 @@ public class LocalFileService : ILocalFileService
 
     }
 
+    public async Task<string> UploadAssignmentFileAsync(
+     IFormFile file,
+     string fileId,
+     int courseId,
+     CancellationToken cancellationToken)
+    {
+        var folderPath = Path.Combine(
+            _env.WebRootPath,
+            "assignments",
+            $"course_{courseId}"
+        );
+
+        if (!Directory.Exists(folderPath))
+            Directory.CreateDirectory(folderPath);
+
+        var fileName = $"assignment_{fileId}{Path.GetExtension(file.FileName)}";
+
+        var filePath = Path.Combine(folderPath, fileName);
+
+        using var stream = new FileStream(filePath, FileMode.Create);
+
+        await file.CopyToAsync(stream, cancellationToken);
+
+        var baseUrl = _configuration["URLS:BaseUrl"];
+
+        return $"{baseUrl}/assignments/course_{courseId}/{fileName}";
+    }
+
     public async Task<string> UploadCourseFileAsync(
     IFormFile file,
     string fileId,
@@ -60,5 +88,33 @@ public class LocalFileService : ILocalFileService
         var baseUrl = _configuration["URLS:BaseUrl"];
 
         return $"{baseUrl}/upload-course/{safeCourseName}/{folderType}/{fileName}";
+    }
+
+    public async Task<string> UploadSubmissionFileAsync(
+     IFormFile file,
+     string fileId,
+     int assignmentId,
+     CancellationToken cancellationToken)
+    {
+        var folderPath = Path.Combine(
+            _env.WebRootPath,
+            "submissions",
+            $"assignment_{assignmentId}"
+        );
+
+        if (!Directory.Exists(folderPath))
+            Directory.CreateDirectory(folderPath);
+
+        var fileName = $"submission_{fileId}{Path.GetExtension(file.FileName)}";
+
+        var filePath = Path.Combine(folderPath, fileName);
+
+        using var stream = new FileStream(filePath, FileMode.Create);
+
+        await file.CopyToAsync(stream, cancellationToken);
+
+        var baseUrl = _configuration["URLS:BaseUrl"];
+
+        return $"{baseUrl}/submissions/assignment_{assignmentId}/{fileName}";
     }
 }

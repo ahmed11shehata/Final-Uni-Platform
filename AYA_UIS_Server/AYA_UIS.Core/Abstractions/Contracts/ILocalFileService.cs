@@ -16,5 +16,18 @@ namespace Abstraction.Contracts
         string courseName,
         UploadType type,
         CancellationToken cancellationToken);
+
+        Task<string> UploadAssignmentFileAsync(
+         IFormFile file,
+         string fileId,
+         int courseId,
+         CancellationToken cancellationToken);
+
+        Task<string> UploadSubmissionFileAsync(
+         IFormFile file,
+         string fileId,
+         int assignmentId,
+         CancellationToken cancellationToken);
+
     }
 }
