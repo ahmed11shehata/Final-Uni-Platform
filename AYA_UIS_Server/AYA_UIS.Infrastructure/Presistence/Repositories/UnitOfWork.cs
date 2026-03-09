@@ -30,6 +30,7 @@ namespace Presistence.Repositories
         private ICourseOfferingRepository? _courseOfferings;
         private IStudentCourseExceptionRepository? _studentCourseExceptions;
         private IAssignmentRepository? _Assignments;
+        private IQuizRepository? _quizzes;
 
         public UnitOfWork(UniversityDbContext dbContext)
         {
@@ -85,6 +86,11 @@ namespace Presistence.Repositories
 
             => _Assignments ??=
                   new AssignmentRepository(_dbContext);
+
+        public IQuizRepository Quizzes 
+            
+            => _quizzes ??=
+                    new QuizRepository(_dbContext);
 
         public async Task<int> SaveChangesAsync()
             => await _dbContext.SaveChangesAsync();

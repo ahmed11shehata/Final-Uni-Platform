@@ -33,11 +33,20 @@ namespace Presistence
         public DbSet<CourseUpload> CourseUploads { get; set; }
         public DbSet<SemesterGPA> SemesterGPAs { get; set; }
         public DbSet<UserStudyYear> UserStudyYears { get; set; }
-
         public DbSet<CourseResult> CourseResults { get; set; }
         public DbSet<CourseOffering> CourseOfferings { get; set; }
         public DbSet<StudentCourseException> StudentCourseExceptions { get; set; }
         public DbSet<Assignment> Assignments { get; set; }
         public DbSet<AssignmentSubmission> AssignmentSubmissions { get; set; }
+
+        public DbSet<Quiz> Quizzes { get; set; }
+
+        public DbSet<QuizQuestion> QuizQuestions { get; set; }
+
+        public DbSet<QuizOption> QuizOptions { get; set; }
+
+        public DbSet<StudentQuizAttempt> StudentQuizAttempts { get; set; }
+
+        public DbSet<StudentAnswer> StudentAnswers { get; set; }
     }
 }
