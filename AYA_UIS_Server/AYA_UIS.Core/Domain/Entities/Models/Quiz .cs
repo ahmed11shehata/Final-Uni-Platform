@@ -8,7 +8,7 @@ namespace AYA_UIS.Core.Domain.Entities.Models
 {
     public class Quiz : BaseEntities<int>
     {
-        public string Title { get; set; }
+        public string Title { get; set; } = string.Empty;
 
         public DateTime StartTime { get; set; }
 
@@ -16,9 +16,9 @@ namespace AYA_UIS.Core.Domain.Entities.Models
 
         public int CourseId { get; set; }
 
-        public Course Course { get; set; }
+        public Course? Course { get; set; }
 
-        public ICollection<QuizQuestion> Questions { get; set; }
-            = new List<QuizQuestion>();
+        public ICollection<QuizQuestion> Questions { get; set; } = new List<QuizQuestion>();
+           
     }
 }

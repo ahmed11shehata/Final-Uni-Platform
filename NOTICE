@@ -1,0 +1,10 @@
+AYA University Information System (AYA_UIS)
+Copyright (c) Ahmed Mohamed Abdel Fattah
+
+This software and its associated components, including the AYA_UIS backend
+(ASP.NET Core) and the AI Study Assistant API (FastAPI), were developed as
+an original work by Ahmed Mohamed Abdel Fattah.
+
+Third-party dependencies (npm packages under node_modules/, Python packages
+under .venv/) retain their respective licenses and are not covered by this
+notice.

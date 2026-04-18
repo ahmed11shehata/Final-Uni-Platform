@@ -40,7 +40,7 @@ namespace Presentation.Controllers
             return Ok(result);
         }
 
-        [HttpGet("{title}")]
+        [HttpGet("by-title/{title}")]
         public async Task<IActionResult> GetByTitle([FromRoute]string title)
         {
             var result = await _mediator.Send(new GetAcademicScheduleByTitleQuery(title));

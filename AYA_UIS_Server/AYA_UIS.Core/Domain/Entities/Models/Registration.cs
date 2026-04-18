@@ -24,5 +24,10 @@ namespace AYA_UIS.Core.Domain.Entities.Models
         public int SemesterId { get; set; }
         public Semester Semester { get; set; } = null!;
         public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
+
+        // Academic Setup / Equivalency
+        public bool IsEquivalency { get; set; } = false;
+        public int? NumericTotal { get; set; } // Raw numeric score (0-100) for equivalency courses
+        public int? TranscriptYear { get; set; } // Admin-selected academic year (1-4) for equivalency records; overrides catalog year
     }
 }

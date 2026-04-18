@@ -9,5 +9,15 @@ namespace AYA_UIS.Application.Contracts
         Task<UserResultDto> RegisterStudentAsync(int departmentId, RegisterStudentDto registerStudentDto);
         Task<string> ResetPasswordAsync(string email, string newPassword);
         Task<string> UpdateRoleByEmailAsync(string email, string newRole);
+
+        /// <summary>
+        /// Gets user info from a JWT token (for GET /api/auth/me).
+        /// </summary>
+        Task<UserResultDto> GetCurrentUserAsync(string userId);
+
+        /// <summary>
+        /// Invalidates a JWT token server-side (for POST /api/auth/logout).
+        /// </summary>
+        Task LogoutAsync(string token);
     }
 }

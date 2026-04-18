@@ -1,0 +1,171 @@
+﻿/* ThemePage.module.css */
+.page {
+  padding: 28px 32px 60px;
+  min-height: 100vh;
+  background: var(--page-bg);
+  font-family: "Sora", sans-serif;
+  color: var(--text-primary);
+}
+
+/* ── Header ── */
+.header {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px; flex-wrap: wrap; gap: 14px;
+}
+.headLeft { display: flex; align-items: center; gap: 16px; }
+.headIcon {
+  width: 52px; height: 52px; border-radius: 16px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  flex-shrink: 0;
+}
+.title {
+  font-size: 26px; font-weight: 800;
+  color: var(--text-primary);
+  margin: 0; letter-spacing: -0.4px;
+}
+.subtitle {
+  font-size: 13px; color: var(--text-muted);
+  font-weight: 500; margin: 4px 0 0;
+}
+.currentBadge {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 12px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  font-size: 13px; font-weight: 500;
+  color: var(--text-secondary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.currentBadge strong { color: var(--text-primary); }
+
+/* ── Theme Grid ── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+/* ── Card ── */
+.card {
+  position: relative; overflow: hidden;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 22px; padding: 0;
+  cursor: pointer; text-align: left;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  transition: box-shadow 0.22s, border-color 0.22s, transform 0.18s;
+  display: flex; flex-direction: column;
+  font-family: "Sora", sans-serif;
+  color: var(--text-primary);
+}
+.card:hover { box-shadow: 0 16px 48px rgba(0,0,0,0.13); }
+
+
+/* Active pill */
+.activePill {
+  position: absolute; top: 11px; right: 11px; z-index: 6;
+  padding: 5px 12px; border-radius: 20px;
+  color: white; font-size: 11px; font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+/* ── Mini UI Preview ── */
+.previewWrap {
+  width: 100%; height: 160px;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden; flex-shrink: 0;
+}
+.mini {
+  width: 100%; height: 100%;
+  display: flex; overflow: hidden;
+}
+.miniSbar {
+  width: 48px; height: 100%; flex-shrink: 0;
+  padding: 10px 6px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.miniLogo { width: 26px; height: 26px; flex-shrink: 0; }
+.miniNav { height: 6px; border-radius: 3px; flex-shrink: 0; }
+.miniMain { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.miniTopbar {
+  height: 26px; flex-shrink: 0;
+  display: flex; align-items: center; padding: 0 8px; gap: 5px;
+}
+.miniCards {
+  flex: 1; padding: 6px 7px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.miniCard { padding: 5px 7px; border-radius: 6px; flex-shrink: 0; }
+
+/* ── Card info ── */
+.info {
+  padding: 13px 14px 14px;
+  display: flex; flex-direction: column; gap: 9px;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+}
+.infoTop {
+  display: flex; align-items: center; gap: 9px;
+}
+.emoji { font-size: 20px; flex-shrink: 0; }
+.infoText {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.name {
+  font-size: 14px; font-weight: 800;
+  color: var(--text-primary);
+  display: block; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.desc {
+  font-size: 11px; font-weight: 500;
+  color: var(--text-muted);
+  display: block; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.darkTag {
+  flex-shrink: 0;
+  width: 28px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  background: rgba(139,92,246,0.1);
+  border: 1px solid rgba(139,92,246,0.2);
+  border-radius: 20px;
+}
+
+/* ── Color swatches ── */
+.swatches { display: flex; gap: 6px; }
+.swatch {
+  width: 22px; height: 22px; border-radius: 7px;
+  border: 1.5px solid rgba(128,128,128,0.2);
+  flex-shrink: 0;
+}
+
+/* ── Tip ── */
+.tip {
+  padding: 13px 20px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 13px;
+  font-size: 13px; font-weight: 500;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .page { padding: 20px 18px 40px; }
+  .grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .header { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 480px) {
+  .grid { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,45 @@
+# ── Build outputs ──────────────────────────────────────────────
+[Bb]in/
+[Oo]bj/
+out/
+publish/
+*.user
+*.suo
+.vs/
+.idea/
+*.DS_Store
+
+# ── .NET ───────────────────────────────────────────────────────
+project.lock.json
+project.fragment.lock.json
+artifacts/
+**/Properties/launchSettings.json
+
+# ── SECRETS — never commit real credentials ─────────────────────
+# Environment-specific overrides (contain real secrets locally)
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/appsettings.Production.json
+**/appsettings.Staging.json
+# dotnet user-secrets live in %APPDATA%\Microsoft\UserSecrets\ — not in the repo
+
+# ── Node / frontend ────────────────────────────────────────────
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# ── Logs ───────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Test results ───────────────────────────────────────────────
+TestResults/
+coverage/
+*.trx
+
+# ── Misc ───────────────────────────────────────────────────────
+*.bak
+*.tmp
+Thumbs.db

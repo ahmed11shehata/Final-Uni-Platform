@@ -1,12 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using MediatR;
-using Shared.Dtos.Info_Module.CourseDtos;
-using Shared.Respones;
+﻿using MediatR;
+using Shared.Dtos.Info_Module.CourseUploadDtos;
 
 namespace AYA_UIS.Application.Queries.Courses
 {
-    public record GetCourseUploadsQuery(int CourseId) : IRequest<Response<CourseWithUploadsDto>>;
+    public record GetCourseUploadsQuery(int CourseId)
+        : IRequest<IEnumerable<CourseUploadDto>>;
 }

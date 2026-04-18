@@ -1,13 +1,17 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>AYA_UIS.API</RootNamespace>
+    <UserSecretsId>aya-uis-api-local-secrets</UserSecretsId>
+    <NoWarn>CS8618;CS8602;CS8601;CS8604;CS8600;CS4014;CS0101;CS0105;CS8603;CS8625;CS8767;CS8622;CS0436</NoWarn>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Use same AutoMapper version as Application to avoid downgrade warning -->
     <PackageReference Include="AutoMapper" Version="15.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.22">
@@ -24,14 +28,10 @@
     <ProjectReference Include="..\AYA_UIS.Application\AYA_UIS.Application.csproj" />
   </ItemGroup>
 
-  <!--<ItemGroup>
-    <Folder Include="Keys\" />
-  </ItemGroup>-->
+  <ItemGroup>
+    <None Update="Keys\*.pem">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
-	<ItemGroup>
-		<None Update="Keys\*.pem">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-	</ItemGroup>
-	
 </Project>

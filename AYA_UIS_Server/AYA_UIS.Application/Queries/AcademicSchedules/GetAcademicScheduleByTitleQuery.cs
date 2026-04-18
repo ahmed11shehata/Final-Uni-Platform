@@ -5,7 +5,7 @@ namespace AYA_UIS.Application.Queries.AcademicSchedules
 {
     public class GetAcademicScheduleByTitleQuery : IRequest<AcademicSchedulesDto>
     {
-        public string ScheduleTitle { get; set; }
+        public string ScheduleTitle { get; set; } = string.Empty;
 
         public GetAcademicScheduleByTitleQuery(string scheduleTitle)
         {

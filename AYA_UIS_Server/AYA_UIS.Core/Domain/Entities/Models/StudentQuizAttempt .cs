@@ -11,11 +11,11 @@ namespace AYA_UIS.Core.Domain.Entities.Models
     {
         public int QuizId { get; set; }
 
-        public Quiz Quiz { get; set; }
+        public Quiz? Quiz { get; set; }
 
-        public string StudentId { get; set; }
+        public string StudentId { get; set; } = string.Empty; 
 
-        public User Student { get; set; }
+        public User? Student { get; set; }
 
         public int Score { get; set; }
 

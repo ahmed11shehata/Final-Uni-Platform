@@ -15,6 +15,6 @@ namespace AYA_UIS.Core.Domain.Entities.Models
 
         public int QuestionId { get; set; }
 
-        public QuizQuestion Question { get; set; } = null!;
+        public QuizQuestion? Question { get; set; } = null!;
     }
 }

@@ -10,13 +10,13 @@ namespace AYA_UIS.Core.Domain.Entities.Models
 {
     public class QuizQuestion : BaseEntities<int>
     {
-        public string QuestionText { get; set; }
+        public string QuestionText { get; set; } = string.Empty;
 
         public QuestionType Type { get; set; }
 
         public int QuizId { get; set; }
 
-        public Quiz Quiz { get; set; }
+        public Quiz? Quiz { get; set; }
 
         public ICollection<QuizOption> Options { get; set; }
             = new List<QuizOption>();

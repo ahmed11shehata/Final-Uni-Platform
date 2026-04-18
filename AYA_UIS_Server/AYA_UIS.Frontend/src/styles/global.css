@@ -1,0 +1,70 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap");
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --page-bg:        #f0f4f8;
+  --sidebar-bg:     #16192a;
+  --topbar-bg:      #ffffff;
+  --topbar-border:  #e8edf2;
+  --card-bg:        #ffffff;
+  --card-bg-2:      #f8fafc;
+  --card-border:    #e2e8f0;
+  --border:         #e2e8f0;
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+  --prog-track:     #f1f5f9;
+  --detail-bg:      #f8fafc;
+  --detail-border:  #f0f4f8;
+  --input-bg:       #ffffff;
+  --hover-bg:       #f1f5f9;
+  --accent:         #818cf8;
+  --red:    #ef4444;
+  --green:  #10b981;
+}
+
+html, body, #root { height: 100%; width: 100%; }
+
+body {
+  font-family: "Sora", sans-serif;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+a  { text-decoration: none; color: inherit; }
+button, input, textarea, select { font-family: "Sora", sans-serif; }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--card-bg-2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+/* ── Dark theme text visibility fix ──
+   Buttons/inputs don't inherit color by default.
+   This ensures all interactive elements use the theme text color. */
+button {
+  color: var(--text-primary);
+}
+input, textarea, select {
+  color: var(--text-primary);
+  background: var(--input-bg, var(--card-bg));
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* Ensure all text in dark themes is visible */
+[data-theme="dark"] button,
+[data-theme="ramadan"] button,
+[data-theme="ocean"] button,
+[data-theme="forest"] button,
+[data-theme="space"] button,
+[data-theme="arctic"] button,
+[data-theme="pharaoh"] button,
+[data-theme="saladin"] button,
+[data-theme="fog"] button {
+  color: var(--text-primary);
+}

@@ -1,43 +1,37 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using AutoMapper;
-using AYA_UIS.Application.Queries.Assignments;
+﻿using AYA_UIS.Application.Queries.Assignments;
 using Domain.Contracts;
 using MediatR;
 using Shared.Dtos.Info_Module.AssignmentDto;
-using Shared.Respones;
 
 namespace AYA_UIS.Application.Handlers.Assignments
 {
     public class GetAssignmentSubmissionsQueryHandler
-: IRequestHandler<GetAssignmentSubmissionsQuery,
-    Response<IEnumerable<AssignmentSubmissionDto>>>
+        : IRequestHandler<GetAssignmentSubmissionsQuery, IEnumerable<AssignmentSubmissionDto>>
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IMapper _mapper;
 
-        public GetAssignmentSubmissionsQueryHandler(
-            IUnitOfWork unitOfWork,
-            IMapper mapper)
+        public GetAssignmentSubmissionsQueryHandler(IUnitOfWork unitOfWork)
         {
             _unitOfWork = unitOfWork;
-            _mapper = mapper;
         }
 
-        public async Task<Response<IEnumerable<AssignmentSubmissionDto>>> Handle(
+        public async Task<IEnumerable<AssignmentSubmissionDto>> Handle(
             GetAssignmentSubmissionsQuery request,
-            CancellationToken cancellationToken)
+            CancellationToken             cancellationToken)
         {
             var submissions = await _unitOfWork.Assignments
                 .GetSubmissions(request.AssignmentId);
 
-            var result = _mapper.Map<IEnumerable<AssignmentSubmissionDto>>(submissions);
-
-            return Response<IEnumerable<AssignmentSubmissionDto>>
-                .SuccessResponse(result);
+            return submissions.Select(s => new AssignmentSubmissionDto
+            {
+                Id          = s.Id,
+                StudentId   = s.StudentId,
+                StudentName = s.Student?.DisplayName ?? s.Student?.UserName ?? "Unknown",
+                FileUrl     = s.FileUrl,
+                SubmittedAt = s.SubmittedAt,
+                Grade       = s.Grade,
+                Feedback    = s.Feedback ?? string.Empty
+            });
         }
     }
 }

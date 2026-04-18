@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -32,6 +32,17 @@ namespace Presistence.Repositories
                     x.CourseId == courseId &&
                     x.StudyYearId == studyYearId &&
                     x.SemesterId == semesterId);
+        }
+
+        public async Task<IEnumerable<StudentCourseException>> GetForUserAsync(string userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return Enumerable.Empty<StudentCourseException>();
+
+            return await _context.StudentCourseExceptions
+                .Where(x => x.UserId == userId)
+                .AsNoTracking()
+                .ToListAsync();
         }
 
         public async Task AddAsync(StudentCourseException entity)

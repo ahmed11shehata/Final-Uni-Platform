@@ -13,8 +13,8 @@ namespace AYA_UIS.Application.Commands.CreateAssignment
     {
         public int AssignmentId { get; set; }
 
-        public string Academic_Code { get; set; }
+        public string? Academic_Code { get; set; } = string.Empty;
 
-        public IFormFile File { get; set; }
+        public IFormFile? File { get; set; }
     }
 }

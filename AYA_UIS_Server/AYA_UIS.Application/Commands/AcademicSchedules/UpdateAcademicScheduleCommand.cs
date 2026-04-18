@@ -9,9 +9,9 @@ namespace AYA_UIS.Application.Commands.AcademicSchedules
 {
     public class UpdateAcademicScheduleCommand : IRequest<Unit>
     {
-        public string Title { get; set; }
-        public string Description { get; set; }
-        public IFormFile File { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public IFormFile? File { get; set; }
 
         public UpdateAcademicScheduleCommand(string title, string description, IFormFile file)
         {

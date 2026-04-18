@@ -1,63 +1,51 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using AYA_UIS.Application.Queries.Courses;
+﻿using AYA_UIS.Application.Queries.Courses;
 using AYA_UIS.Core.Domain.Entities.Identity;
 using Domain.Contracts;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
-using Shared.Dtos.Info_Module.CourseDtos;
-using Shared.Respones;
 using Shared.Dtos.Info_Module.CourseUploadDtos;
 
 namespace AYA_UIS.Application.Handlers.Courses
 {
-    public class GetCourseUploadsQueryHandler : IRequestHandler<GetCourseUploadsQuery, Response<CourseWithUploadsDto>>
+    public class GetCourseUploadsQueryHandler
+        : IRequestHandler<GetCourseUploadsQuery, IEnumerable<CourseUploadDto>>
     {
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly IUnitOfWork       _unitOfWork;
         private readonly UserManager<User> _userManager;
 
-        public GetCourseUploadsQueryHandler(IUnitOfWork unitOfWork, UserManager<User> userManager)
+        public GetCourseUploadsQueryHandler(
+            IUnitOfWork unitOfWork,
+            UserManager<User> userManager)
         {
-            _unitOfWork = unitOfWork;
+            _unitOfWork  = unitOfWork;
             _userManager = userManager;
         }
 
-        public async Task<Response<CourseWithUploadsDto>> Handle(GetCourseUploadsQuery request, CancellationToken cancellationToken)
+        public async Task<IEnumerable<CourseUploadDto>> Handle(
+            GetCourseUploadsQuery request,
+            CancellationToken     cancellationToken)
         {
-            var course = await _unitOfWork.Courses.GetCourseUplaodsAsync(request.CourseId);
-            
-            if (course is null)
-                return Response<CourseWithUploadsDto>.ErrorResponse("Course not found");
+            var uploads = await _unitOfWork.CourseUploads.GetByCourseIdAsync(request.CourseId);
 
-            var userIds = course.CourseUpload.Select(u => u.UploadedByUserId).Distinct().ToList();
-            var users = new Dictionary<string, string>();
-            foreach (var userId in userIds)
+            // Build uploader display-name cache
+            var userIds = uploads.Select(u => u.UploadedByUserId).Distinct().ToList();
+            var nameMap = new Dictionary<string, string>();
+            foreach (var uid in userIds)
             {
-                var user = await _userManager.FindByIdAsync(userId);
-                users[userId] = user?.DisplayName ?? "Unknown";
+                var u = await _userManager.FindByIdAsync(uid);
+                nameMap[uid] = u?.DisplayName ?? "Unknown";
             }
 
-            var result = new CourseWithUploadsDto
+            return uploads.Select(u => new CourseUploadDto
             {
-                Id = course.Id,
-                Code = course.Code,
-                Name = course.Name,
-                Credits = course.Credits,
-                Uploads = course.CourseUpload.Select(u => new CourseUploadDto
-                {
-                    Id = u.Id,
-                    Title = u.Title,
-                    Description = u.Description,
-                    Type = u.Type,
-                    Url = u.Url,
-                    UploadedAt = u.UploadedAt,
-                    UploadedBy = users.GetValueOrDefault(u.UploadedByUserId, "Unknown")
-                }).ToList()
-            };
-
-            return Response<CourseWithUploadsDto>.SuccessResponse(result);
+                Id          = u.Id,
+                Title       = u.Title,
+                Description = u.Description,
+                Type        = u.Type,
+                Url         = u.Url,
+                UploadedAt  = u.UploadedAt,
+                UploadedBy  = nameMap.GetValueOrDefault(u.UploadedByUserId, "Unknown")
+            });
         }
     }
 }

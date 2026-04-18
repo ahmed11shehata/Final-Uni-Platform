@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -36,6 +36,18 @@ namespace Presistence.Repositories
         public async Task AddAsync(CourseOffering offering)
         {
             await _context.CourseOfferings.AddAsync(offering);
+        }
+
+        public async Task<IEnumerable<CourseOffering>> GetAllAsync()
+        {
+            return await _context.CourseOfferings.ToListAsync();
+        }
+
+        public async Task<IEnumerable<CourseOffering>> GetByCourseIdAsync(int courseId)
+        {
+            return await _context.CourseOfferings
+                .Where(x => x.CourseId == courseId)
+                .ToListAsync();
         }
     }
 }

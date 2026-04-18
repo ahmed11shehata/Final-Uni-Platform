@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using AYA_UIS.Core.Domain.Enums;
+﻿using AYA_UIS.Core.Domain.Enums;
 
 namespace Shared.Dtos.Auth_Module
 {
@@ -12,10 +7,10 @@ namespace Shared.Dtos.Auth_Module
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string UserName { get; set; } = string.Empty;
-        public string PhoneNumber { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
         public string DisplayName { get; set; } = string.Empty;
-        public string Academic_Code { get; set; } = string.Empty;     
-        public Levels Level { get; set; }
+        public string Academic_Code { get; set; } = string.Empty;
+        public Levels Level { get; set; } = Levels.First_Year;
         public Gender Gender { get; set; }
     }
 }

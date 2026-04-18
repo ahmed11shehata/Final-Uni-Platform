@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,6 +16,8 @@ namespace AYA_UIS.Core.Domain.Contracts
             int semesterId,
             Levels level);
 
+        Task<IEnumerable<CourseOffering>> GetAllAsync();
+        Task<IEnumerable<CourseOffering>> GetByCourseIdAsync(int courseId);
         Task AddAsync(CourseOffering offering);
     }
 }

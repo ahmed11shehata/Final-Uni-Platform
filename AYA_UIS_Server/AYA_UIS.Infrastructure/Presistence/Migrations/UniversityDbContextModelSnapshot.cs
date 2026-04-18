@@ -22,6 +22,39 @@ namespace Presistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Identity.PasswordResetOtp", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PasswordResetOtps");
+                });
+
             modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Identity.User", b =>
                 {
                     b.Property<string>("Id")
@@ -34,12 +67,24 @@ namespace Presistence.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int?>("AllowedCredits")
                         .HasColumnType("int");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DateOfBirth")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("DepartmentId")
                         .HasColumnType("int");
@@ -55,6 +100,9 @@ namespace Presistence.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<string>("EntryYear")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("Gender")
                         .HasColumnType("int");
 
@@ -66,6 +114,9 @@ namespace Presistence.Migrations
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("MustChangePassword")
+                        .HasColumnType("bit");
 
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
@@ -92,6 +143,13 @@ namespace Presistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Specialization")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SubEmail")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ThemeId")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("TotalCredits")
@@ -185,6 +243,38 @@ namespace Presistence.Migrations
                     b.HasIndex("UploadedByUserId");
 
                     b.ToTable("AcademicSchedules");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.AdminCourseLock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("LockedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("UserId", "CourseId")
+                        .IsUnique();
+
+                    b.ToTable("AdminCourseLocks");
                 });
 
             modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Assignment", b =>
@@ -473,6 +563,47 @@ namespace Presistence.Migrations
                     b.ToTable("Departments");
                 });
 
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.ExamScheduleEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("Duration")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double>("StartTime")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.ToTable("ExamScheduleEntries");
+                });
+
             modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Fee", b =>
                 {
                     b.Property<int>("Id")
@@ -604,8 +735,14 @@ namespace Presistence.Migrations
                     b.Property<int?>("Grade")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IsEquivalency")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsPassed")
                         .HasColumnType("bit");
+
+                    b.Property<int?>("NumericTotal")
+                        .HasColumnType("int");
 
                     b.Property<int>("Progress")
                         .HasColumnType("int");
@@ -625,6 +762,9 @@ namespace Presistence.Migrations
                     b.Property<int>("StudyYearId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("TranscriptYear")
+                        .HasColumnType("int");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasMaxLength(450)
@@ -641,6 +781,182 @@ namespace Presistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Registrations");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.RegistrationCourseInstructor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("InstructorId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InstructorId");
+
+                    b.HasIndex("CourseId", "InstructorId")
+                        .IsUnique();
+
+                    b.ToTable("RegistrationCourseInstructors");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.RegistrationSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AcademicYear")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("Deadline")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EnabledCourses")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("");
+
+                    b.Property<bool>("IsOpen")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int?>("MaxCredits")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OpenYears")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("");
+
+                    b.Property<DateTime?>("OpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OpenedCoursesByYear")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("SchedulePublishedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Semester")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RegistrationSettings");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.SchedulePublish", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("PublishedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PublishedBy")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PublishedData")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SchedulePublishes");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.ScheduleSession", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Day")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double>("EndTime")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Group")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Instructor")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Room")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double>("StartTime")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.ToTable("ScheduleSessions");
                 });
 
             modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Semester", b =>
@@ -1040,6 +1356,25 @@ namespace Presistence.Migrations
                     b.Navigation("UploadedBy");
                 });
 
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.AdminCourseLock", b =>
+                {
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Identity.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Assignment", b =>
                 {
                     b.HasOne("AYA_UIS.Core.Domain.Entities.Models.Course", "Course")
@@ -1175,6 +1510,17 @@ namespace Presistence.Migrations
                     b.Navigation("UploadedBy");
                 });
 
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.ExamScheduleEntry", b =>
+                {
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+                });
+
             modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Fee", b =>
                 {
                     b.HasOne("AYA_UIS.Core.Domain.Entities.Models.Department", "Department")
@@ -1260,6 +1606,36 @@ namespace Presistence.Migrations
                     b.Navigation("StudyYear");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.RegistrationCourseInstructor", b =>
+                {
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Identity.User", "Instructor")
+                        .WithMany()
+                        .HasForeignKey("InstructorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Instructor");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.ScheduleSession", b =>
+                {
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
                 });
 
             modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Semester", b =>

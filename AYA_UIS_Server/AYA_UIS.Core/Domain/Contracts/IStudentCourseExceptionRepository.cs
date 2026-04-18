@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,6 +14,8 @@ namespace AYA_UIS.Core.Domain.Contracts
             int courseId,
             int studyYearId,
             int semesterId);
+
+        Task<IEnumerable<StudentCourseException>> GetForUserAsync(string userId);
 
         Task AddAsync(StudentCourseException entity);
     }

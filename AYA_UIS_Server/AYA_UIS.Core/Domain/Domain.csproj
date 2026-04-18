@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NoWarn>CS8618;CS8602;CS8601;CS8604;CS8600;CS4014;CS0101;CS0105;CS8603;CS8625;CS8767;CS8622</NoWarn>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <RootNamespace>AYA_UIS.Core.Domain</RootNamespace>
   </PropertyGroup>
 

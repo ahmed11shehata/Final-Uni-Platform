@@ -6,11 +6,11 @@ namespace AYA_UIS.Core.Domain.Entities.Models
     {
         public int AssignmentId { get; set; }
 
-        public Assignment Assignment { get; set; } 
+        public Assignment? Assignment { get; set; } 
 
         public string StudentId { get; set; } = string.Empty;
 
-        public User Student { get; set; } 
+        public User? Student { get; set; } 
 
         public string FileUrl { get; set; } = string.Empty;
 

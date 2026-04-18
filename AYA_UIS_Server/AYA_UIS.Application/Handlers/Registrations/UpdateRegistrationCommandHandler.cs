@@ -27,7 +27,7 @@ namespace AYA_UIS.Application.Handlers.Registrations
             registration.Status = request.UpdateDto.Status;
             registration.Reason = request.UpdateDto.Reason;
 
-            _unitOfWork.Registrations.Update(registration);
+            await _unitOfWork.Registrations.Update(registration);
             await _unitOfWork.SaveChangesAsync();
 
             return Unit.Value;

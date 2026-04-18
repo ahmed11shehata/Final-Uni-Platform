@@ -1,0 +1,663 @@
+/* ══════════════════════════════════════════════════
+   CourseDetailPage.module.css
+   ✅ ALL COLORS USE CSS VARS — works on every theme
+══════════════════════════════════════════════════ */
+
+.page {
+  min-height: 100vh;
+  background: var(--page-bg, #f0f4f8);
+  font-family: "Sora", sans-serif;
+}
+
+/* ── Skeleton ── */
+.heroSkeleton {
+  height: 290px;
+  background: linear-gradient(110deg, var(--card-border, #dde3ec) 25%, var(--card-bg-2, #eaf0f7) 50%, var(--card-border, #dde3ec) 75%);
+  background-size: 300% 100%;
+  animation: shimmer 1.5s ease infinite;
+}
+@keyframes shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* HERO CARD */
+.heroWrapper { padding: 0; }
+
+.heroCard {
+  position: relative; border-radius: 0;
+  overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.heroCardBg  { position: absolute; inset: 0; z-index: 0; }
+.heroCardMesh { position: absolute; inset: 0; z-index: 1; }
+
+.heroPattern {
+  position: absolute; inset: 0; z-index: 2; opacity: 0.07;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.heroInner { position: relative; z-index: 10; padding: 22px 28px 0; }
+
+.heroTopRow {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; margin-bottom: 16px;
+}
+
+.backBtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.28);
+  color: white; font-family: inherit; font-size: 12.5px; font-weight: 600;
+  padding: 7px 16px; border-radius: 20px; cursor: pointer;
+  backdrop-filter: blur(8px); transition: background 0.18s;
+}
+.backBtn:hover { background: rgba(255,255,255,0.25); }
+
+/* Progress ring */
+.ringWrap { position: relative; flex-shrink: 0; }
+.ringLabel {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.ringNum  { font-size: 20px; font-weight: 800; color: white; line-height: 1; }
+.ringText { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.7); letter-spacing: 0.06em; text-transform: uppercase; }
+
+.heroInfo { margin-bottom: 18px; }
+
+.codeTag {
+  display: inline-block; background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.3); color: white;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; padding: 4px 11px; border-radius: 6px; margin-bottom: 10px;
+}
+
+.heroTitle {
+  font-size: 28px; font-weight: 800; color: white; margin: 0 0 10px;
+  line-height: 1.2; text-shadow: 0 2px 16px rgba(0,0,0,0.2); min-height: 40px;
+}
+.revealWord { display: inline-block; will-change: transform, opacity, filter; }
+
+.heroDesc {
+  font-size: 13px; color: rgba(255,255,255,0.8); margin: 0 0 16px;
+  line-height: 1.65; max-width: 560px;
+}
+
+.heroPills { display: flex; flex-wrap: wrap; gap: 7px; }
+.heroPill {
+  background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.22);
+  color: white; font-size: 12px; font-weight: 500; padding: 5px 13px;
+  border-radius: 20px; backdrop-filter: blur(4px); white-space: nowrap;
+}
+
+/* Stats strip */
+.statsRow {
+  display: flex; border-top: 1px solid rgba(255,255,255,0.15); margin-top: 4px;
+}
+.statItem {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 12px 6px; border-right: 1px solid rgba(255,255,255,0.1);
+}
+.statItem:last-child { border-right: none; }
+.statNum { font-size: 20px; font-weight: 800; color: white; line-height: 1; }
+.statLbl { font-size: 10px; color: rgba(255,255,255,0.65); font-weight: 500; text-align: center; }
+
+/* TAB BAR */
+.tabBar { display: flex; gap: 4px; padding: 14px 24px 0; background: transparent; }
+
+.tabBtn {
+  position: relative; padding: 0; background: none; border: none;
+  cursor: pointer; border-radius: 12px; overflow: hidden; flex-shrink: 0;
+}
+.tabSlider {
+  position: absolute; inset: 0; border-radius: 12px; z-index: 0;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+.tabLabel {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 7px;
+  padding: 9px 16px; font-family: inherit; font-size: 13px; font-weight: 700;
+  color: var(--text-secondary, #475569); white-space: nowrap; transition: color 0.2s;
+}
+.tabOn .tabLabel { color: white; }
+.tabBadge {
+  background: var(--card-border, #e2e8f0); color: var(--text-secondary, #475569);
+  font-size: 10.5px; font-weight: 700; padding: 2px 7px;
+  border-radius: 10px; transition: background 0.2s, color 0.2s;
+}
+.tabOn .tabBadge { background: rgba(255,255,255,0.25); color: white; }
+
+/* BODY */
+.body { padding: 16px 24px 48px; width: 100%; }
+.tabBody { display: flex; flex-direction: column; gap: 14px; }
+
+/* Progress strip */
+.progStrip {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--card-bg, white); border-radius: 12px;
+  padding: 11px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  border: 1px solid var(--card-border, #e2e8f0);
+}
+.progInfo { display: flex; align-items: center; font-size: 13px; color: var(--text-secondary, #475569); white-space: nowrap; }
+.progLabel { font-weight: 500; }
+.progTrack { flex: 1; height: 6px; background: var(--prog-track, #f1f5f9); border-radius: 4px; overflow: hidden; }
+.progFill  { height: 100%; border-radius: 4px; }
+
+/* LECTURE GRID */
+.lecGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+
+.lecCard {
+  position: relative; border-radius: 16px; border: 1.5px solid var(--card-border, #e2e8f0);
+  overflow: hidden; background: var(--card-bg, white); padding: 18px 18px 16px;
+  display: flex; flex-direction: column; gap: 10px; cursor: default;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.lecCard:hover { border-color: var(--border, #c8d3e0); }
+.lecWatched { border-color: transparent !important; }
+.lecCardBg { position: absolute; inset: 0; z-index: 0; border-radius: 16px; transition: background 0.2s; }
+.lecCardTop, .lecTitleWrap, .lecMeta, .lecCardActions { position: relative; z-index: 1; }
+.lecCardTop { display: flex; align-items: center; gap: 6px; }
+.weekBadge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.04em; }
+.typePill  { font-size: 9.5px; font-weight: 700; padding: 3px 7px; border-radius: 6px; letter-spacing: 0.04em; }
+.checkBadge { margin-left: auto; width: 16px; height: 16px; display: flex; }
+.checkBadge svg { width: 14px; height: 14px; }
+
+.lecTitleWrap { position: relative; border-radius: 8px; overflow: hidden; padding: 8px 9px 6px; margin: 0 -4px; }
+.lecTitleOverlay { position: absolute; inset: 0; border-radius: 8px; pointer-events: none; }
+.lecTitle {
+  font-size: 14.5px; font-weight: 700; color: var(--text-primary, #0f172a);
+  line-height: 1.38; margin: 0;
+  display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.lecMeta {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10.5px; color: var(--text-muted, #94a3b8); font-weight: 500; flex-wrap: wrap;
+}
+.metaDot { opacity: 0.4; }
+
+.lecCardActions { display: flex; align-items: center; gap: 7px; margin-top: 2px; }
+.lecDlBtn {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  background: var(--hover-bg, rgba(0,0,0,0.05)); border: none; border-radius: 8px;
+  cursor: pointer; color: var(--text-secondary, #475569); flex-shrink: 0; transition: background 0.15s;
+}
+.lecDlBtn:hover { background: var(--card-border, rgba(0,0,0,0.1)); }
+.lecDlBtn svg { width: 13px; height: 13px; }
+.lecMainBtn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 7px 10px; border: none; border-radius: 8px; color: white;
+  font-family: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+
+/* ASSIGNMENT CARDS */
+.asnList { display: flex; flex-direction: column; gap: 10px; }
+.asnCard {
+  display: flex; background: var(--card-bg, white); border-radius: 14px;
+  border: 1.5px solid var(--card-border, #e2e8f0); overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05); transition: box-shadow 0.2s, transform 0.18s;
+}
+.asnCard:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.asnStripe { width: 4px; flex-shrink: 0; }
+.asnBody   { flex: 1; min-width: 0; }
+.asnRow { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.asnIdx {
+  width: 38px; height: 38px; flex-shrink: 0; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; letter-spacing: -0.03em;
+}
+.asnInfo { flex: 1; min-width: 0; }
+.asnTitle {
+  font-size: 14px; font-weight: 700; color: var(--text-primary, #0f172a); margin-bottom: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.asnMeta {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--text-muted, #94a3b8); font-weight: 500; flex-wrap: wrap;
+}
+.asnRight { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.gradeRing {
+  width: 48px; height: 48px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; padding: 5px; flex-shrink: 0;
+}
+.gradeIn {
+  width: 100%; height: 100%; background: var(--card-bg, white); border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.gradeN { font-size: 13px; font-weight: 800; line-height: 1; }
+.gradeM { font-size: 9.5px; font-weight: 600; color: var(--text-muted, #94a3b8); line-height: 1; }
+
+.asnUploadBtn {
+  display: flex; align-items: center; gap: 5px; padding: 7px 13px; border: none;
+  border-radius: 9px; color: white; font-family: inherit; font-size: 12.5px;
+  font-weight: 700; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.18); white-space: nowrap;
+}
+
+.uploadPad { padding: 0 16px 14px; border-top: 1px solid var(--detail-border, #f1f5f9); }
+
+.uploadArea { display: flex; flex-direction: column; gap: 8px; }
+.dropZone {
+  border: 2px dashed var(--card-border, #d4dbe5); border-radius: 12px; padding: 18px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  cursor: pointer; background: var(--detail-bg, #fafbfd); transition: all 0.18s;
+}
+.dropActive { background: var(--hover-bg, #f5f8ff); border-color: var(--border, #c0c8d8); }
+.dropIco { width: 26px; height: 26px; display: flex; }
+.dropIco svg { width: 26px; height: 26px; color: var(--text-muted, #94a3b8); }
+.dropLine { font-size: 13.5px; font-weight: 600; color: var(--text-secondary, #475569); margin: 0; }
+.dropHint { font-size: 11px; color: var(--text-muted, #94a3b8); margin: 0; }
+.fileInfo { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.fileName { font-size: 13px; font-weight: 700; color: var(--text-primary, #0f172a); }
+.fileSize { font-size: 11px; color: var(--text-muted, #94a3b8); }
+.submitBtn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px;
+  border: none; border-radius: 10px; color: white; font-family: inherit;
+  font-size: 13.5px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+}
+.uploadOk {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(16,185,129,0.12); border: 1.5px solid rgba(16,185,129,0.28);
+  border-radius: 12px; padding: 12px 16px;
+}
+.uploadOkCircle {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(16,185,129,0.2);
+}
+.uploadOkTitle { font-size: 14px; font-weight: 700; color: #10b981; }
+.uploadOkSub   { font-size: 11.5px; color: rgba(16,185,129,0.8); margin-top: 2px; }
+
+/* Status chip — rgba-based backgrounds work on all themes */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 700; white-space: nowrap;
+}
+.chipDot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* QUIZ CARDS */
+.quizGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.quizCard {
+  background: var(--card-bg, white); border: 1.5px solid var(--card-border, #e2e8f0);
+  border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 11px;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; cursor: default;
+}
+.quizOpen { background: var(--card-bg-2, #fdfcff); }
+.quizScoreArea { display: flex; align-items: center; justify-content: space-between; }
+.scoreDial { width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 5px; }
+.scoreInner {
+  width: 100%; height: 100%; background: var(--card-bg, white); border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.scoreNum { font-size: 16px; font-weight: 800; line-height: 1; }
+.scoreMax { font-size: 10px; font-weight: 600; color: var(--text-muted, #94a3b8); line-height: 1; }
+.scorePlaceholder {
+  width: 54px; height: 54px; border-radius: 50%;
+  background: var(--card-bg-2, #f8fafc);
+  display: flex; align-items: center; justify-content: center;
+}
+.quizTitle { font-size: 13.5px; font-weight: 700; color: var(--text-primary, #0f172a); line-height: 1.35; }
+.quizMeta { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--text-muted, #94a3b8); font-weight: 500; }
+.startBtn {
+  width: 100%; padding: 10px; border: none; border-radius: 10px; color: white;
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  margin-top: 2px; box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+}
+
+@media (max-width: 640px) {
+  .heroTitle  { font-size: 21px; }
+  .body       { padding: 14px 14px 40px; }
+  .lecGrid    { grid-template-columns: 1fr 1fr; }
+  .quizGrid   { grid-template-columns: 1fr 1fr; }
+  .statsRow   { flex-wrap: wrap; }
+  .asnRow     { flex-wrap: wrap; }
+}
+@media (max-width: 420px) {
+  .lecGrid  { grid-template-columns: 1fr; }
+  .quizGrid { grid-template-columns: 1fr; }
+}
+
+/* GRADES TAB */
+.gradeSummaryGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gradeSumCard {
+  background: var(--card-bg, white); border: 1.5px solid;
+  border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;
+}
+.gradeSumTop { display: flex; align-items: center; gap: 8px; }
+.gradeSumIcon  { font-size: 18px; }
+.gradeSumLabel { font-size: 12px; font-weight: 800; color: var(--text-secondary, #475569); text-transform: uppercase; letter-spacing: 0.5px; flex: 1; }
+.pendingPill {
+  font-size: 10.5px; font-weight: 700; color: #f59e0b;
+  background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.28);
+  padding: 2px 8px; border-radius: 20px;
+}
+.gradeSumScore { display: flex; align-items: baseline; gap: 3px; }
+.gradeSumEarned { font-size: 32px; font-weight: 900; line-height: 1; letter-spacing: -1px; }
+.gradeSumMax    { font-size: 15px; font-weight: 600; color: var(--text-muted, #94a3b8); }
+.gradeBarRow { display: flex; align-items: center; gap: 10px; }
+.gradeBarTrack { flex: 1; height: 7px; background: var(--prog-track, #f1f5f9); border-radius: 20px; overflow: hidden; }
+.gradeBarFill  { height: 100%; border-radius: 20px; }
+.gradeBarPct   { font-size: 12px; font-weight: 800; min-width: 34px; text-align: right; }
+.gradeSumLetter {
+  display: inline-flex; align-items: center; justify-content: center;
+  align-self: flex-start; padding: 4px 12px; border-radius: 8px; font-size: 14px; font-weight: 900;
+}
+.gradeSection { background: var(--card-bg, white); border-radius: 16px; border: 1.5px solid var(--card-border, #e2e8f0); overflow: hidden; }
+.gradeSectionHeader {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 18px; background: var(--detail-bg, #fafbfd);
+  border-bottom: 1px solid var(--detail-border, #f1f5f9);
+}
+.gradeSectionTitle { font-size: 13px; font-weight: 800; color: var(--text-secondary, #475569); }
+.gradeSectionTotal { font-size: 13px; font-weight: 800; }
+.gradeItemList { padding: 8px 0; }
+.gradeItem {
+  display: flex; align-items: center; gap: 12px; padding: 11px 18px;
+  border-bottom: 1px solid var(--detail-border, #f1f5f9); transition: background 0.15s;
+}
+.gradeItem:last-child { border-bottom: none; }
+.gradeItem:hover { background: var(--hover-bg, #fafbfd); }
+.gradeItemLeft { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gradeItemName {
+  font-size: 13px; font-weight: 700; color: var(--text-primary, #0f172a);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gradeItemDate { font-size: 11px; color: var(--text-muted, #94a3b8); font-weight: 500; }
+.gradeItemBar   { width: 100px; flex-shrink: 0; }
+.gradeItemScore { font-size: 13px; font-weight: 800; min-width: 40px; text-align: right; flex-shrink: 0; }
+.gradeItemNA {
+  font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px;
+  background: var(--detail-bg, #f8fafc); color: var(--text-muted, #94a3b8); white-space: nowrap; flex-shrink: 0;
+}
+
+/* ASSIGNMENT GRID CARDS */
+.asnGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 13px; }
+.asnCard2 {
+  position: relative; background: var(--card-bg, white); border: 1.5px solid var(--card-border, #e2e8f0);
+  border-radius: 16px; padding: 18px 18px 16px; display: flex; flex-direction: column;
+  gap: 9px; overflow: hidden; transition: border-color 0.2s;
+}
+.asnCard2:hover { border-color: var(--border, #c8d3e0); }
+.asnCardBg { position: absolute; inset: 0; z-index: 0; border-radius: 16px; }
+.asnCard2Top, .asnCard2Title, .asnCard2Meta, .asnCard2Footer { position: relative; z-index: 1; }
+.asnCard2Top { display: flex; align-items: center; gap: 8px; }
+.asnCard2Idx { font-size: 12px; font-weight: 900; padding: 4px 10px; border-radius: 8px; letter-spacing: 0.04em; }
+.asnCard2Title { font-size: 14px; font-weight: 700; color: var(--text-primary, #0f172a); line-height: 1.35; }
+.asnCard2Meta {
+  display: flex; align-items: center; gap: 5px; font-size: 11px;
+  color: var(--text-muted, #94a3b8); font-weight: 500; flex-wrap: wrap;
+}
+.asnCard2Footer { margin-top: 4px; display: flex; align-items: center; }
+.asnGradeDial { width: 54px; height: 54px; border-radius: 50%; padding: 5px; display: flex; align-items: center; justify-content: center; }
+.asnGradeDialIn {
+  width: 100%; height: 100%; background: var(--card-bg, white); border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.asnSubmitBtn {
+  display: flex; align-items: center; gap: 7px; padding: 9px 18px; border: none;
+  border-radius: 10px; color: white; font-family: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2); width: 100%; justify-content: center;
+}
+.asnCard2Upcoming { font-size: 11.5px; color: var(--text-muted, #94a3b8); font-weight: 600; }
+
+/* UPLOAD MODAL */
+.uploadModal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+  z-index: 999; display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.uploadModalBox {
+  background: var(--card-bg, white); border: 1.5px solid var(--card-border, #e2e8f0);
+  border-radius: 24px; width: 100%; max-width: 560px;
+  overflow: hidden; box-shadow: 0 32px 80px rgba(0,0,0,0.4);
+}
+.umHeader {
+  position: relative; padding: 28px 28px 24px; overflow: hidden; min-height: 130px;
+}
+.umHeaderBg {
+  position: absolute; inset: 0;
+  background: linear-gradient(145deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.06) 100%);
+}
+.umHeaderContent { position: relative; z-index: 1; }
+.umClose {
+  position: absolute; top: 18px; right: 18px; width: 34px; height: 34px;
+  border-radius: 10px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
+  color: white; font-size: 14px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; z-index: 2; transition: background 0.15s;
+}
+.umClose:hover { background: rgba(255,255,255,0.35); }
+.umCourseName {
+  font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.72);
+  letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 10px;
+}
+.umTitle {
+  font-size: 22px; font-weight: 800; color: white; margin: 0;
+  line-height: 1.25; text-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+.umDetails {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  border-bottom: 1px solid var(--card-border, #e2e8f0);
+  background: var(--card-bg, white);
+}
+.umDetailItem {
+  display: flex; align-items: center; gap: 12px; padding: 14px 22px;
+  border-right: 1px solid var(--card-border, #e2e8f0);
+  border-bottom: 1px solid var(--card-border, #e2e8f0);
+  background: var(--card-bg, white);
+}
+.umDetailItem:nth-child(even) { border-right: none; }
+.umDetailItem:nth-last-child(-n+2) { border-bottom: none; }
+.umDetailIcon  { font-size: 20px; flex-shrink: 0; }
+.umDetailLabel { font-size: 10.5px; font-weight: 700; color: var(--text-muted, #94a3b8); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+.umDetailVal   { font-size: 13px; font-weight: 700; color: var(--text-primary, #0f172a); }
+.umBody        { padding: 22px 24px 24px; background: var(--card-bg, white); }
+/* ── Midterm hero card ── */
+.midtermCard {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--card-bg); border: 2px solid; border-radius: 20px;
+  padding: 22px 24px; gap: 20px;
+}
+.midtermLeft  { flex: 1; }
+.midtermLabel { font-size: .72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 8px; }
+.midtermScore { display: flex; align-items: baseline; gap: 3px; margin-bottom: 10px; }
+.midtermNum   { font-size: 2.8rem; font-weight: 900; line-height: 1; letter-spacing: -.03em; }
+.midtermMax   { font-size: 1.1rem; color: var(--text-muted); font-weight: 600; }
+.midtermBarWrap { display: flex; align-items: center; gap: 10px; }
+.midtermBarTrack { flex: 1; height: 8px; background: var(--prog-track); border-radius: 99px; overflow: hidden; }
+.midtermBarFill  { height: 100%; border-radius: 99px; }
+.midtermPct { font-size: .82rem; font-weight: 800; flex-shrink: 0; }
+.midtermRight {}
+.midtermCircle {
+  width: 80px; height: 80px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.midtermCircleNum { font-size: 1.6rem; font-weight: 900; line-height: 1; }
+.midtermCircleSym { font-size: .7rem; font-weight: 700; }
+
+/* ── Nav buttons ── */
+.gradeNavBtns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.gradeNavBtn {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px; border-radius: 16px;
+  border: 1.5px solid var(--border); background: var(--card-bg);
+  cursor: pointer; font-family: 'Sora', sans-serif; text-align: left;
+  transition: border-color .2s, box-shadow .2s, transform .2s;
+}
+.gradeNavBtn:hover {
+  border-color: var(--nc);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--nc) 15%, transparent);
+  background: color-mix(in srgb, var(--nc) 5%, var(--card-bg));
+}
+.gradeNavIcon  { font-size: 1.6rem; flex-shrink: 0; }
+.gradeNavTitle { font-size: .9rem; font-weight: 800; color: var(--text-primary); margin-bottom: 3px; }
+.gradeNavSub   { font-size: .72rem; color: var(--text-muted); }
+.gradeNavArrow { font-size: 1.2rem; font-weight: 700; color: var(--text-muted); margin-left: auto; flex-shrink: 0; }
+
+/* ── Section total banner ── */
+.sectionTotalBanner {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 14px 18px; border-top: 1.5px solid; flex-wrap: wrap;
+}
+.sectionTotalLabel { font-size: .78rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.sectionTotalRight { display: flex; align-items: center; gap: 10px; }
+.sectionTotalNum  { font-size: 1.4rem; font-weight: 900; }
+.sectionTotalMax  { font-size: .82rem; color: var(--text-muted); font-weight: 600; }
+.sectionTotalBarWrap { width: 80px; height: 6px; background: var(--prog-track); border-radius: 99px; overflow: hidden; }
+.sectionTotalBar { height: 100%; border-radius: 99px; }
+.sectionTotalPct { font-size: .82rem; font-weight: 800; }
+
+/* ── Tab total bar (assignments & quizzes) ── */
+.tabTotalBar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; padding: 14px 20px; border-radius: 14px;
+  border: 1.5px solid; margin-top: 16px; flex-wrap: wrap;
+}
+.tabTotalLabel { font-size: .74rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.tabTotalRight { display: flex; align-items: center; gap: 10px; }
+.tabTotalNum  { font-size: 1.4rem; font-weight: 900; }
+.tabTotalMax  { font-size: .8rem; color: var(--text-muted); font-weight: 600; }
+.tabTotalTrack { width: 90px; height: 6px; background: var(--prog-track); border-radius: 99px; overflow: hidden; }
+.tabTotalFill  { height: 100%; border-radius: 99px; }
+.tabTotalPct  { font-size: .82rem; font-weight: 800; }
+
+/* ── Grades Tab — split layout ── */
+/* ── Grades Tab — full width ── */
+.gradesWrap {
+  display: flex; flex-direction: column; gap: 0;
+  background: var(--card-bg); border-radius: 16px; overflow: hidden;
+}
+
+/* Top tab selector */
+.gradesTabs {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+  border-bottom: 1.5px solid var(--border);
+}
+.gradesTab {
+  position: relative; display: flex; align-items: center; gap: 12px;
+  padding: 18px 20px; border: none; background: none;
+  cursor: pointer; font-family: 'Sora', sans-serif; text-align: left;
+  transition: background .16s; border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.gradesTab:last-child { border-right: none; }
+.gradesTab:hover { background: var(--hover-bg); }
+.gradesTabOn { background: color-mix(in srgb, var(--gt) 7%, var(--card-bg)) !important; }
+
+/* Active bar at top */
+.gradesTabBar {
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  transform-origin: left; border-radius: 0 0 99px 99px;
+}
+.gradesTabIcon   { font-size: 1.4rem; flex-shrink: 0; }
+.gradesTabCenter { flex: 1; }
+.gradesTabLabel  { font-size: .9rem; font-weight: 800; display: block; color: var(--text-primary); }
+.gradesTabRight  { text-align: right; flex-shrink: 0; }
+.gradesTabVal    { font-size: 1.05rem; font-weight: 900; display: block; color: var(--text-secondary); }
+.gradesTabSub    { font-size: .68rem; color: var(--text-muted); font-weight: 600; }
+
+/* Content area */
+.gradesContent { min-height: 400px; }
+
+/* Not published */
+.gradesNotPublished {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 80px 30px; text-align: center; color: var(--text-muted);
+}
+.gradesNotPublished span { font-size: 3rem; }
+.gradesNotPublished h3 { font-size: 1.1rem; font-weight: 800; margin: 0; color: var(--text-primary); }
+.gradesNotPublished p  { font-size: .84rem; margin: 0; }
+
+/* Midterm full */
+.midtermFull {}
+
+/* Hero grade area */
+.midHero {
+  display: flex; align-items: center; gap: 28px;
+  padding: 30px 32px; border-bottom: 1.5px solid;
+  background: var(--detail-bg, var(--hover-bg));
+}
+.midHeroCircleWrap {
+  width: 120px; height: 120px; position: relative; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.midHeroSvg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.midHeroCircleInner {
+  display: flex; align-items: baseline; gap: 3px; z-index: 1;
+}
+.midHeroGrade { font-size: 2.4rem; font-weight: 900; line-height: 1; letter-spacing: -.04em; }
+.midHeroMax   { font-size: .9rem; color: var(--text-muted); font-weight: 600; }
+
+.midHeroInfo  { flex: 1; }
+.midHeroPct   { font-size: 3rem; font-weight: 900; line-height: 1; letter-spacing: -.04em; margin-bottom: 4px; }
+.midHeroLabel { font-size: .78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 12px; }
+.midHeroBar   { margin-bottom: 14px; }
+.midHeroBarTrack { height: 10px; background: var(--prog-track); border-radius: 99px; overflow: hidden; }
+.midHeroBarFill  { height: 100%; border-radius: 99px; }
+.midHeroRemark {
+  display: inline-flex; padding: 6px 16px; border-radius: 99px;
+  font-size: .82rem; font-weight: 800; border: 1px solid;
+}
+
+/* Exam details grid */
+.midDetails {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--border);
+}
+.midDetailCard {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 20px 22px; background: var(--card-bg); transition: background .14s;
+}
+.midDetailCard:hover { background: var(--hover-bg); }
+.midDetailIco   { font-size: 1.3rem; flex-shrink: 0; margin-top: 2px; }
+.midDetailLabel { font-size: .68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
+.midDetailVal   { font-size: .95rem; font-weight: 800; }
+
+/* Banner (assignments / quizzes) */
+.gradesBanner {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 20px 26px; border-bottom: 1.5px solid; flex-wrap: wrap;
+}
+.gradesBannerLeft { display: flex; align-items: center; gap: 14px; }
+.gradesBannerIcon { font-size: 1.6rem; }
+.gradesBannerTitle{ font-size: 1rem; font-weight: 900; margin-bottom: 3px; }
+.gradesBannerSub  { font-size: .74rem; color: var(--text-muted); }
+.gradesBannerScore{ display: flex; align-items: baseline; gap: 4px; }
+.gradesBannerNum  { font-size: 2rem; font-weight: 900; line-height: 1; }
+.gradesBannerMax  { font-size: .88rem; color: var(--text-muted); font-weight: 600; }
+
+/* Grade items list */
+.gradesList { display: flex; flex-direction: column; }
+.gradesItem {
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px 26px; border-bottom: 1px solid var(--border); transition: background .13s;
+}
+.gradesItem:last-child { border-bottom: none; }
+.gradesItem:hover { background: var(--hover-bg); }
+.gradesItemInfo { flex: 1; min-width: 0; }
+.gradesItemName { font-size: .95rem; font-weight: 700; margin-bottom: 5px; }
+.gradesItemSub  { font-size: .74rem; color: var(--text-muted); }
+.gradesItemRight { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.gradesItemBarWrap { display: flex; align-items: center; gap: 10px; }
+.gradesItemBar  { width: 120px; height: 6px; background: var(--prog-track); border-radius: 99px; overflow: hidden; }
+.gradesItemPct  { font-size: .78rem; font-weight: 700; min-width: 36px; text-align: right; }
+.gradesItemScore { font-size: 1.05rem; font-weight: 900; min-width: 52px; text-align: right; }
+.gradesItemScoreMax { font-size: .74rem; color: var(--text-muted); font-weight: 600; }
+.gradesItemNA {
+  font-size: .76rem; font-weight: 700; padding: 5px 14px; border-radius: 99px;
+  background: var(--hover-bg); color: var(--text-muted);
+}
+
+/* Responsive */
+@media (max-width: 720px) {
+  .midHero       { flex-direction: column; align-items: flex-start; padding: 22px 20px; }
+  .midHeroCircleWrap { width: 100px; height: 100px; }
+  .midHeroPct    { font-size: 2.2rem; }
+  .midDetails    { grid-template-columns: 1fr 1fr; }
+  .gradesTabs    { grid-template-columns: 1fr; }
+  .gradesTab     { border-right: none; border-bottom: 1px solid var(--border); }
+}
+@media (max-width: 480px) {
+  .midDetails    { grid-template-columns: 1fr; }
+  .gradesItemBar { width: 70px; }
+}

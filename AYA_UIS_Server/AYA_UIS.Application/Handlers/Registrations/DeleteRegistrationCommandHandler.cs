@@ -26,7 +26,7 @@ namespace AYA_UIS.Application.Handlers.Registrations
                 throw new NotFoundException("Registration not found");
             
 
-            _unitOfWork.Registrations.Delete(registration);
+            await _unitOfWork.Registrations.Delete(registration);
             await _unitOfWork.SaveChangesAsync();
 
             return Unit.Value;

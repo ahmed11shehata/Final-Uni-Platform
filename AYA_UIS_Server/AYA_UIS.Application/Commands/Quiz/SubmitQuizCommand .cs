@@ -13,6 +13,6 @@ namespace AYA_UIS.Application.Commands.Quiz
     {
         public SubmitQuizDto Submission { get; set; }
 
-        public string StudentId { get; set; }
+        public string? StudentId { get; set; } = string.Empty;
     }
 }

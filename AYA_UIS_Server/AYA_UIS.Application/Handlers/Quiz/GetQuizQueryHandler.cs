@@ -1,19 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using AYA_UIS.Application.Queries.Quiz;
+﻿using AYA_UIS.Application.Queries.Quiz;
 using Domain.Contracts;
 using MediatR;
 using Shared.Dtos.Info_Module.QuizDto;
-using Shared.Respones;
 
 namespace AYA_UIS.Application.Handlers.Quiz
 {
     public class GetQuizQueryHandler
-     : IRequestHandler<GetQuizQuery,
-         Response<IEnumerable<QuizQuestionDto>>>
+        : IRequestHandler<GetQuizQuery, FrontendQuizDto?>
     {
         private readonly IUnitOfWork _unitOfWork;
 
@@ -22,32 +15,37 @@ namespace AYA_UIS.Application.Handlers.Quiz
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<Response<IEnumerable<QuizQuestionDto>>> Handle(
+        public async Task<FrontendQuizDto?> Handle(
             GetQuizQuery request,
             CancellationToken cancellationToken)
         {
             var quiz = await _unitOfWork.Quizzes
                 .GetQuizWithQuestionsAsync(request.QuizId);
 
-            if (quiz == null)
-                return Response<IEnumerable<QuizQuestionDto>>
-                    .ErrorResponse("Quiz not found");
+            if (quiz == null) return null;
 
-            var questions = quiz.Questions.Select(q =>
-                new QuizQuestionDto
+            return new FrontendQuizDto
+            {
+                Id            = quiz.Id,
+                Title         = quiz.Title,
+                CourseId      = quiz.CourseId,
+                CourseCode    = quiz.Course?.Code ?? string.Empty,
+                StartTime     = quiz.StartTime,
+                EndTime       = quiz.EndTime,
+                Duration      = (int)Math.Round((quiz.EndTime - quiz.StartTime).TotalMinutes),
+                QuestionCount = quiz.Questions?.Count ?? 0,
+                Questions     = quiz.Questions?.Select(q => new FrontendQuizQuestionDto
                 {
-                    QuestionId = q.Id,
-                    QuestionText = q.QuestionText,
-                    Options = q.Options.Select(o =>
-                        new QuizOptionDto
-                        {
-                            Id = o.Id,
-                            Text = o.Text
-                        }).ToList()
-                });
-
-            return Response<IEnumerable<QuizQuestionDto>>
-                .SuccessResponse(questions);
+                    Id   = q.Id,
+                    Text = q.QuestionText,
+                    Type = "MultipleChoice",
+                    Options = q.Options?.Select(o => new FrontendQuizOptionDto
+                    {
+                        Id   = o.Id,
+                        Text = o.Text
+                    }).ToList() ?? new()
+                }).ToList()
+            };
         }
     }
 }

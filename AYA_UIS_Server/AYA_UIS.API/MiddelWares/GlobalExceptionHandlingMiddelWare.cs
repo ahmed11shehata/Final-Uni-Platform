@@ -1,6 +1,6 @@
-﻿using AYA_UIS.Shared.Exceptions;
-using Shared.Dtos.ErrorModels;
-using Shared.Exceptions;
+using System.Net;
+using System.Text.Json;
+using AYA_UIS.Shared.Exceptions;
 
 namespace AYA_UIS.MiddelWares
 {
@@ -9,9 +9,11 @@ namespace AYA_UIS.MiddelWares
         private readonly RequestDelegate _next;
         private readonly ILogger<GlobalExceptionHandlingMiddelWare> _logger;
 
-        public GlobalExceptionHandlingMiddelWare(RequestDelegate next, ILogger<GlobalExceptionHandlingMiddelWare> logger)
+        public GlobalExceptionHandlingMiddelWare(
+            RequestDelegate next,
+            ILogger<GlobalExceptionHandlingMiddelWare> logger)
         {
-            _next = next;
+            _next   = next;
             _logger = logger;
         }
 
@@ -20,74 +22,70 @@ namespace AYA_UIS.MiddelWares
             try
             {
                 await _next(context);
-                if (context.Response.StatusCode == StatusCodes.Status404NotFound)
-                    await HandelExceptionAsync(context );
+            }
+            // ── Custom typed exceptions (BaseException hierarchy) ──────────
+            catch (BaseException ex)
+            {
+                _logger.LogWarning(ex, "{ErrorCode}: {Message}", ex.ErrorCode, ex.Message);
+                await WriteJsonError(context, (HttpStatusCode)ex.StatusCode,
+                    ex.Message, ex.ErrorCode);
+            }
+            // ── Standard .NET exceptions ───────────────────────────────────
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning(ex, "Validation error: {Message}", ex.Message);
+                await WriteJsonError(context, HttpStatusCode.BadRequest,
+                    ex.Message, "VALIDATION_ERROR");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized: {Message}", ex.Message);
+                await WriteJsonError(context, HttpStatusCode.Unauthorized,
+                    "Invalid email or password.", "INVALID_CREDENTIALS");
+            }
+            catch (KeyNotFoundException ex)
+            {
+                _logger.LogWarning(ex, "Not found: {Message}", ex.Message);
+                await WriteJsonError(context, HttpStatusCode.NotFound,
+                    ex.Message, "NOT_FOUND");
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Invalid operation: {Message}", ex.Message);
+                await WriteJsonError(context, HttpStatusCode.BadRequest,
+                    ex.Message, "INVALID_OPERATION");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Somthing Went Wrong {ex.Message}");
-                await HandelErrorExceptAsync(context, ex);
-
+                _logger.LogError(ex, "Unhandled exception on {Path}", context.Request.Path);
+                await WriteJsonError(context, HttpStatusCode.InternalServerError,
+                    "An unexpected server error occurred. Please try again later.", "INTERNAL_SERVER_ERROR");
             }
-
-
-
         }
 
-
-        private async Task HandelExceptionAsync(HttpContext content)
+        /// <summary>
+        /// Writes a standardised JSON error envelope:
+        /// { "success": false, "error": { "code": "ENUM", "message": "..." } }
+        /// </summary>
+        private static Task WriteJsonError(
+            HttpContext  context,
+            HttpStatusCode statusCode,
+            string       message,
+            string? code = null)
         {
-            content.Request.ContentType = "application/json";
-            var response = new ErrorDetails()
+            context.Response.StatusCode  = (int)statusCode;
+            context.Response.ContentType = "application/json";
+            var errorResponse = new
             {
-                StatusCode = StatusCodes.Status404NotFound,
-                ErrorMessage = $"The end Point {content.Request.Path} Not Found "
-            }.ToString();
-
-            await content.Response.WriteAsync(response);
-        }
-
-        private async Task HandelErrorExceptAsync(HttpContext content, Exception ex)
-        {
-            content.Response.ContentType = "application/json";
-
-            //3]Write response in body 
-            var response = new ErrorDetails
-            {
-
-                ErrorMessage = ex.ToString()
-
+                success = false,
+                error = new
+                {
+                    code    = code ?? statusCode.ToString(),
+                    message = message
+                }
             };
-
-            //1] Change StatusCode 
-            content.Response.StatusCode = ex switch
-            {
-                ValidationException validationException => HandelValidationException(validationException, response),
-                UnauthorizedException => StatusCodes.Status401Unauthorized,
-                ForbiddenException => StatusCodes.Status403Forbidden,
-                NotFoundException => StatusCodes.Status404NotFound,
-                BadRequestException => StatusCodes.Status400BadRequest,
-                ConflictException => StatusCodes.Status409Conflict,
-                PromotionException => StatusCodes.Status400BadRequest,
-                InternalServerErrorException => StatusCodes.Status500InternalServerError,
-                BaseException baseException => baseException.StatusCode,
-                (_) => StatusCodes.Status500InternalServerError
-            };
-
-            //2]ChangeContentType 
-
-            response.StatusCode = content.Response.StatusCode;
-            await content.Response.WriteAsync(response.ToString());
-
-           
-
+            var body = JsonSerializer.Serialize(errorResponse);
+            return context.Response.WriteAsync(body);
         }
-
-        private int HandelValidationException(ValidationException validationException, ErrorDetails response)
-        {
-            response.Errors = validationException.Errors;
-            return StatusCodes.Status400BadRequest;
-        }
-
     }
 }
