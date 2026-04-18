@@ -1,55 +1,48 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using AYA_UIS.Application.Queries.Assignments;
+﻿using AYA_UIS.Application.Queries.Assignments;
 using Domain.Contracts;
 using MediatR;
 using Shared.Dtos.Info_Module.AssignmentDto;
-using Shared.Respones;
 
 namespace AYA_UIS.Application.Handlers.Assignments
 {
     public class GetStudentAssignmentGradesQueryHandler
-: IRequestHandler<GetStudentAssignmentGradesQuery,
-    Response<IEnumerable<StudentAssignmentGradeDto>>>
+        : IRequestHandler<GetStudentAssignmentGradesQuery, IEnumerable<StudentAssignmentGradeDto>>
     {
         private readonly IUnitOfWork _unitOfWork;
 
-        public GetStudentAssignmentGradesQueryHandler(
-            IUnitOfWork unitOfWork)
+        public GetStudentAssignmentGradesQueryHandler(IUnitOfWork unitOfWork)
         {
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<Response<IEnumerable<StudentAssignmentGradeDto>>> Handle(
+        public async Task<IEnumerable<StudentAssignmentGradeDto>> Handle(
             GetStudentAssignmentGradesQuery request,
-            CancellationToken cancellationToken)
+            CancellationToken               cancellationToken)
         {
             var assignments = await _unitOfWork.Assignments
-                 .GetAssignmentsWithSubmissions(request.CourseId);
+                .GetAssignmentsByCourseIdAsync(request.CourseId);
 
-            var result = assignments.Select(a =>
+            var result = new List<StudentAssignmentGradeDto>();
+
+            foreach (var a in assignments)
             {
-                var submission = a.Submissions?
-                    .FirstOrDefault(s => s.StudentId == request.StudentId);
+                var subs = await _unitOfWork.Assignments.GetSubmissions(a.Id);
+                var mySub = subs.FirstOrDefault(s => s.StudentId == request.StudentId);
 
-                return new StudentAssignmentGradeDto
+                result.Add(new StudentAssignmentGradeDto
                 {
-                    AssignmentId = a.Id,
+                    AssignmentId    = a.Id,
                     AssignmentTitle = a.Title,
-                    Points = a.Points,
-                    Deadline = a.Deadline,
-                    FileUrl = a.FileUrl,
-                    Grade = submission?.Grade,
-                    Feedback = submission?.Feedback,
-                    SubmittedAt = submission?.SubmittedAt
-                };
-            }).ToList();
+                    Points          = a.Points,
+                    Deadline        = a.Deadline,
+                    SubmittedAt     = mySub?.SubmittedAt,
+                    Grade           = mySub?.Grade,
+                    Feedback        = mySub?.Feedback,
+                    FileUrl         = mySub?.FileUrl
+                });
+            }
 
-            return Response<IEnumerable<StudentAssignmentGradeDto>>
-                .SuccessResponse(result);
+            return result;
         }
     }
 }

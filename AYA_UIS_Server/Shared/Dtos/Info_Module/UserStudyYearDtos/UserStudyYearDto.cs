@@ -1,4 +1,4 @@
-using AYA_UIS.Core.Domain.Enums;
+﻿using AYA_UIS.Core.Domain.Enums;
 
 namespace Shared.Dtos.Info_Module.UserStudyYearDtos
 {
@@ -12,6 +12,8 @@ namespace Shared.Dtos.Info_Module.UserStudyYearDtos
         public Levels Level { get; set; }
         public string LevelName { get; set; } = string.Empty;
         public bool IsCurrent { get; set; }
-        public DateTime EnrolledAt { get; set; }
+        public DateTime EnrolledAt     { get; set; }
+        public int?     CurrentSemesterId { get; set; }
     }
 }
+

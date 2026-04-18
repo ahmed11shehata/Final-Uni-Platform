@@ -5,6 +5,8 @@
     <RootNamespace>AYA_UIS.Application</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NoWarn>CS8618;CS8602;CS8601;CS8604;CS8600;CS4014;CS0101;CS0105;CS8603;CS8625;CS8767;CS8622</NoWarn>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,14 +14,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AutoMapper" Version="15.1.0" />
-	  <PackageReference Include="MediatR" Version="14.0.0" />
+	<PackageReference Include="AutoMapper" Version="13.0.1" />
+	<PackageReference Include="MediatR" Version="14.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AYA_UIS.Core\Abstractions\Abstraction.csproj" />
     <ProjectReference Include="..\Shared\Shared.csproj" />
     <ProjectReference Include="..\AYA_UIS.Core\Domain\Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AYA_UIS.Application.UnitTests" />
   </ItemGroup>
 
 </Project>

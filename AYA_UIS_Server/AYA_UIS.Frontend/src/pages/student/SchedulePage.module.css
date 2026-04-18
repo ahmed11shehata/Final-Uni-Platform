@@ -1,0 +1,311 @@
+/* SchedulePage.module.css — student page aligned to admin schedule design */
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinIcon { width: 16px; height: 16px; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; }
+
+/* ══════════ PAGE ══════════ */
+.page {
+  padding: 20px 24px 40px;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent, #818cf8) 8%, transparent), transparent 26%),
+    radial-gradient(circle at top left, rgba(20, 184, 166, 0.06), transparent 18%),
+    var(--page-bg);
+  color: var(--text-primary);
+  font-family: 'Sora', sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ══════════ HEADER ══════════ */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.headerL {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.headerTitle {
+  font-size: 1.6rem;
+  font-weight: 900;
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+.headerSub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+/* ══════════ CONTROLS ══════════ */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border, var(--border));
+  border-radius: 14px;
+  padding: 10px 14px;
+}
+.ctrlL { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ctrlR { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* Year tabs */
+.yearTabs { display: flex; gap: 4px; }
+.yearTab {
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--card-bg);
+  border: 1.5px solid var(--border);
+  color: var(--text-muted);
+  font-family: 'Sora', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  transition: all 0.15s;
+}
+.yearTab:hover { border-color: var(--text-muted); color: var(--text-primary); }
+.yearTabOn {
+  background: color-mix(in srgb, var(--yc) 10%, var(--card-bg)) !important;
+  border-color: var(--yc) !important;
+  color: var(--yc) !important;
+}
+.ytNum { font-weight: 900; }
+
+/* Segmented control */
+.seg {
+  display: flex;
+  background: var(--detail-bg, var(--hover-bg));
+  border-radius: 8px;
+  padding: 2px;
+  border: 1px solid var(--border);
+}
+.segBtn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  font-family: 'Sora', sans-serif;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.segBtn:hover { color: var(--text-secondary); }
+.segOn {
+  background: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  font-weight: 700;
+}
+
+/* ══════════ YEAR BANNER ══════════ */
+.yrBanner {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--yc) 10%, transparent), color-mix(in srgb, var(--yc) 4%, var(--card-bg)) 56%),
+    var(--card-bg);
+  border: 1px solid color-mix(in srgb, var(--yc) 22%, var(--border));
+  box-shadow: 0 16px 36px rgba(2, 6, 23, 0.07);
+}
+.yrBanner::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--yc), color-mix(in srgb, var(--yc) 62%, #14b8a6));
+  opacity: 0.92;
+}
+.yrBannerDot  {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--yc);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--yc) 16%, transparent);
+  flex-shrink: 0;
+}
+.yrBannerText {
+  font-size: 0.98rem;
+  font-weight: 900;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.yrBannerCount {
+  font-size: 0.73rem;
+  font-weight: 800;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--yc) 10%, var(--card-bg));
+  color: var(--yc);
+  border: 1px solid color-mix(in srgb, var(--yc) 22%, var(--border));
+  white-space: nowrap;
+}
+.yrBannerHint {
+  justify-self: end;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-style: normal;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ══════════ SCHEDULE GRID ══════════ */
+.scheduleWrap { display: flex; flex-direction: column; gap: 8px; }
+.grid {
+  display: flex;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent, #818cf8) 3%, transparent), transparent 54%),
+    var(--card-bg);
+  border: 1px solid color-mix(in srgb, var(--accent, #818cf8) 12%, var(--card-border, var(--border)));
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 16px 36px rgba(2, 6, 23, 0.08);
+}
+.timeCol      { width: 66px; flex-shrink: 0; border-right: 1px solid var(--border); }
+.timeColHead  {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.timeSlot { display: flex; align-items: flex-start; justify-content: center; border-bottom: 1px solid var(--border); padding-top: 3px; }
+.timeLabel{ font-size: 0.64rem; font-weight: 600; color: var(--text-muted); }
+
+.dayCol   { flex: 1; min-width: 0; border-right: 1px solid var(--border); }
+.dayCol:last-child { border-right: none; }
+.dayHead  {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border-bottom: 1px solid var(--border);
+  background: var(--detail-bg, var(--hover-bg));
+}
+.dayBody  { position: relative; }
+.hourLine { position: absolute; left: 0; right: 0; height: 1px; background: var(--border); pointer-events: none; opacity: 0.6; }
+
+/* Session block */
+.sessBlock {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: 8px;
+  border-left: 4px solid var(--sc, #818cf8);
+  padding: 6px 8px;
+  cursor: default;
+  overflow: hidden;
+  transition: box-shadow 0.12s;
+  transform-origin: top;
+}
+.sessBlock:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+
+.sessTop  { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+.sessCode { font-size: 0.64rem; font-weight: 900; letter-spacing: 0.04em; color: white; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; }
+.sessType { font-size: 0.56rem; font-weight: 800; padding: 1px 4px; border-radius: 3px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.03em; }
+.sessL    { background: color-mix(in srgb, var(--sc, #818cf8) 14%, transparent); color: var(--sc, #818cf8); }
+.sessS    { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
+.sessName {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin-bottom: 2px;
+}
+.sessMeta { font-size: 0.7rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 1px; line-height: 1.3; }
+.sessTime { font-size: 0.64rem; color: var(--text-muted); font-weight: 600; }
+.sessGrp  { position: absolute; bottom: 4px; right: 6px; font-size: 0.56rem; font-weight: 900; padding: 1px 5px; border-radius: 4px; }
+
+/* Empty */
+.empty      { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 20px; text-align: center; background: var(--card-bg); border: 1px solid var(--card-border, var(--border)); border-radius: 18px; }
+.emptyTitle { font-size: 0.92rem; font-weight: 800; color: var(--text-primary); margin: 0; }
+.emptyHint  { font-size: 0.76rem; color: var(--text-muted); margin: 0; }
+
+/* Exams */
+.examsWrap  { display: flex; flex-direction: column; gap: 8px; }
+.examsGrid  { display: flex; flex-direction: column; gap: 8px; }
+.examCard   {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border, var(--border));
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.examCard:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06); transform: translateY(-1px); }
+.examStripe { width: 4px; flex-shrink: 0; }
+.examBody   { display: flex; align-items: center; gap: 14px; padding: 11px 14px; flex: 1; }
+.examTile   {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  border: 1px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.examMo     { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+.examDy     { font-size: 1.3rem; font-weight: 900; line-height: 1; color: var(--text-primary); }
+.examWk     { font-size: 0.54rem; color: var(--text-muted); font-weight: 600; }
+.examInfo   { flex: 1; min-width: 0; }
+.examCode   { font-size: 0.7rem; font-weight: 800; margin-bottom: 2px; }
+.examName   { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.examMeta   { display: flex; align-items: center; gap: 10px; font-size: 0.7rem; color: var(--text-secondary); flex-wrap: wrap; }
+.examR      { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+.examCd     { font-size: 0.7rem; font-weight: 800; padding: 3px 10px; border-radius: 99px; border: 1px solid; white-space: nowrap; }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .grid     { overflow-x: auto; }
+  .dayCol   { min-width: 100px; }
+  .controls { flex-direction: column; align-items: flex-start; }
+  .yrBanner { grid-template-columns: auto 1fr; }
+  .yrBannerCount,
+  .yrBannerHint { justify-self: start; }
+}
+@media (max-width: 640px) {
+  .page     { padding: 14px 14px 36px; }
+  .headerL  { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .headerTitle { font-size: 1.3rem; }
+  .ctrlR { width: 100%; }
+  .yearTabs { width: 100%; flex-wrap: wrap; }
+  .yearTab { flex: 1 1 calc(50% - 4px); text-align: center; }
+  .seg { width: 100%; }
+  .segBtn { flex: 1; justify-content: center; }
+  .examMeta { flex-direction: column; gap: 3px; align-items: flex-start; }
+}

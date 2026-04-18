@@ -14,8 +14,8 @@ namespace AYA_UIS.Application.Commands.CreateAssignment
     {
         public CreateAssignmentDto AssignmentDto { get; set; }
 
-        public IFormFile File { get; set; }
+        public IFormFile? File { get; set; }
 
-        public string InstructorId { get; set; }
+        public string InstructorId { get; set; } = string.Empty;
     }
 }

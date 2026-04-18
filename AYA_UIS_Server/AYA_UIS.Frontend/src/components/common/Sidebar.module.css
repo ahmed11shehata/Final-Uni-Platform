@@ -1,0 +1,530 @@
+/* ══════════════════════════════════════════════════
+   SIDEBAR — Original design preserved exactly
+   Only change: timeTag → clockPill (small & styled)
+══════════════════════════════════════════════════ */
+
+.sidebar {
+  height: 100vh;
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar-bg, #16192a);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 6px 0 40px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.topGlow {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 220px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ══ LOGO ══════════════════════════════════════ */
+.logoRow {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 13px 16px;
+  flex-shrink: 0;
+}
+
+.logoMark {
+  width: 36px; height: 36px;
+  flex-shrink: 0;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+}
+
+.logoText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.logoMain {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.88);
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.logoSub {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.25);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.toggleBtn {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+  transition: color 0.2s, background 0.2s;
+}
+
+.toggleBtn:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.toggleBtn svg { width: 13px; height: 13px; }
+
+/* ══ USER CARD ════════════════════════════════ */
+.userSection {
+  position: relative;
+  z-index: 2;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+
+.userCard {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.userCardInner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px;
+}
+
+/* Avatar */
+.avatar {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800;
+  color: white;
+  flex-shrink: 0;
+  cursor: default;
+  position: relative;
+}
+
+.onlineDot {
+  position: absolute;
+  bottom: -2px; right: -2px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  border: 2px solid #0d0f1c;
+}
+
+/* Text */
+.userInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.userName {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.1px;
+}
+
+.userRole {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  opacity: 0.9;
+}
+
+/* ── Clock pill — small, replaces old timeTag ─── */
+.clockPill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 3px 7px 3px 6px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid;
+}
+
+.clockDot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.clockTime {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Mini (collapsed) */
+.userMini {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0 6px;
+}
+
+.avatarMini {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; font-weight: 800;
+  color: white;
+  cursor: default;
+  position: relative;
+}
+
+/* ══ SEPARATOR ════════════════════════════════ */
+.sep {
+  position: relative;
+  z-index: 2;
+  padding: 0 14px;
+  margin: 10px 0;
+  flex-shrink: 0;
+}
+
+.sepLine {
+  height: 1px;
+  transform-origin: left;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.08) 70%,
+    transparent
+  );
+}
+
+.sectionLabel {
+  position: relative;
+  z-index: 2;
+  display: block;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.16);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 0 18px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+}
+
+/* ══ NAV ══════════════════════════════════════ */
+.nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 2;
+}
+
+.nav::-webkit-scrollbar { width: 0; }
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 10px;
+  border-radius: 11px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.36);
+  text-decoration: none;
+  position: relative;
+  white-space: nowrap;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.navItem:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.navActive {
+  color: rgba(255, 255, 255, 0.95) !important;
+  font-weight: 600;
+}
+
+/* Active background — ORIGINAL, unchanged */
+.activeBg {
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Icon */
+.iconWrap {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  transition: color 0.2s;
+}
+
+.iconWrap svg { width: 18px; height: 18px; }
+
+.iconActive {
+  color: var(--accent) !important;
+}
+
+/* Label */
+.navLabel {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* Badges */
+.badge {
+  position: relative;
+  z-index: 1;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.badgeNum {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.badgeNew {
+  background: rgba(139, 124, 248, 0.15);
+  color: #a99ff5;
+  border: 1px solid rgba(139, 124, 248, 0.25);
+  animation: newPulse 3s ease-in-out infinite;
+}
+
+@keyframes newPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+
+.activeBar {
+  display: none;
+}
+
+/* ══ TOOLTIP ══════════════════════════════════ */
+.tooltip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1a1d2e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 7px 13px;
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+}
+
+.tipBadge {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.45);
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.tipArrow {
+  position: absolute;
+  left: -5px; top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  width: 8px; height: 8px;
+  background: #1a1d2e;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ══ BOTTOM ═══════════════════════════════════ */
+.bottom {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  padding-bottom: 12px;
+}
+
+.logoutBox {
+  margin: 0 10px 8px;
+  padding: 12px 12px 11px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.logoutQuestion {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 500;
+  margin: 0;
+  text-align: center;
+}
+
+.logoutBtns {
+  display: flex;
+  gap: 6px;
+}
+
+.btnConfirm {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 9px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 3px 12px rgba(220, 38, 38, 0.3);
+}
+
+.btnConfirm:hover {
+  background: #ef4444;
+  box-shadow: 0 4px 18px rgba(220, 38, 38, 0.45);
+}
+
+.btnIcon {
+  display: flex;
+  width: 14px; height: 14px;
+  flex-shrink: 0;
+}
+.btnIcon svg { width: 14px; height: 14px; }
+
+.btnCancel {
+  flex: 1;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.btnCancel:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.logoutBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.28);
+  border-radius: 11px;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  transition: color 0.2s;
+}
+
+.logoutBtn:hover {
+  color: rgba(248, 113, 113, 0.9);
+}
+
+.logoutOpen {
+  color: rgba(248, 113, 113, 0.75) !important;
+}
+
+.logoutHoverBg {
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+  pointer-events: none;
+}
+
+.logoutIconWrap {
+  width: 19px; height: 19px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.logoutIconWrap svg { width: 19px; height: 19px; }
+
+.logoutLabel {
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.logoutDot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #f87171;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.5);
+}

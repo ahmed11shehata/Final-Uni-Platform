@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(dotnet ef:*)",
+      "Bash(cmd:*)",
+      "Bash(git -C \"D:/kak/Private/final_project\" log --oneline -5)",
+      "Bash(git -C \"D:/kak/Private/final_project\" diff --stat HEAD)",
+      "Bash(xargs grep:*)",
+      "Bash(sqlcmd:*)",
+      "Bash(taskkill /F /IM \"AYA_UIS.API.exe\")",
+      "Bash(taskkill /F /FI \"WINDOWTITLE eq AYA_UIS*\")",
+      "Bash(taskkill /F /IM AYA_UIS.API.exe)",
+      "Bash(dotnet run:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000/api/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5001/api/health)",
+      "Bash(curl -s -X POST http://localhost:5282/api/auth/login -H \"Content-Type: application/json\" -d \"{\\\\\"email\\\\\":\\\\\"admin@university.edu\\\\\",\\\\\"password\\\\\":\\\\\"Admin@123\\\\\"}\")",
+      "Bash(curl:*)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(powershell -Command \"Start-Process -FilePath 'dotnet' -ArgumentList 'run','--no-build','--project','D:\\\\kak\\\\Private\\\\final_project\\\\AYA_UIS_Server\\\\AYA_UIS.API\\\\AYA_UIS.API.csproj' -WorkingDirectory 'D:\\\\kak\\\\Private\\\\final_project\\\\AYA_UIS_Server\\\\AYA_UIS.API' -PassThru | Select-Object -ExpandProperty Id\")",
+      "Bash(powershell:*)",
+      "Bash(grep -l \"Publish\" \"D:/kak/Private/final_project/AYA_UIS_Server/AYA_UIS.Infrastructure/Presistence/Migrations/\"*.cs)",
+      "Bash(find \"D:/kak/Private/final_project/AYA_UIS_Server/AYA_UIS.Infrastructure/Presistence/Migrations\" -name \"*.cs\" -type f -exec grep -l \"CreateTable\" {} \\\\;)",
+      "Bash(xargs cat:*)",
+      "Bash(find \"D:\\\\kak\\\\Private\\\\final_project\\\\AYA_UIS_Server\\\\AYA_UIS.Frontend\\\\src\" -type f \\\\\\( -name \"*.jsx\" -o -name \"*.js\" \\\\\\) -exec grep -l \"setInterval.*inc\\\\|animated.*count\\\\|Counter\\\\|increment\" {} \\\\;)",
+      "Bash(grep:*)",
+      "Bash(npx vite:*)"
+    ]
+  }
+}

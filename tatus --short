@@ -1,0 +1,133 @@
+warning: in the working copy of 'AYA_UIS_Server/AYA_UIS.Core/Services/Implementatios/StudentRegistrationService.cs', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/AYA_UIS_Server/AYA_UIS.Core/Services/Implementatios/StudentRegistrationService.cs b/AYA_UIS_Server/AYA_UIS.Core/Services/Implementatios/StudentRegistrationService.cs[m
+[1mindex 4fe52f4..68d5c91 100644[m
+[1m--- a/AYA_UIS_Server/AYA_UIS.Core/Services/Implementatios/StudentRegistrationService.cs[m
+[1m+++ b/AYA_UIS_Server/AYA_UIS.Core/Services/Implementatios/StudentRegistrationService.cs[m
+[36m@@ -1,10 +1,13 @@[m
+ using AYA_UIS.Application.Contracts;[m
+ using AYA_UIS.Core.Domain.Entities.Identity;[m
+ using AYA_UIS.Core.Domain.Entities.Models;[m
+[32m+[m[32musing AYA_UIS.Core.Domain.Enums;[m
+ using Domain.Contracts;[m
+ using Microsoft.AspNetCore.Identity;[m
+ using Microsoft.EntityFrameworkCore;[m
+[32m+[m[32musing OpenedCourseEntryInternal = Shared.Dtos.Admin_Module.OpenedCourseEntryInternal;[m
+ using Shared.Dtos.Student_Module;[m
+[32m+[m[32musing System.Text.Json;[m
+ [m
+ namespace Services.Implementatios[m
+ {[m
+[36m@@ -13,6 +16,11 @@[m [mnamespace Services.Implementatios[m
+         private readonly IUnitOfWork _unitOfWork;[m
+         private readonly UserManager<User> _userManager;[m
+ [m
+[32m+[m[32m        // Stable colors/patterns per course code[m
+[32m+[m[32m        private static readonly string[] Colors = { "#4F46E5", "#059669", "#D97706", "#DC2626", "#7C3AED", "#0891B2", "#6366f1", "#3b82f6", "#22c55e", "#e05c8a", "#f97316", "#14b8a6" };[m
+[32m+[m[32m        private static readonly string[] Patterns = { "mosaic", "waves", "circles", "squares", "diamonds", "dots" };[m
+[32m+[m[32m        private static readonly string[] Shades = { "#EEF2FF", "#ECFDF5", "#FFFBEB", "#FEF2F2", "#F5F3FF", "#ECFEFF" };[m
+[32m+[m
+         public StudentRegistrationService([m
+             IUnitOfWork unitOfWork,[m
+             UserManager<User> userManager)[m
+[36m@@ -21,44 +29,32 @@[m [mnamespace Services.Implementatios[m
+             _userManager = userManager;[m
+         }[m
+ [m
+[31m-        /// <summary>[m
+[31m-        /// Returns the live registration status from the SAME RegistrationSettings[m
+[31m-        /// record used by Admin endpoints.[m
+[31m-        /// </summary>[m
+[32m+[m[32m        private static int StableIndex(string code) =>[m
+[32m+[m[32m            Math.Abs(code?.GetHashCode(StringComparison.OrdinalIgnoreCase) ?? 0);[m
+[32m+[m
+[32m+[m[32m        // ═══════════════════════════════════════════════════════════════[m
+[32m+[m[32m        //  GET /api/student/registration/status[m
+[32m+[m[32m        // ═══════════════════════════════════════════════════════════════[m
+         public async Task<RegistrationStatusDto> GetRegistrationStatusAsync(string userId)[m
+         {[m
+             var user = await _userManager.FindByIdAsync(userId);[m
+             var settings = await _unitOfWork.RegistrationSettings.GetCurrentAsync();[m
+ [m
+[31m-            // Parse open years from the settings (same parsing as AdminService)[m
+[31m-            var openYears = new List<int>();[m
+[31m-            if (settings != null && !string.IsNullOrWhiteSpace(settings.OpenYears))[m
+[31m-            {[m
+[31m-                openYears = settings.OpenYears[m
+[31m-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)[m
+[31m-                    .Select(x => int.TryParse(x, out var n) ? n : 0)[m
+[31m-                    .Where(n => n > 0)[m
+[31m-                    .ToList();[m
+[31m-            }[m
+[32m+[m[32m            int studentYear = LevelToYear(user?.Level);[m
+[32m+[m[32m            int maxCredits = ResolveMaxCredits(user, settings);[m
+ [m
+[31m-            // Determine max credits: custom override from admin, or user's allowed, or default 21[m
+[31m-            int maxCredits = user?.AllowedCredits ?? 21;[m
+[31m-            if (settings?.MaxCredits != null && settings.MaxCredits > 0)[m
+[31m-                maxCredits = settings.MaxCredits.Value;[m
+[32m+[m[32m            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(userId);[m
+[32m+[m[32m            var allCourses = (await _unitOfWork.Courses.GetAllAsync()).ToDictionary(c => c.Id);[m
+ [m
+[31m-            // Compute current registered credits for this student[m
+             int currentCredits = 0;[m
+             var registeredCourses = new List<string>();[m
+[31m-            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(userId);[m
+ [m
+[31m-            // Only count active/pending registrations[m
+             var activeRegistrations = registrations[m
+[31m-                .Where(r => r.Status == AYA_UIS.Core.Domain.Enums.RegistrationStatus.Approved ||[m
+[31m-                            r.Status == AYA_UIS.Core.Domain.Enums.RegistrationStatus.Pending)[m
+[32m+[m[32m                .Where(r => (r.Status == RegistrationStatus.Approved ||[m
+[32m+[m[32m                             r.Status == RegistrationStatus.Pending) &&[m
+[32m+[m[32m                            !r.IsEquivalency)[m
+                 .ToList();[m
+ [m
+[31m-            var allCourses = (await _unitOfWork.Courses.GetAllAsync()).ToDictionary(c => c.Id);[m
+[31m-[m
+             foreach (var reg in activeRegistrations)[m
+             {[m
+                 if (allCourses.TryGetValue(reg.CourseId, out var course))[m
+[36m@@ -68,7 +64,6 @@[m [mnamespace Services.Implementatios[m
+                 }[m
+             }[m
+ [m
+[31m-            // Failed courses: grade was entered but not passed[m
+             var failedCourses = registrations[m
+                 .Where(r => r.Grade.HasValue && !r.IsPassed)[m
+                 .Select(r => allCourses.TryGetValue(r.CourseId, out var c) ? c.Code : null)[m
+[36m@@ -76,145 +71,303 @@[m [mnamespace Services.Implementatios[m
+                 .Distinct()[m
+                 .ToList()!;[m
+ [m
+[31m-            // Locked courses (admin-locked for this student)[m
+             var locks = await _unitOfWork.AdminCourseLocks.GetLockedCoursesForUserAsync(userId);[m
+             var lockedCourses = locks[m
+                 .Select(l => allCourses.TryGetValue(l.CourseId, out var c) ? c.Code : null)[m
+                 .Where(code => code != null)[m
+                 .ToList()!;[m
+ [m
+[32m+[m[32m            // Compute opened pool credits for student's bucket[m
+[32m+[m[32m            int openedPoolCredits = 0;[m
+[32m+[m[32m            if (settings != null && settings.IsOpen)[m
+[32m+[m[32m            {[m
+[32m+[m[32m                var openedByYear = ParseOpenedCoursesByYearRich(settings);[m
+[32m+[m[32m                if (openedByYear.TryGetValue(studentYear.ToString(), out var entries))[m
+[32m+[m[32m                {[m
+[32m+[m[32m                    var openedCodes = entries.Select(e => e.CourseCode).ToHashSet(StringComparer.OrdinalIgnoreCase);[m
+[32m+[m[32m                    openedPoolCredits = allCourses.Values[m
+[32m+[m[32m                        .Where(c => openedCodes.Contains(c.Code))[m
+[32m+[m[32m                        .Sum(c => c.Credits);[m
+[32m+[m[32m                }[m
+[32m+[m[32m            }[m
+[32m+[m
+             return new RegistrationStatusDto[m
+             {[m
+                 Open = settings?.IsOpen ?? false,[m
+[31m-                AllowedYears = openYears,[m
+[32m+[m[32m                AllowedYears = ParseOpenYears(settings),[m
+                 CurrentCredits = currentCredits,[m
+                 MaxCredits = maxCredits,[m
+[32m+[m[32m                OpenedPoolCredits = openedPoolCredits,[m
+                 RegisteredCourses = registeredCourses!,[m
+                 FailedCourses = failedCourses!,[m
+[31m-                LockedCourses = lockedCours

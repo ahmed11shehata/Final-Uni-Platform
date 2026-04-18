@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,5 +16,9 @@ namespace Shared.Dtos.Info_Module.RegistrationDtos
         public Grads Grade { get; set; } // null if the course is not yet completed, otherwise it holds the grade received
         public bool IsPassed { get; set; } // This property indicates whether the course has been passed
         public CourseDto Course { get; set; } = null!;
+        // Convenience fields for frontend
+        public int    CourseId   { get; set; }
+        public string CourseCode { get; set; } = string.Empty;
+        public string CourseName { get; set; } = string.Empty;
     }
 }

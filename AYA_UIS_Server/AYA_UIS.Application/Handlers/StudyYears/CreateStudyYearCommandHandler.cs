@@ -28,7 +28,7 @@ namespace AYA_UIS.Application.Handlers.StudyYears
             };
 
             // Add the new StudyYear to the repository
-            _unitOfWork.StudyYears.AddAsync(studyYear);
+            await _unitOfWork.StudyYears.AddAsync(studyYear);
 
             // Save changes to the database
             await _unitOfWork.SaveChangesAsync();

@@ -30,7 +30,7 @@ namespace AYA_UIS.Application.Handlers.Semesters
             };
 
             // Add the new Semester to the repository
-            _unitOfWork.Semesters.AddAsync(semester);
+            await _unitOfWork.Semesters.AddAsync(semester);
 
             // Save changes to the database
             await _unitOfWork.SaveChangesAsync();

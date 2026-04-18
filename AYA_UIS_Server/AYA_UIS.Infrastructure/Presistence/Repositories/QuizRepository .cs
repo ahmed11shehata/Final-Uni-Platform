@@ -1,61 +1,76 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using AYA_UIS.Core.Domain.Contracts;
-using AYA_UIS.Core.Domain.Entities.Models;
+﻿using AYA_UIS.Core.Domain.Entities.Models;
+using Domain.Contracts;
 using Microsoft.EntityFrameworkCore;
+using Presistence;
 
 namespace Presistence.Repositories
 {
     public class QuizRepository : IQuizRepository
     {
-        private readonly UniversityDbContext _context;
+        private readonly UniversityDbContext _dbContext;
 
-        public QuizRepository(UniversityDbContext context)
+        public QuizRepository(UniversityDbContext dbContext)
         {
-            _context = context;
+            _dbContext = dbContext;
         }
 
-        public async Task AddQuizAsync(Quiz quiz)
+        public async Task<IEnumerable<Quiz>> GetQuizzesByCourseId(int courseId)
         {
-            await _context.Quizzes.AddAsync(quiz);
-        }
-
-        public async Task<Quiz?> GetQuizAsync(int quizId)
-        {
-            return await _context.Quizzes.FindAsync(quizId);
+            return await _dbContext.Quizzes
+                .Include(q => q.Course)
+                .Include(q => q.Questions)
+                .Where(q => q.CourseId == courseId)
+                .AsNoTracking()
+                .ToListAsync();
         }
 
         public async Task<Quiz?> GetQuizWithQuestionsAsync(int quizId)
         {
-            return await _context.Quizzes
+            return await _dbContext.Quizzes
+                .Include(q => q.Course)
                 .Include(q => q.Questions)
-                .ThenInclude(q => q.Options)
+                    .ThenInclude(q => q.Options)
                 .FirstOrDefaultAsync(q => q.Id == quizId);
+        }
+
+        public async Task<Quiz?> GetQuizAsync(int quizId)
+        {
+            return await _dbContext.Quizzes
+                .FirstOrDefaultAsync(q => q.Id == quizId);
+        }
+
+        public async Task AddAsync(Quiz quiz)
+        {
+            await _dbContext.Quizzes.AddAsync(quiz);
+        }
+
+        public async Task AddQuizAsync(Quiz quiz)
+        {
+            await _dbContext.Quizzes.AddAsync(quiz);
         }
 
         public async Task AddQuestionAsync(QuizQuestion question)
         {
-            await _context.QuizQuestions.AddAsync(question);
-        }
-
-        public async Task AddAttemptAsync(StudentQuizAttempt attempt)
-        {
-            await _context.StudentQuizAttempts.AddAsync(attempt);
+            await _dbContext.QuizQuestions.AddAsync(question);
         }
 
         public async Task<bool> AttemptExists(int quizId, string studentId)
         {
-            return await _context.StudentQuizAttempts
+            return await _dbContext.StudentQuizAttempts
                 .AnyAsync(a => a.QuizId == quizId && a.StudentId == studentId);
         }
 
-        public async Task<IEnumerable<Quiz>>GetQuizzesByCourseId(int courseId)
+        public async Task AddAttemptAsync(StudentQuizAttempt attempt)
         {
-            return await _context.Quizzes
-                .Where(q => q.CourseId == courseId)
+            await _dbContext.StudentQuizAttempts.AddAsync(attempt);
+        }
+
+        public async Task<IEnumerable<StudentQuizAttempt>> GetAttemptsByQuizIdAsync(int quizId)
+        {
+            return await _dbContext.StudentQuizAttempts
+                .Include(a => a.Student)
+                .Where(a => a.QuizId == quizId)
+                .AsNoTracking()
                 .ToListAsync();
         }
     }

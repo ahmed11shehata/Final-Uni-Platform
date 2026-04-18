@@ -1,4 +1,4 @@
-using AutoMapper;
+﻿using AutoMapper;
 using AYA_UIS.Core.Domain.Entities.Models;
 using Shared.Dtos.Info_Module.AcademicSheduleDtos;
 using Shared.Dtos.Info_Module.AssignmentDto;
@@ -41,7 +41,10 @@ namespace AYA_UIS.Application.Mapping
             CreateMap<CreateCourseUploadDto, CourseUpload>();
 
             //Registration mappings
-            CreateMap<Registration, RegistrationCourseDto>();
+            CreateMap<Registration, RegistrationCourseDto>()
+                .ForMember(dest => dest.CourseId,   opt => opt.MapFrom(src => src.Course != null ? src.Course.Id   : src.CourseId))
+                .ForMember(dest => dest.CourseCode, opt => opt.MapFrom(src => src.Course != null ? src.Course.Code : string.Empty))
+                .ForMember(dest => dest.CourseName, opt => opt.MapFrom(src => src.Course != null ? src.Course.Name : string.Empty));
 
             // Fee mappings
             CreateMap<Fee, FeeDto>()
@@ -50,8 +53,12 @@ namespace AYA_UIS.Application.Mapping
             CreateMap<CreateFeeDto, Fee>();
 
             CreateMap<Assignment, AssignmentDto>()
-                                                 .ForMember(dest => dest.InstructorName,
-opt => opt.MapFrom(src => src.CreatedBy.UserName));
+                .ForMember(dest => dest.InstructorName,
+                    opt => opt.MapFrom(src => src.CreatedBy != null
+                        ? (src.CreatedBy.DisplayName ?? src.CreatedBy.UserName)
+                        : string.Empty))
+                .ForMember(dest => dest.CourseName,
+                    opt => opt.MapFrom(src => src.Course != null ? src.Course.Name : string.Empty));
 
 
             CreateMap<AssignmentSubmission, AssignmentSubmissionDto>()
@@ -68,3 +75,5 @@ opt => opt.MapFrom(src => src.Student.UserName));
         }
     }
 }
+
+

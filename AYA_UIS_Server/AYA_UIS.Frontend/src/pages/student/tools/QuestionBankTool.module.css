@@ -1,0 +1,65 @@
+/* QuestionBankTool - Exam Paper */
+.page{min-height:100vh;background:var(--page-bg);font-family:"Sora",sans-serif;display:flex;flex-direction:column;}
+.bar{display:flex;align-items:center;gap:14px;padding:11px 26px;background:var(--card-bg);border-bottom:1.5px solid var(--card-border);position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(0,0,0,.07);}
+.back{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:10px;border:1.5px solid var(--card-border);background:var(--card-bg);font-family:"Sora",sans-serif;font-size:13px;font-weight:700;color:var(--text-secondary);cursor:pointer;transition:all .15s;}.back:hover{background:var(--hover-bg);}
+.barC{display:flex;align-items:center;gap:10px;}.barIco{font-size:22px;}.barN{font-size:17px;font-weight:900;color:var(--text-primary);margin:0;}.barS{font-size:11.5px;color:var(--text-muted);margin:0;}
+
+.content{max-width:900px;margin:0 auto;padding:24px;width:100%;display:flex;flex-direction:column;gap:20px;}
+
+/* config strip */
+.configStrip{background:var(--card-bg);border:1.5px solid var(--card-border);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:14px;box-shadow:0 4px 20px rgba(0,0,0,.06);}
+.uploadZone{display:flex;align-items:center;gap:14px;padding:14px 16px;border:2px dashed var(--card-border);border-radius:14px;cursor:pointer;transition:all .2s;font-size:26px;}
+.uploadZone:hover{border-color:#e05c8a;background:rgba(224,92,138,.04);}
+.uzT{font-size:14px;font-weight:800;color:var(--text-primary);margin:0;}.uzS{font-size:11.5px;color:var(--text-muted);margin:0;}
+.fileChip{display:flex;align-items:center;gap:10px;width:100%;font-size:22px;}
+.fcN{font-size:13px;font-weight:700;color:var(--text-primary);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px;}.fcM{font-size:11px;color:var(--text-muted);margin:0;font-weight:600;}
+.fcX{margin-left:auto;width:24px;height:24px;border-radius:7px;border:1.5px solid var(--card-border);background:var(--card-bg-2);color:var(--text-muted);font-size:10px;cursor:pointer;transition:all .15s;}.fcX:hover{background:#fee2e2;color:#dc2626;}
+.divider{height:1.5px;background:var(--card-border);}
+.configRow{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;}
+.cfgGrp{display:flex;flex-direction:column;gap:8px;}.cfgL{font-size:10.5px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;}
+.nRow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.nBtn{width:38px;height:34px;border-radius:10px;border:1.5px solid var(--card-border);background:var(--card-bg-2);font-family:"Sora",sans-serif;font-size:13px;font-weight:800;color:var(--text-secondary);cursor:pointer;}.nBtnA{outline:none;}
+.nInp{width:52px;height:34px;border-radius:10px;border:1.5px solid var(--card-border);background:var(--input-bg);font-family:"Sora",sans-serif;font-size:13px;font-weight:700;color:var(--text-primary);text-align:center;}.nInp:focus{outline:none;border-color:#e05c8a;}
+.lRow{display:flex;gap:6px;}.lBtn{padding:8px 16px;border-radius:10px;border:1.5px solid var(--card-border);background:var(--card-bg-2);font-family:"Sora",sans-serif;font-size:12.5px;font-weight:700;color:var(--text-secondary);cursor:pointer;}.lBtnA{outline:none;}
+.genBtn{padding:14px;border:none;border-radius:14px;color:white;font-family:"Sora",sans-serif;font-size:15px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;}.genBtn:disabled{opacity:.45;cursor:not-allowed;}
+.stRow,.okRow,.errRow{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;font-size:12.5px;font-weight:600;}
+.stRow{background:var(--card-bg-2);border:1.5px solid var(--card-border);color:var(--text-secondary);}
+.okRow{background:#f0fdf4;border:1.5px solid #bbf7d0;color:#16a34a;}
+.errRow{background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.25);color:#ef4444;}
+[data-theme="dark"] .okRow,[data-theme="space"] .okRow,[data-theme="ocean"] .okRow,[data-theme="forest"] .okRow,[data-theme="ramadan"] .okRow,[data-theme="arctic"] .okRow,[data-theme="pharaoh"] .okRow,[data-theme="saladin"] .okRow,[data-theme="fog"] .okRow{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);}
+.okDot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;}
+
+/* idle */
+.idle{display:flex;flex-direction:column;align-items:center;gap:20px;padding:32px 0;}
+.idlePaper{background:var(--card-bg);border:1.5px solid var(--card-border);border-radius:16px;padding:28px;width:100%;max-width:560px;display:flex;flex-direction:column;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.06);}
+.idlePaperHead{display:flex;flex-direction:column;gap:8px;padding-bottom:16px;border-bottom:1.5px solid var(--card-border);margin-bottom:6px;}
+.idlePaperLine{height:13px;background:var(--card-border);border-radius:8px;}
+.idleQ{height:11px;margin-left:20px;}
+.idleMsg{font-size:14px;font-weight:700;color:var(--text-muted);}
+.loadBox{display:flex;flex-direction:column;align-items:center;gap:18px;padding:40px;}
+.loadPaper{background:var(--card-bg);border:1.5px solid var(--card-border);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:10px;width:320px;}
+.loadLine{height:14px;border-radius:8px;}.loadTxt{font-size:15px;font-weight:700;color:var(--text-secondary);}
+
+/* exam result */
+.resultPaper{background:var(--card-bg);border:1.5px solid var(--card-border);border-radius:20px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,.09);}
+.paperHeader{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 28px;border-bottom:2px dashed var(--card-border);flex-wrap:wrap;gap:12px;}
+.paperTitle{font-size:22px;font-weight:900;color:var(--text-primary);margin:0 0 4px;}
+.paperFile{font-size:12.5px;color:var(--text-muted);margin:0;font-weight:600;}
+.actBtn{padding:8px 16px;border-radius:10px;border:1.5px solid var(--card-border);background:var(--card-bg-2);font-family:"Sora",sans-serif;font-size:12px;font-weight:700;color:var(--text-secondary);cursor:pointer;transition:all .15s;}.actBtn:hover{background:var(--hover-bg);}
+.actBtnG{border-color:#bbf7d0;color:#16a34a;background:#f0fdf4;}
+[data-theme="dark"] .actBtnG,[data-theme="space"] .actBtnG,[data-theme="ocean"] .actBtnG,[data-theme="forest"] .actBtnG,[data-theme="ramadan"] .actBtnG,[data-theme="arctic"] .actBtnG,[data-theme="pharaoh"] .actBtnG,[data-theme="saladin"] .actBtnG,[data-theme="fog"] .actBtnG{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);}
+
+/* exam sheet */
+.examSheet{padding:28px;display:flex;flex-direction:column;gap:22px;}
+.section{display:flex;flex-direction:column;gap:10px;}
+.secHead{display:flex;align-items:center;gap:12px;margin-bottom:4px;}
+.secBar{width:4px;height:22px;border-radius:3px;flex-shrink:0;}.secTitle{font-size:18px;font-weight:900;color:var(--text-primary);margin:0;}
+.qItem{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px dashed var(--card-border);}
+.qNum{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:2px solid;font-size:13px;font-weight:900;flex-shrink:0;margin-top:1px;}
+.qTxt{font-size:15.5px;font-weight:600;color:var(--text-primary);line-height:1.55;margin:0;flex:1;}
+.choiceRow{display:flex;align-items:center;gap:10px;padding:6px 0 6px 44px;}
+.choiceBubble{width:16px;height:16px;border-radius:50%;border:2px solid var(--card-border);flex-shrink:0;background:var(--card-bg-2);}
+.choiceTxt{font-size:14.5px;color:var(--text-secondary);font-weight:500;}
+.plainLine{font-size:14px;color:var(--text-muted);margin:2px 0 2px 44px;font-weight:500;}
+.spin{width:15px;height:15px;border-radius:50%;border:2.5px solid rgba(0,0,0,.1);border-top-color:var(--c,#e05c8a);animation:spin .7s linear infinite;flex-shrink:0;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}

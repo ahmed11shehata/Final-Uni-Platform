@@ -12,6 +12,6 @@ namespace Shared.Dtos.Info_Module.AssignmentDto
 
         public int Grade { get; set; }
 
-        public string Feedback { get; set; }
+        public string Feedback { get; set; } = string.Empty;
     }
 }

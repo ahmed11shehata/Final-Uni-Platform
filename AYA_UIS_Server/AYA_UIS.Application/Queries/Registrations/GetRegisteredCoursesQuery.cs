@@ -10,7 +10,7 @@ namespace AYA_UIS.Application.Queries.Registrations
 {
     public class GetRegisteredCoursesQuery : IRequest<List<RegistrationCourseDto>>
     {
-        public string StudentId { get; set; }
+        public string StudentId { get; set; } = string.Empty;
 
         public GetRegisteredCoursesQuery(string studentId)
         {

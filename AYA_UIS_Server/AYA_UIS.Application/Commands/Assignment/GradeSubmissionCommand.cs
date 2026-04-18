@@ -14,6 +14,6 @@ namespace AYA_UIS.Application.Commands.Assignment
 
         public int Grade { get; set; }
 
-        public string Feedback { get; set; }
+        public string Feedback { get; set; } = string.Empty;
     }
 }

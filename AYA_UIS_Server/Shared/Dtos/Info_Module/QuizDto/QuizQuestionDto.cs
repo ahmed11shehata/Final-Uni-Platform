@@ -10,8 +10,8 @@ namespace Shared.Dtos.Info_Module.QuizDto
     {
         public int QuestionId { get; set; }
 
-        public string QuestionText { get; set; }
+        public string QuestionText { get; set; } = string.Empty;
 
-        public List<QuizOptionDto> Options { get; set; }
+        public List<QuizOptionDto> Options { get; set; } = new();
     }
 }

@@ -1,17 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MediatR;
+﻿using MediatR;
 using Shared.Dtos.Info_Module.QuizDto;
-using Shared.Respones;
 
 namespace AYA_UIS.Application.Queries.Quiz
 {
-
-    public class GetQuizQuery
-        : IRequest<Response<IEnumerable<QuizQuestionDto>>>
+    public class GetQuizQuery : IRequest<FrontendQuizDto?>
     {
         public int QuizId { get; set; }
     }

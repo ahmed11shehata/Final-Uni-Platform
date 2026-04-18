@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,7 +13,7 @@ namespace AYA_UIS.Core.Domain.Entities.Identity
     {
         public string DisplayName { get; set; } = string.Empty;
         public string ProfilePicture { get; set; } = string.Empty;
-        public string Academic_Code { get; set; } = string.Empty;
+        public string Academic_Code { get; set; } = string.Empty; 
         public Gender Gender { get; set; }
         public Levels? Level { get; set; } // if he study eng will prep year any other will start from first year
         public int? TotalCredits { get; set; } // the total credits that the student has registered for in the current study year
@@ -21,6 +21,14 @@ namespace AYA_UIS.Core.Domain.Entities.Identity
         public decimal? TotalGPA { get; set; } = 0; // the gpa of the student updated every semester
         // if he study eng will prep year any other will start from first year second year he choose his specialization and the department will be the one of the specialization
         public string? Specialization { get; set; } // e.g., Computer Science, Information Systems, etc.
+        public string? Address { get; set; }
+        public string? SubEmail { get; set; }
+        public bool MustChangePassword { get; set; } = false;
+        public DateTime? DateOfBirth { get; set; }
+        public string ThemeId { get; set; } = "default";
+        public bool Active { get; set; } = true;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public string? EntryYear { get; set; }
         public int? DepartmentId { get; set; }
         public Department? Department { get; set; }
         public ICollection<Registration> Registrations { get; set; } = new List<Registration>();

@@ -9,7 +9,7 @@ namespace Shared.Dtos.Info_Module.QuizDto
 {
     public class CreateQuestionDto
     {
-        public string QuestionText { get; set; }
+        public string QuestionText { get; set; } = string.Empty;
 
         public QuestionType Type { get; set; }
 

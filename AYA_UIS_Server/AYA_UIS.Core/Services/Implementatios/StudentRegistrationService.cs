@@ -1,0 +1,862 @@
+using AYA_UIS.Application.Contracts;
+using AYA_UIS.Core.Domain.Entities.Identity;
+using AYA_UIS.Core.Domain.Entities.Models;
+using AYA_UIS.Core.Domain.Enums;
+using Domain.Contracts;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using OpenedCourseEntryInternal = Shared.Dtos.Admin_Module.OpenedCourseEntryInternal;
+using Shared.Dtos.Student_Module;
+using System.Text.Json;
+
+namespace Services.Implementatios
+{
+    public class StudentRegistrationService : IStudentRegistrationService
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly UserManager<User> _userManager;
+
+        // Stable colors/patterns per course code
+        private static readonly string[] Colors = { "#4F46E5", "#059669", "#D97706", "#DC2626", "#7C3AED", "#0891B2", "#6366f1", "#3b82f6", "#22c55e", "#e05c8a", "#f97316", "#14b8a6" };
+        private static readonly string[] Patterns = { "mosaic", "waves", "circles", "squares", "diamonds", "dots" };
+        private static readonly string[] Shades = { "#EEF2FF", "#ECFDF5", "#FFFBEB", "#FEF2F2", "#F5F3FF", "#ECFEFF" };
+
+        public StudentRegistrationService(
+            IUnitOfWork unitOfWork,
+            UserManager<User> userManager)
+        {
+            _unitOfWork = unitOfWork;
+            _userManager = userManager;
+        }
+
+        private static int StableIndex(string code) =>
+            Math.Abs(code?.GetHashCode(StringComparison.OrdinalIgnoreCase) ?? 0);
+
+        // ═══════════════════════════════════════════════════════════════
+        //  GET /api/student/registration/status
+        // ═══════════════════════════════════════════════════════════════
+        public async Task<RegistrationStatusDto> GetRegistrationStatusAsync(string userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            var settings = await _unitOfWork.RegistrationSettings.GetCurrentAsync();
+
+            int studentYear = LevelToYear(user?.Level);
+            int maxCredits = ResolveMaxCredits(user, settings);
+
+            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            var allCourses = (await _unitOfWork.Courses.GetAllAsync()).ToDictionary(c => c.Id);
+
+            int currentCredits = 0;
+            var registeredCourses = new List<RegisteredCourseItemDto>();
+
+            var activeRegistrations = registrations
+                .Where(r => (r.Status == RegistrationStatus.Approved ||
+                             r.Status == RegistrationStatus.Pending) &&
+                            !r.IsEquivalency)
+                .ToList();
+
+            foreach (var reg in activeRegistrations)
+            {
+                if (allCourses.TryGetValue(reg.CourseId, out var course))
+                {
+                    currentCredits += course.Credits;
+                    registeredCourses.Add(new RegisteredCourseItemDto
+                    {
+                        Code    = course.Code,
+                        Name    = course.Name,
+                        Credits = course.Credits,
+                    });
+                }
+            }
+
+            var failedCourses = registrations
+                .Where(r => r.Grade.HasValue && !r.IsPassed)
+                .Select(r => allCourses.TryGetValue(r.CourseId, out var c) ? c.Code : null)
+                .Where(code => code != null)
+                .Distinct()
+                .ToList()!;
+
+            var locks = await _unitOfWork.AdminCourseLocks.GetLockedCoursesForUserAsync(userId);
+            var lockedCourses = locks
+                .Select(l => allCourses.TryGetValue(l.CourseId, out var c) ? c.Code : null)
+                .Where(code => code != null)
+                .ToList()!;
+
+            // Compute opened pool credits for student's bucket
+            int openedPoolCredits = 0;
+            if (settings != null && settings.IsOpen)
+            {
+                var openedByYear = ParseOpenedCoursesByYearRich(settings);
+                if (openedByYear.TryGetValue(studentYear.ToString(), out var entries))
+                {
+                    var openedCodes = entries.Select(e => e.CourseCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    openedPoolCredits = allCourses.Values
+                        .Where(c => openedCodes.Contains(c.Code))
+                        .Sum(c => c.Credits);
+                }
+            }
+
+            return new RegistrationStatusDto
+            {
+                Open = settings?.IsOpen ?? false,
+                AllowedYears = ParseOpenYears(settings),
+                CurrentCredits = currentCredits,
+                MaxCredits = maxCredits,
+                OpenedPoolCredits = openedPoolCredits,
+                RegisteredCourses = registeredCourses!,
+                FailedCourses = failedCourses!,
+                LockedCourses = lockedCourses!,
+                CurrentYear = studentYear,
+                Semester = settings?.Semester,
+                AcademicYear = settings?.AcademicYear
+            };
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  GET /api/student/registration/courses
+        // ═══════════════════════════════════════════════════════════════
+        public async Task<RegistrationCoursesDto> GetAvailableCoursesAsync(string userId)
+        {
+            var settings = await _unitOfWork.RegistrationSettings.GetCurrentAsync();
+
+            // ── 1. Registration closed => empty list ──
+            if (settings == null || !settings.IsOpen)
+                return new RegistrationCoursesDto
+                {
+                    YearCounts = new(),
+                    Courses = new(),
+                    Message = "Registration is closed"
+                };
+
+            // ── 2. Parse per-year opened courses from JSON ──
+            var openedByYear = ParseOpenedCoursesByYearRich(settings);
+            if (openedByYear.Count == 0)
+                return new RegistrationCoursesDto { YearCounts = new(), Courses = new() };
+
+            // ── 3. Get student year from Level ──
+            var user = await _userManager.FindByIdAsync(userId);
+            int studentYear = LevelToYear(user?.Level);
+            int maxCredits = ResolveMaxCredits(user, settings);
+            string studentYearKey = studentYear.ToString();
+
+            // ── 4. Build opened codes for THIS student's bucket ONLY ──
+            var bucketEntries = new List<OpenedCourseEntryInternal>();
+            if (openedByYear.TryGetValue(studentYearKey, out var entries))
+                bucketEntries = entries;
+
+            var openedCodes = bucketEntries
+                .Select(e => e.CourseCode)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // ── 5. Exception courses for this student ──
+            var exceptions = await _unitOfWork.StudentCourseExceptions.GetForUserAsync(userId);
+            var exceptionCourseIds = exceptions.Select(e => e.CourseId).ToHashSet();
+
+            // ── 6. Fetch course entities ──
+            var allCoursesRaw = await _unitOfWork.Courses.GetAllAsync();
+            var allCourses = allCoursesRaw.ToDictionary(c => c.Id);
+            var allCoursesByCode = allCoursesRaw.ToDictionary(c => c.Code, c => c, StringComparer.OrdinalIgnoreCase);
+
+            // Build visible set: bucket opened codes + exception course codes
+            var visibleCodes = new HashSet<string>(openedCodes, StringComparer.OrdinalIgnoreCase);
+            foreach (var excId in exceptionCourseIds)
+            {
+                if (allCourses.TryGetValue(excId, out var excCourse))
+                    visibleCodes.Add(excCourse.Code);
+            }
+
+            if (visibleCodes.Count == 0)
+                return new RegistrationCoursesDto { YearCounts = new(), Courses = new() };
+
+            var visibleCourseEntities = await _unitOfWork.Courses.GetByCodesAsync(visibleCodes.ToList());
+
+            // ── 7. Student's registrations, completions, locks ──
+            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+
+            var activeRegs = registrations
+                .Where(r => (r.Status == RegistrationStatus.Approved ||
+                             r.Status == RegistrationStatus.Pending) &&
+                            !r.IsEquivalency)
+                .ToList();
+
+            var registeredCourseIds = activeRegs
+                .Select(r => r.CourseId)
+                .ToHashSet();
+
+            // PASS-ONLY prereq: passed means IsPassed == true
+            var passedCourseIds = registrations
+                .Where(r => r.IsPassed)
+                .Select(r => r.CourseId)
+                .ToHashSet();
+
+            // Failed = has a grade but NOT passed, and NOT later passed
+            var failedCourseIds = registrations
+                .Where(r => r.Grade.HasValue && !r.IsPassed)
+                .Select(r => r.CourseId)
+                .Where(id => !passedCourseIds.Contains(id))
+                .ToHashSet();
+
+            var locks = await _unitOfWork.AdminCourseLocks.GetLockedCoursesForUserAsync(userId);
+            var locksByCourseid = locks.ToDictionary(l => l.CourseId);
+
+            int currentCredits = activeRegs
+                .Sum(r => allCourses.TryGetValue(r.CourseId, out var c) ? c.Credits : 0);
+
+            // ── 8. Seat enrollment counts by bucket ──
+            // Count registrations per course for students in the same year bucket
+            var allStudents = await _userManager.Users.ToListAsync();
+            var studentsByYear = allStudents
+                .Where(u => LevelToYear(u.Level) == studentYear)
+                .Select(u => u.Id)
+                .ToHashSet();
+
+            // Get all registrations for courses in this bucket
+            var enrollmentCounts = new Dictionary<int, int>();
+            foreach (var entry in bucketEntries)
+            {
+                if (allCoursesByCode.TryGetValue(entry.CourseCode, out var course))
+                {
+                    var courseRegs = await _unitOfWork.Registrations.GetByCourseIdAsync(course.Id);
+                    var bucketCount = courseRegs
+                        .Where(r => (r.Status == RegistrationStatus.Approved ||
+                                     r.Status == RegistrationStatus.Pending) &&
+                                    !r.IsEquivalency &&
+                                    studentsByYear.Contains(r.UserId))
+                        .Count();
+                    enrollmentCounts[course.Id] = bucketCount;
+                }
+            }
+
+            // Build seat lookup from bucket entries
+            var seatLookup = bucketEntries.ToDictionary(
+                e => e.CourseCode,
+                e => e,
+                StringComparer.OrdinalIgnoreCase);
+
+            // Opened pool credits
+            int openedPoolCredits = visibleCourseEntities
+                .Where(c => openedCodes.Contains(c.Code))
+                .Sum(c => c.Credits);
+
+            // ── 9. Build course list with proper status ──
+            var courseDtos = new List<RegistrationCourseDto>();
+            var yearCounts = new Dictionary<string, int>();
+
+            foreach (var course in visibleCourseEntities)
+            {
+                var prereqs = await _unitOfWork.Courses.GetCoursePrerequisitesAsync(course.Id);
+                var prereqCodes = prereqs.Select(p => p.Code).ToList();
+
+                bool isException = exceptionCourseIds.Contains(course.Id);
+                bool isInBucket = openedCodes.Contains(course.Code);
+
+                // Seat info
+                seatLookup.TryGetValue(course.Code, out var seatEntry);
+                bool isUnlimited = seatEntry?.IsUnlimitedSeats ?? true;
+                int? totalSeats = seatEntry?.AvailableSeats;
+                enrollmentCounts.TryGetValue(course.Id, out var enrolled);
+                int? remaining = isUnlimited ? null : (totalSeats ?? 0) - enrolled;
+
+                // ── Status computation (section 11 order) ──
+                string status;
+                string? reason = null;
+                List<string>? missingPrereqs = null;
+                bool retake = false;
+                bool canRegister = false;
+                bool isAdminLocked = false;
+
+                // a) Already passed
+                if (passedCourseIds.Contains(course.Id))
+                {
+                    status = "completed";
+                }
+                // b) Already registered
+                else if (registeredCourseIds.Contains(course.Id))
+                {
+                    status = "registered";
+                }
+                // c) Admin locked
+                else if (locksByCourseid.TryGetValue(course.Id, out var lockEntry))
+                {
+                    status = "locked";
+                    reason = string.IsNullOrWhiteSpace(lockEntry.Reason)
+                        ? "Locked by admin"
+                        : lockEntry.Reason;
+                    isAdminLocked = true;
+                }
+                // d) Prerequisite not passed (PASS-ONLY)
+                else
+                {
+                    var unmetPrereqs = prereqs
+                        .Where(p => !passedCourseIds.Contains(p.Id))
+                        .ToList();
+
+                    if (unmetPrereqs.Any())
+                    {
+                        status = "unavailable";
+                        missingPrereqs = unmetPrereqs.Select(p => p.Name).ToList();
+                        if (unmetPrereqs.Count == 1)
+                            reason = $"You must pass {unmetPrereqs[0].Name} first";
+                        else
+                            reason = $"You must pass {string.Join(", ", unmetPrereqs.Select(p => p.Name))} first";
+                    }
+                    // e) Seats full
+                    else if (!isUnlimited && remaining.HasValue && remaining.Value <= 0)
+                    {
+                        status = "full";
+                        reason = "Course is full";
+                    }
+                    // f) Previously failed
+                    else if (failedCourseIds.Contains(course.Id))
+                    {
+                        status = "available";
+                        retake = true;
+                        canRegister = true;
+                    }
+                    // g) Normal available
+                    else
+                    {
+                        status = "available";
+                        canRegister = true;
+                    }
+                }
+
+                // Credit check for canRegister items
+                bool wouldExceed = false;
+                if (canRegister)
+                {
+                    if (currentCredits + course.Credits > maxCredits)
+                    {
+                        wouldExceed = true;
+                        canRegister = false;
+                    }
+                }
+
+                var yearKey = studentYear.ToString();
+                yearCounts.TryAdd(yearKey, 0);
+                yearCounts[yearKey]++;
+
+                var idx = StableIndex(course.Code);
+                courseDtos.Add(new RegistrationCourseDto
+                {
+                    Id = course.Id.ToString(),
+                    CourseId = course.Id,
+                    Code = course.Code,
+                    Name = course.Name,
+                    Credits = course.Credits,
+                    Instructor = "",
+                    Schedule = "",
+
+                    Capacity = isUnlimited ? null : totalSeats,
+                    Enrolled = enrolled,
+                    RemainingSeats = remaining,
+                    AvailableSeats = isUnlimited ? (object)"unlimited" : totalSeats,
+                    IsUnlimitedSeats = isUnlimited,
+
+                    Status = status,
+                    Prereqs = prereqCodes,
+                    MissingPrerequisites = missingPrereqs,
+                    Reason = reason,
+                    LockReason = reason,       // backward compat
+
+                    Color = Colors[idx % Colors.Length],
+                    Pattern = Patterns[idx % Patterns.Length],
+
+                    Retake = retake,
+                    CanRegister = canRegister,
+                    IsExceptionCourse = isException,
+                    IsAdminLocked = isAdminLocked,
+
+                    CurrentCredits = currentCredits,
+                    CurrentMaxCredits = maxCredits,
+                    WouldExceedCredits = wouldExceed,
+
+                    Year = studentYear,
+                    CourseYear = null  // we don't have a catalog year field on Course entity
+                });
+            }
+
+            return new RegistrationCoursesDto
+            {
+                YearCounts = yearCounts,
+                Courses = courseDtos
+            };
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  POST /api/student/registration/courses
+        // ═══════════════════════════════════════════════════════════════
+        public async Task<RegistrationResponseDto> RegisterCourseAsync(string userId, string courseCode)
+        {
+            // ── 1. Registration open? ──
+            var settings = await _unitOfWork.RegistrationSettings.GetCurrentAsync();
+            if (settings == null || !settings.IsOpen)
+                throw new AYA_UIS.Shared.Exceptions.ForbiddenException("Registration is not currently open.");
+
+            // ── 2. Course exists? ──
+            var courses = await _unitOfWork.Courses.GetByCodesAsync(new[] { courseCode });
+            var course = courses.FirstOrDefault();
+            if (course == null)
+                throw new AYA_UIS.Shared.Exceptions.NotFoundException($"Course '{courseCode}' not found.");
+
+            // ── 3. Course in student's bucket or exception? ──
+            var user = await _userManager.FindByIdAsync(userId);
+            int studentYear = LevelToYear(user?.Level);
+            var openedByYear = ParseOpenedCoursesByYearRich(settings);
+
+            var bucketEntries = new List<OpenedCourseEntryInternal>();
+            if (openedByYear.TryGetValue(studentYear.ToString(), out var entries))
+                bucketEntries = entries;
+
+            var bucketCodes = bucketEntries
+                .Select(e => e.CourseCode)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var exceptions = await _unitOfWork.StudentCourseExceptions.GetForUserAsync(userId);
+            var exceptionCourseIds = exceptions.Select(e => e.CourseId).ToHashSet();
+            bool isException = exceptionCourseIds.Contains(course.Id);
+
+            if (!bucketCodes.Contains(courseCode) && !isException)
+                throw new AYA_UIS.Shared.Exceptions.UnprocessableEntityException(
+                    $"Course '{courseCode}' is not available for registration in your current academic year.",
+                    "NOT_IN_OPENED_POOL");
+
+            // ── 4. Already completed? ──
+            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            var passedIds = registrations.Where(r => r.IsPassed).Select(r => r.CourseId).ToHashSet();
+            if (passedIds.Contains(course.Id))
+                throw new AYA_UIS.Shared.Exceptions.UnprocessableEntityException(
+                    $"You have already completed '{course.Name}'.",
+                    "ALREADY_COMPLETED");
+
+            // ── 5. Already registered? (409) ──
+            var alreadyRegistered = await _unitOfWork.Registrations.IsUserRegisteredInCourseAsync(userId, course.Id);
+            if (alreadyRegistered)
+                throw new AYA_UIS.Shared.Exceptions.ConflictException($"Already registered in {course.Code}.");
+
+            // ── 6. Admin lock? ──
+            var lockEntry = await _unitOfWork.AdminCourseLocks.GetAsync(userId, course.Id);
+            if (lockEntry != null)
+            {
+                var lockReason = string.IsNullOrWhiteSpace(lockEntry.Reason)
+                    ? "Locked by admin"
+                    : lockEntry.Reason;
+                throw new AYA_UIS.Shared.Exceptions.ForbiddenException(lockReason);
+            }
+
+            // ── 7. Prerequisites met? (PASS-ONLY) ──
+            var prereqs = await _unitOfWork.Courses.GetCoursePrerequisitesAsync(course.Id);
+            if (prereqs.Any())
+            {
+                var unmetPrereqs = prereqs
+                    .Where(p => !passedIds.Contains(p.Id))
+                    .ToList();
+
+                if (unmetPrereqs.Any())
+                {
+                    var names = unmetPrereqs.Select(p => p.Name).ToList();
+                    var msg = names.Count == 1
+                        ? $"You must pass {names[0]} first"
+                        : $"You must pass {string.Join(", ", names)} first";
+                    throw new AYA_UIS.Shared.Exceptions.UnprocessableEntityException(msg, "PREREQ_NOT_MET");
+                }
+            }
+
+            // ── 8. Seats available? ──
+            var seatEntry = bucketEntries.FirstOrDefault(e =>
+                e.CourseCode.Equals(courseCode, StringComparison.OrdinalIgnoreCase));
+            if (seatEntry != null && !seatEntry.IsUnlimitedSeats)
+            {
+                int totalSeats = seatEntry.AvailableSeats ?? 0;
+                // Count current enrollments in this bucket
+                var allStudents = await _userManager.Users.ToListAsync();
+                var bucketStudentIds = allStudents
+                    .Where(u => LevelToYear(u.Level) == studentYear)
+                    .Select(u => u.Id)
+                    .ToHashSet();
+
+                var courseRegs = await _unitOfWork.Registrations.GetByCourseIdAsync(course.Id);
+                int enrolled = courseRegs
+                    .Count(r => (r.Status == RegistrationStatus.Approved ||
+                                 r.Status == RegistrationStatus.Pending) &&
+                                !r.IsEquivalency &&
+                                bucketStudentIds.Contains(r.UserId));
+
+                if (enrolled >= totalSeats)
+                    throw new AYA_UIS.Shared.Exceptions.UnprocessableEntityException(
+                        "Course is full", "COURSE_FULL");
+            }
+
+            // ── 9. Credit limit? ──
+            int maxCredits = ResolveMaxCredits(user, settings);
+            var allCourses = (await _unitOfWork.Courses.GetAllAsync()).ToDictionary(c => c.Id);
+            int currentCredits = registrations
+                .Where(r => (r.Status == RegistrationStatus.Approved ||
+                             r.Status == RegistrationStatus.Pending) &&
+                            !r.IsEquivalency)
+                .Sum(r => allCourses.TryGetValue(r.CourseId, out var c) ? c.Credits : 0);
+
+            if (currentCredits + course.Credits > maxCredits)
+                throw new AYA_UIS.Shared.Exceptions.UnprocessableEntityException(
+                    $"Adding '{course.Name}' ({course.Credits} credits) would exceed the maximum of {maxCredits} credits. Current: {currentCredits}.",
+                    "CREDIT_LIMIT_EXCEEDED");
+
+            // ── 10. Resolve StudyYear and Semester ──
+            StudyYear? resolvedStudyYear = null;
+            Semester? resolvedSemester = null;
+
+            if (!string.IsNullOrWhiteSpace(settings.AcademicYear))
+            {
+                var yearParts = settings.AcademicYear.Split('/', '-');
+                if (yearParts.Length == 2 &&
+                    int.TryParse(yearParts[0].Trim(), out var startYr) &&
+                    int.TryParse(yearParts[1].Trim(), out var endYr))
+                {
+                    var allYears = await _unitOfWork.StudyYears.GetAllAsync();
+                    resolvedStudyYear = allYears.FirstOrDefault(y => y.StartYear == startYr && y.EndYear == endYr);
+                }
+            }
+            resolvedStudyYear ??= await _unitOfWork.StudyYears.GetCurrentStudyYearAsync();
+            if (resolvedStudyYear == null)
+                throw new AYA_UIS.Shared.Exceptions.BadRequestException("No matching study year found.");
+
+            if (!string.IsNullOrWhiteSpace(settings.Semester))
+            {
+                var semKey = settings.Semester.Trim().ToLowerInvariant();
+                var allSemesters = await _unitOfWork.Semesters.GetByStudyYearIdAsync(resolvedStudyYear.Id);
+                resolvedSemester = semKey switch
+                {
+                    "first" or "first semester" or "semester 1" or "1" =>
+                        allSemesters.FirstOrDefault(s => s.Title == SemesterEnum.First_Semester),
+                    "second" or "second semester" or "semester 2" or "2" =>
+                        allSemesters.FirstOrDefault(s => s.Title == SemesterEnum.Second_Semester),
+                    "summer" or "summer semester" or "3" =>
+                        allSemesters.FirstOrDefault(s => s.Title == SemesterEnum.Summer),
+                    _ => allSemesters.FirstOrDefault()
+                };
+            }
+            resolvedSemester ??= await _unitOfWork.Semesters.GetActiveSemesterByStudyYearIdAsync(resolvedStudyYear.Id);
+            if (resolvedSemester == null)
+                throw new AYA_UIS.Shared.Exceptions.BadRequestException("No matching semester found.");
+
+            // ── 11. Create registration ──
+            var registration = new Registration
+            {
+                UserId = userId,
+                CourseId = course.Id,
+                StudyYearId = resolvedStudyYear.Id,
+                SemesterId = resolvedSemester.Id,
+                Status = RegistrationStatus.Pending,
+                Progress = CourseProgress.NotStarted,
+                IsPassed = false,
+                RegisteredAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Registrations.AddAsync(registration);
+            await _unitOfWork.SaveChangesAsync();
+
+            // ── 12. Response ──
+            // Re-compute currentCredits after this registration (excluding equivalency)
+            int postCredits = (currentCredits + course.Credits);
+
+            var prereqsList = await _unitOfWork.Courses.GetCoursePrerequisitesAsync(course.Id);
+            var prereqCodes = prereqsList.Select(p => p.Code).ToList();
+
+            // Seat info
+            var seatEntryResp = bucketEntries.FirstOrDefault(e =>
+                e.CourseCode.Equals(courseCode, StringComparison.OrdinalIgnoreCase));
+            bool isUnlimited = seatEntryResp?.IsUnlimitedSeats ?? true;
+
+            var idx = StableIndex(course.Code);
+            return new RegistrationResponseDto
+            {
+                Message = $"Successfully registered for {course.Name} ({course.Code}).",
+                Course = new RegistrationCourseDto
+                {
+                    Id = course.Id.ToString(),
+                    CourseId = course.Id,
+                    Code = course.Code,
+                    Name = course.Name,
+                    Credits = course.Credits,
+                    Instructor = "",
+                    Schedule = "",
+                    Year = studentYear,
+                    Status = "registered",
+                    CanRegister = false,
+                    Prereqs = prereqCodes,
+                    IsUnlimitedSeats = isUnlimited,
+                    CurrentCredits = postCredits,
+                    CurrentMaxCredits = maxCredits,
+                    Color = Colors[idx % Colors.Length],
+                    Pattern = Patterns[idx % Patterns.Length]
+                }
+            };
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  DELETE /api/student/registration/courses/{courseCode}
+        // ═══════════════════════════════════════════════════════════════
+        public async Task DropCourseAsync(string userId, string courseCode)
+        {
+            // Must be open to drop
+            var settings = await _unitOfWork.RegistrationSettings.GetCurrentAsync();
+            if (settings == null || !settings.IsOpen)
+                throw new AYA_UIS.Shared.Exceptions.ForbiddenException("Registration is not currently open. Cannot drop courses.");
+
+            var allCourses = await _unitOfWork.Courses.GetAllAsync();
+            var course = allCourses.FirstOrDefault(c =>
+                c.Code.Equals(courseCode, StringComparison.OrdinalIgnoreCase));
+            if (course == null)
+                throw new AYA_UIS.Shared.Exceptions.NotFoundException($"Course '{courseCode}' not found.");
+
+            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            var matchedReg = registrations.FirstOrDefault(r =>
+                r.CourseId == course.Id &&
+                !r.IsEquivalency &&
+                (r.Status == RegistrationStatus.Approved ||
+                 r.Status == RegistrationStatus.Pending));
+
+            if (matchedReg == null)
+                throw new AYA_UIS.Shared.Exceptions.BadRequestException($"You are not registered for '{courseCode}'.");
+
+            var trackedRegistration = await _unitOfWork.Registrations.GetByIdAsync(matchedReg.Id);
+            if (trackedRegistration == null)
+                throw new AYA_UIS.Shared.Exceptions.BadRequestException("Registration record not found.");
+
+            await _unitOfWork.Registrations.Delete(trackedRegistration);
+            await _unitOfWork.SaveChangesAsync();
+            // Seats are computed dynamically from registration count,
+            // so dropping automatically "frees" a seat.
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  GET /api/student/courses  (enrolled)
+        // ═══════════════════════════════════════════════════════════════
+        public async Task<List<StudentCourseDto>> GetEnrolledCoursesAsync(string userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            int studentYear = LevelToYear(user?.Level);
+
+            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            var activeRegs = registrations
+                .Where(r => (r.Status == RegistrationStatus.Approved ||
+                             r.Status == RegistrationStatus.Pending) &&
+                            !r.IsEquivalency)
+                .ToList();
+
+            var result = new List<StudentCourseDto>();
+            foreach (var reg in activeRegs)
+            {
+                var course = reg.Course;
+                if (course == null) continue;
+
+                var idx = StableIndex(course.Code);
+                result.Add(new StudentCourseDto
+                {
+                    Id = course.Id.ToString(),
+                    Code = course.Code,
+                    Name = course.Name,
+                    Instructor = "",
+                    Color = Colors[idx % Colors.Length],
+                    Shade = Shades[idx % Shades.Length],
+                    Pattern = Patterns[idx % Patterns.Length],
+                    Credits = course.Credits,
+                    Level = studentYear,
+                    Semester = reg.StudyYear != null
+                        ? $"{reg.StudyYear.StartYear}/{reg.StudyYear.EndYear}"
+                        : "",
+                    Description = "",
+                    Progress = (int)reg.Progress,
+                    Students = 0,
+                    Icon = "📚"
+                });
+            }
+            return result;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  GET /api/student/courses/{courseId}
+        // ═══════════════════════════════════════════════════════════════
+        public async Task<FullCourseDetailDto> GetCourseDetailAsync(string userId, string courseId)
+        {
+            if (!int.TryParse(courseId, out var courseIdInt))
+                throw new AYA_UIS.Shared.Exceptions.BadRequestException("Invalid course ID.");
+
+            var user = await _userManager.FindByIdAsync(userId);
+            int studentYear = LevelToYear(user?.Level);
+
+            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            var reg = registrations.FirstOrDefault(r =>
+                r.CourseId == courseIdInt &&
+                !r.IsEquivalency &&
+                (r.Status == RegistrationStatus.Approved ||
+                 r.Status == RegistrationStatus.Pending));
+
+            if (reg == null || reg.Course == null)
+                throw new AYA_UIS.Shared.Exceptions.NotFoundException($"You are not enrolled in course '{courseId}'.");
+
+            var course = reg.Course;
+            var idx = StableIndex(course.Code);
+
+            return new FullCourseDetailDto
+            {
+                Meta = new CourseMetaDto
+                {
+                    Id = course.Id.ToString(),
+                    Code = course.Code,
+                    Name = course.Name,
+                    Instructor = "",
+                    Color = Colors[idx % Colors.Length],
+                    Shade = Shades[idx % Shades.Length],
+                    Light = Shades[idx % Shades.Length],
+                    Credits = course.Credits,
+                    Level = studentYear,
+                    Semester = reg.StudyYear != null
+                        ? $"{reg.StudyYear.StartYear}/{reg.StudyYear.EndYear}"
+                        : "",
+                    Description = "",
+                    Progress = (int)reg.Progress
+                },
+                Lectures = new List<CourseLectureDto>(),
+                Assignments = new List<CourseAssignmentDto>(),
+                Quizzes = new List<CourseQuizSummaryDto>(),
+                Midterm = null
+            };
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        //  HELPERS
+        // ═══════════════════════════════════════════════════════════════
+
+        /// <summary>Convert Levels enum to int year (1-4).</summary>
+        private static int LevelToYear(Levels? level) => level switch
+        {
+            Levels.Preparatory_Year => 1,
+            Levels.First_Year => 1,
+            Levels.Second_Year => 2,
+            Levels.Third_Year => 3,
+            Levels.Fourth_Year => 4,
+            Levels.Graduate => 4,
+            _ => 4 // default max visibility
+        };
+
+        /// <summary>Parse rich OpenedCoursesByYear JSON from settings.</summary>
+        private static Dictionary<string, List<OpenedCourseEntryInternal>> ParseOpenedCoursesByYearRich(
+            RegistrationSettings? settings)
+        {
+            if (settings == null) return new();
+
+            // Try new rich format first: {"1":[{"courseCode":"CS101","availableSeats":30,...}], ...}
+            if (!string.IsNullOrWhiteSpace(settings.OpenedCoursesByYear))
+            {
+                try
+                {
+                    var rich = JsonSerializer.Deserialize<Dictionary<string, List<OpenedCourseEntryInternal>>>(
+                        settings.OpenedCoursesByYear,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (rich != null && rich.Count > 0)
+                        return rich;
+                }
+                catch { /* not rich format, try legacy */ }
+
+                // Try legacy flat format: {"1":["CS101","CS102"], ...}
+                try
+                {
+                    var flat = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(
+                        settings.OpenedCoursesByYear);
+                    if (flat != null && flat.Count > 0)
+                    {
+                        var result = new Dictionary<string, List<OpenedCourseEntryInternal>>();
+                        foreach (var (k, codes) in flat)
+                        {
+                            result[k] = codes.Select(c => new OpenedCourseEntryInternal
+                            {
+                                CourseCode = c,
+                                AvailableSeats = null,
+                                IsUnlimitedSeats = true
+                            }).ToList();
+                        }
+                        return result;
+                    }
+                }
+                catch { /* malformed */ }
+            }
+
+            // Legacy fallback: put all enabled codes under each open year
+            if (!string.IsNullOrWhiteSpace(settings.EnabledCourses))
+            {
+                var codes = settings.EnabledCourses
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(x => !string.IsNullOrEmpty(x))
+                    .ToList();
+                var years = ParseOpenYears(settings);
+                var result = new Dictionary<string, List<OpenedCourseEntryInternal>>();
+                foreach (var yr in years)
+                    result[yr.ToString()] = codes.Select(c => new OpenedCourseEntryInternal
+                    {
+                        CourseCode = c,
+                        AvailableSeats = null,
+                        IsUnlimitedSeats = true
+                    }).ToList();
+                if (years.Count == 0 && codes.Count > 0)
+                    result["1"] = codes.Select(c => new OpenedCourseEntryInternal
+                    {
+                        CourseCode = c,
+                        AvailableSeats = null,
+                        IsUnlimitedSeats = true
+                    }).ToList();
+                return result;
+            }
+
+            return new();
+        }
+
+        private static List<int> ParseOpenYears(RegistrationSettings? settings)
+        {
+            if (settings == null || string.IsNullOrWhiteSpace(settings.OpenYears))
+                return new List<int>();
+            return settings.OpenYears
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(x => int.TryParse(x, out var n) ? n : 0)
+                .Where(n => n > 0)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Resolve max credits for the student:
+        /// 1. Admin per-student override (AllowedCredits set explicitly by admin)
+        /// 2. First term = 21 by default
+        /// 3. GPA-based rules after that
+        /// </summary>
+        private static int ResolveMaxCredits(User? user, RegistrationSettings? settings)
+        {
+            // 1. Admin per-student override has highest priority
+            //    AllowedCredits is set by admin OverrideMaxCredits action
+            //    Default value is 21, so only treat as override if admin explicitly changed it
+            //    We use MaxCredits on settings to know the old global, but the real rule is GPA-based
+            if (user?.AllowedCredits != null && user.AllowedCredits != 21)
+                return user.AllowedCredits.Value;
+
+            // 2. First term check
+            if (settings != null && IsFirstTerm(settings))
+            {
+                // All students get 21 in first term
+                return 21;
+            }
+
+            // 3. GPA-based rules
+            decimal gpa = user?.TotalGPA ?? 0m;
+            if (gpa >= 3.0m) return 21;
+            if (gpa >= 2.0m) return 18;
+            if (gpa >= 1.0m) return 15;
+            return 12;
+        }
+
+        /// <summary>Check if settings semester indicates first term.</summary>
+        private static bool IsFirstTerm(RegistrationSettings settings)
+        {
+            if (string.IsNullOrWhiteSpace(settings.Semester)) return false;
+            var sem = settings.Semester.Trim().ToLowerInvariant();
+            return sem is "first" or "1" or "first semester" or "semester 1";
+        }
+    }
+}

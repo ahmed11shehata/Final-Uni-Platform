@@ -12,7 +12,7 @@ namespace AYA_UIS.Application.Commands.CourseUploads
     public class CreateCourseUploadCommand : IRequest<Response<int>>
     {
         public CreateCourseUploadDto CourseUploadDto { get; set; }
-        public IFormFile File { get; set; }
+        public IFormFile? File { get; set; }
         public string UserId { get; set; } = string.Empty;
     }
 }

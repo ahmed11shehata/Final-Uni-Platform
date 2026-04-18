@@ -4,7 +4,6 @@ using Domain.Contracts;
 using MediatR;
 using Shared.Dtos.Info_Module.DepartmentDtos;
 using Shared.Respones;
-using Domain.Contracts;
 
 namespace AYA_UIS.Application.Handlers.Departments
 {

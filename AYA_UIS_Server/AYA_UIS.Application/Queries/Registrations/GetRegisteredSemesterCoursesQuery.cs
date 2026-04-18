@@ -11,7 +11,7 @@ namespace AYA_UIS.Application.Queries.Registrations
     {
         public int StudyYearId { get; set; }
         public int SemesterId { get; set; }
-        public string StudentId { get; set; }
+        public string StudentId { get; set; } = string.Empty;
 
         public GetRegisteredSemesterCoursesQuery(int studyYearId, int semesterId, string studentId)
         {

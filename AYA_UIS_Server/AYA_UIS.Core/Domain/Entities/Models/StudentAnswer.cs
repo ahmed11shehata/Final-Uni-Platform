@@ -8,10 +8,10 @@
 
         public int SelectedOptionId { get; set; }
 
-        public QuizOption SelectedOption { get; set; }
+        public QuizOption? SelectedOption { get; set; }
 
         public int AttemptId { get; set; }
 
-        public StudentQuizAttempt Attempt { get; set; }
+        public StudentQuizAttempt? Attempt { get; set; }
     }
 }

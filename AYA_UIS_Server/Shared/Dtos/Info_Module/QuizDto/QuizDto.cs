@@ -10,7 +10,7 @@ namespace Shared.Dtos.Info_Module.QuizDto
     {
         public int Id { get; set; }
 
-        public string Title { get; set; }
+        public string Title { get; set; } = string.Empty;
 
         public DateTime StartTime { get; set; }
 
