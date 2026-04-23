@@ -1,0 +1,483 @@
+// src/pages/admin/FinalGradePage.jsx
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import styles from "./FinalGradePage.module.css";
+import {
+  adminGetFinalGrades,
+  adminPublishFinalGrades,
+  adminNotifyInstructor,
+} from "../../services/api/adminApi";
+
+const sp = { type: "spring", stiffness: 400, damping: 28 };
+
+const LETTER_COLOR = {
+  A: "#22c55e",
+  B: "#818cf8",
+  C: "#3b82f6",
+  D: "#f59e0b",
+  F: "#ef4444",
+};
+
+// ── Avatar ────────────────────────────────────────────────────
+function Av({ name, size = 44, bg = "#e07b6a" }) {
+  const ini = (name || "?").split(" ").slice(0, 2).map(w => w[0] || "").join("").toUpperCase();
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: size > 40 ? 14 : 10, flexShrink: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: `${bg}22`, color: bg, border: `1.5px solid ${bg}40`,
+      fontSize: size > 48 ? "1rem" : ".78rem", fontWeight: 800, letterSpacing: "-.02em",
+    }}>{ini}</div>
+  );
+}
+
+// ── Notify Modal ──────────────────────────────────────────────
+function NotifyModal({ course, student, onClose, onSent }) {
+  const [loading, setLoading] = useState(false);
+  const [done,    setDone]    = useState(false);
+
+  const send = async () => {
+    setLoading(true);
+    try {
+      await adminNotifyInstructor(student.studentId, course.courseId);
+      setDone(true);
+      setTimeout(onSent, 1400);
+    } catch (e) {
+      alert(e?.message || "Notification failed");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div className={styles.overlay} onClick={onClose}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div className={styles.modal} onClick={e => e.stopPropagation()}
+        initial={{ opacity: 0, scale: .88, y: 28 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: .95 }}
+        transition={sp}>
+
+        <div className={styles.modalBand} />
+
+        <div className={styles.modalBody}>
+          <div className={styles.modalWarnIcon}>⚠️</div>
+          <div className={styles.modalTitle}>Final Grade Not Assigned</div>
+
+          <div className={styles.modalInfoBlock}>
+            <div className={styles.modalInfoRow}>
+              <span className={styles.modalInfoLabel}>Course</span>
+              <span className={styles.modalInfoVal}>{course.courseCode} · {course.courseName}</span>
+            </div>
+            <div className={styles.modalInfoRow}>
+              <span className={styles.modalInfoLabel}>Student</span>
+              <span className={styles.modalInfoVal}>{student.studentName}</span>
+            </div>
+            <div className={styles.modalInfoRow}>
+              <span className={styles.modalInfoLabel}>Student Code</span>
+              <span className={styles.modalInfoVal}>{student.studentCode}</span>
+            </div>
+          </div>
+
+          <p className={styles.modalDesc}>
+            This will send a warning notification to all instructor(s) responsible for this course,
+            reminding them to enter the final exam grade for this student.
+          </p>
+
+          {done ? (
+            <div className={styles.modalSuccess}>✅ Notification sent to instructor(s)</div>
+          ) : (
+            <div className={styles.modalActions}>
+              <button className={styles.modalCancel} onClick={onClose} disabled={loading}>
+                Cancel
+              </button>
+              <motion.button
+                className={styles.modalNotifyBtn}
+                onClick={send}
+                disabled={loading}
+                whileHover={{ scale: 1.03, filter: "brightness(1.1)" }}
+                whileTap={{ scale: .96 }}>
+                {loading ? "Sending…" : "🔔 SEND A NOTIFICATION"}
+              </motion.button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Course Card ───────────────────────────────────────────────
+function CourseCard({ course, student, color, onOpenNotify }) {
+  const assigned = course.assigned;
+  const lc = course.letterGrade ? (LETTER_COLOR[course.letterGrade] || "#818cf8") : "#94a3b8";
+  const totalPct = course.total != null ? Math.min(100, Math.round(course.total)) : 0;
+  const dashArr  = 2 * Math.PI * 32;
+
+  return (
+    <motion.div
+      className={`${styles.courseCard} ${!assigned ? styles.courseCardWarn : ""}`}
+      style={assigned ? { borderColor: `${lc}30` } : {}}
+      initial={{ opacity: 0, y: 16, scale: .97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={sp}
+      onClick={!assigned ? () => onOpenNotify(course) : undefined}
+      whileHover={!assigned ? { scale: 1.01, y: -2 } : { scale: 1.005 }}
+      whileTap={!assigned ? { scale: .99 } : {}}>
+
+      {/* Card header */}
+      <div className={styles.cardHead} style={assigned ? { background: `${lc}0b` } : {}}>
+        <div className={styles.cardHeadL}>
+          <div className={styles.cardCode} style={assigned ? { color: lc } : { color: "#f97316" }}>
+            {course.courseCode}
+          </div>
+          <div className={styles.cardName}>{course.courseName}</div>
+        </div>
+
+        {assigned ? (
+          /* Circular grade indicator */
+          <div className={styles.gradeCircle}>
+            <svg viewBox="0 0 72 72" className={styles.circSvg}>
+              <circle cx="36" cy="36" r="32" fill="none" stroke="var(--prog-track,rgba(148,163,184,.18))" strokeWidth="6" />
+              <motion.circle cx="36" cy="36" r="32" fill="none"
+                stroke={lc} strokeWidth="6" strokeLinecap="round"
+                strokeDasharray={dashArr}
+                initial={{ strokeDashoffset: dashArr }}
+                animate={{ strokeDashoffset: dashArr - dashArr * (totalPct / 100) }}
+                transition={{ duration: .9, ease: "easeOut", delay: .15 }}
+                style={{ transform: "rotate(-90deg)", transformOrigin: "36px 36px" }} />
+            </svg>
+            <div className={styles.circCenter}>
+              <span className={styles.circLetter} style={{ color: lc }}>{course.letterGrade}</span>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.warnBadge}>
+            <span>⚠️</span>
+            <span>Unassigned</span>
+          </div>
+        )}
+      </div>
+
+      {/* Card body — grade breakdown */}
+      <div className={styles.cardBody}>
+        <div className={styles.gradeRow}>
+          <span className={styles.gradeLabel}>📝 Midterm</span>
+          <span className={styles.gradeVal}>
+            {course.midtermMax > 0
+              ? <><strong>{course.midtermGrade}</strong> / {course.midtermMax}</>
+              : <span className={styles.gradeNone}>—</span>}
+          </span>
+        </div>
+        <div className={styles.gradeRow}>
+          <span className={styles.gradeLabel}>🧩 Quizzes</span>
+          <span className={styles.gradeVal}><strong>{course.quizScore}</strong> pts</span>
+        </div>
+        <div className={styles.gradeRow}>
+          <span className={styles.gradeLabel}>📋 Assignments</span>
+          <span className={styles.gradeVal}><strong>{course.assignmentScore}</strong> pts</span>
+        </div>
+        {course.bonus > 0 && (
+          <div className={styles.gradeRow}>
+            <span className={styles.gradeLabel}>🎁 Bonus</span>
+            <span className={styles.gradeVal}><strong>+{course.bonus}</strong></span>
+          </div>
+        )}
+
+        <div className={styles.gradeDivider} />
+
+        <div className={styles.gradeRow}>
+          <span className={`${styles.gradeLabel} ${styles.gradeLabelBold}`}>Coursework</span>
+          <span className={`${styles.gradeVal} ${styles.gradeValBold}`} style={{ color: "#0ea5e9" }}>
+            <strong>{course.courseworkTotal}</strong> / 40
+          </span>
+        </div>
+        <div className={styles.gradeRow}>
+          <span className={`${styles.gradeLabel} ${styles.gradeLabelBold}`}>Final Exam</span>
+          <span className={`${styles.gradeVal} ${styles.gradeValBold}`} style={assigned ? { color: lc } : { color: "#f97316" }}>
+            {assigned
+              ? <><strong>{course.finalScore}</strong> / 60</>
+              : <span className={styles.pendingBadge}>Pending</span>}
+          </span>
+        </div>
+
+        <div className={`${styles.gradeDivider} ${styles.gradeDividerThick}`} />
+
+        <div className={`${styles.gradeRow} ${styles.totalRow}`}>
+          <span className={styles.totalLabel}>Total</span>
+          <span className={styles.totalVal} style={assigned ? { color: lc } : { color: "#94a3b8" }}>
+            {assigned
+              ? <>{course.total}<span className={styles.totalOf}> / 100</span></>
+              : "—"}
+          </span>
+        </div>
+
+        {/* Status chips */}
+        <div className={styles.statusRow}>
+          <span className={`${styles.statusChip} ${assigned ? styles.statusAssigned : styles.statusPending}`}>
+            {assigned ? "✓ Assigned" : "⏳ Pending"}
+          </span>
+          {assigned && (
+            <span className={`${styles.statusChip} ${course.published ? styles.statusPublished : styles.statusUnpublished}`}>
+              {course.published ? "📢 Published" : "🔒 Not Published"}
+            </span>
+          )}
+          {!assigned && (
+            <span className={styles.notifyHint}>Click to notify instructor →</span>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────
+export default function FinalGradePage() {
+  const [query,     setQuery]     = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [student,   setStudent]   = useState(null);   // AdminFinalGradeStudentDto
+  const [error,     setError]     = useState(null);
+  const [notifyFor, setNotifyFor] = useState(null);   // course for modal
+  const [publishing, setPublishing] = useState(false);
+  const [toast,     setToast]     = useState(null);
+
+  const toast$ = (msg, t = "ok") => {
+    setToast({ msg, t });
+    setTimeout(() => setToast(null), 2800);
+  };
+
+  const search = async (e) => {
+    e?.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+    setLoading(true);
+    setError(null);
+    setStudent(null);
+    try {
+      const data = await adminGetFinalGrades(q);
+      setStudent(data);
+    } catch (err) {
+      setError(err?.message || "Student not found");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const publish = async () => {
+    if (!student) return;
+    const assignedCount = student.courses.filter(c => c.assigned && !c.published).length;
+    if (assignedCount === 0) {
+      toast$("All assigned grades are already published.", "warn");
+      return;
+    }
+    setPublishing(true);
+    try {
+      const res = await adminPublishFinalGrades(student.studentId, null);
+      toast$(`✅ ${res.publishedCount} grade(s) published to student`);
+      // Refresh
+      const updated = await adminGetFinalGrades(student.studentCode || student.studentId);
+      setStudent(updated);
+    } catch (err) {
+      toast$(err?.message || "Publish failed", "err");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const courses = student?.courses ?? [];
+  const assignedCount   = courses.filter(c => c.assigned).length;
+  const unassignedCount = courses.filter(c => !c.assigned).length;
+  const publishedCount  = courses.filter(c => c.published).length;
+  const hasUnpublished  = courses.some(c => c.assigned && !c.published);
+
+  return (
+    <div className={styles.page}>
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            className={`${styles.toast} ${toast.t === "err" ? styles.toastErr : toast.t === "warn" ? styles.toastWarn : ""}`}
+            initial={{ opacity: 0, y: -18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            transition={sp}>
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Hero ── */}
+      <motion.div className={styles.hero}
+        initial={{ opacity: 0, y: -18 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: .45, ease: [.22, 1, .36, 1] }}>
+        <div className={styles.heroBg} />
+        <div className={styles.heroContent}>
+          <div>
+            <h1 className={styles.heroTitle}>Final Grade Audit</h1>
+            <p className={styles.heroSub}>Review and publish final grades before students can see them</p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ── Search ── */}
+      <motion.div className={styles.searchSection}
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: .08 }}>
+        <form className={styles.searchForm} onSubmit={search}>
+          <div className={styles.searchBox}>
+            <svg className={styles.searchIco} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              className={styles.searchIn}
+              placeholder="Enter student code or ID…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              autoFocus />
+            {query && (
+              <button type="button" className={styles.searchX}
+                onClick={() => { setQuery(""); setStudent(null); setError(null); }}>✕</button>
+            )}
+          </div>
+          <motion.button type="submit" className={styles.searchBtn}
+            disabled={!query.trim() || loading}
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: .97 }}>
+            {loading ? "Searching…" : "Search"}
+          </motion.button>
+        </form>
+
+        {error && (
+          <motion.div className={styles.errorMsg}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            🔍 {error}
+          </motion.div>
+        )}
+      </motion.div>
+
+      {/* ── No search yet ── */}
+      {!student && !loading && !error && (
+        <motion.div className={styles.idleState}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <div className={styles.idleIcon}>🎓</div>
+          <h3 className={styles.idleTitle}>Search for a Student</h3>
+          <p className={styles.idleSub}>Enter a student code to view their final grade status across all registered courses</p>
+        </motion.div>
+      )}
+
+      {/* ── Student found ── */}
+      <AnimatePresence>
+        {student && (
+          <motion.div
+            key={student.studentId}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+
+            {/* Student info bar */}
+            <motion.div className={styles.studentBar}
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: .06, ...sp }}>
+              <Av name={student.studentName} size={52} bg="#e07b6a" />
+              <div className={styles.studentBarInfo}>
+                <div className={styles.studentName}>{student.studentName}</div>
+                <div className={styles.studentMeta}>
+                  <span className={styles.studentChip}>🆔 {student.studentCode}</span>
+                  <span className={styles.studentChip}>📚 {courses.length} Courses</span>
+                  <span className={`${styles.studentChip} ${assignedCount === courses.length ? styles.chipGreen : styles.chipOrange}`}>
+                    ✓ {assignedCount}/{courses.length} Assigned
+                  </span>
+                  {publishedCount > 0 && (
+                    <span className={`${styles.studentChip} ${styles.chipBlue}`}>
+                      📢 {publishedCount} Published
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Publish button */}
+              <motion.button
+                className={`${styles.publishBtn} ${!hasUnpublished ? styles.publishBtnDim : ""}`}
+                onClick={publish}
+                disabled={publishing || !hasUnpublished}
+                whileHover={hasUnpublished ? { scale: 1.03, filter: "brightness(1.08)" } : {}}
+                whileTap={hasUnpublished ? { scale: .97 } : {}}>
+                {publishing ? "Publishing…" : "📢 Publish Grades"}
+              </motion.button>
+            </motion.div>
+
+            {/* Summary pills */}
+            {unassignedCount > 0 && (
+              <motion.div className={styles.warnBanner}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: .1 }}>
+                <span className={styles.warnBannerIcon}>⚠️</span>
+                <span>
+                  <strong>{unassignedCount} course{unassignedCount > 1 ? "s" : ""}</strong>
+                  {" "}still {unassignedCount > 1 ? "have" : "has"} an unassigned final grade.
+                  Click on a card to notify the responsible instructor.
+                </span>
+              </motion.div>
+            )}
+
+            {/* Cards grid */}
+            {courses.length === 0 ? (
+              <div className={styles.empty}>
+                <span>📭</span>
+                <p>No active course registrations found for this student.</p>
+              </div>
+            ) : (
+              <div className={styles.cardsGrid}>
+                {courses.map((c, i) => (
+                  <CourseCard
+                    key={c.courseId}
+                    course={c}
+                    student={student}
+                    color="#e07b6a"
+                    onOpenNotify={setNotifyFor}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Publish area */}
+            {courses.length > 0 && (
+              <motion.div className={styles.publishSection}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                transition={{ delay: .2 }}>
+                <div className={styles.publishInfo}>
+                  <div className={styles.publishInfoTitle}>Publish Final Grades</div>
+                  <div className={styles.publishInfoSub}>
+                    {hasUnpublished
+                      ? `${assignedCount - publishedCount} assigned grade(s) are ready to publish. Students will see results immediately.`
+                      : publishedCount === 0
+                        ? "No grades are assigned yet. Publish is unavailable until instructors enter grades."
+                        : "All assigned grades have been published to the student."}
+                  </div>
+                </div>
+                <motion.button
+                  className={`${styles.publishBtnLarge} ${!hasUnpublished ? styles.publishBtnLargeDim : ""}`}
+                  onClick={publish}
+                  disabled={publishing || !hasUnpublished}
+                  whileHover={hasUnpublished ? { scale: 1.02, filter: "brightness(1.08)" } : {}}
+                  whileTap={hasUnpublished ? { scale: .97 } : {}}>
+                  {publishing
+                    ? "Publishing…"
+                    : hasUnpublished
+                      ? `📢 Publish ${assignedCount - publishedCount} Grade(s)`
+                      : "✅ All Published"}
+                </motion.button>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Notify modal ── */}
+      <AnimatePresence>
+        {notifyFor && (
+          <NotifyModal
+            course={notifyFor}
+            student={student}
+            onClose={() => setNotifyFor(null)}
+            onSent={() => setNotifyFor(null)}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

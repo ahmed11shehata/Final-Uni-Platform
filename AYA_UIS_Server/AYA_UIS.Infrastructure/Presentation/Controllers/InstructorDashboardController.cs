@@ -25,13 +25,6 @@ namespace Presentation.Controllers
             return Ok(new { success = true, data = result });
         }
 
-        [HttpGet("courses")]
-        public async Task<IActionResult> GetCourses()
-        {
-            var dash = await _mediator.Send(new GetInstructorDashboardQuery(CurrentUserId));
-            return Ok(new { success = true, data = dash.Courses });
-        }
-
         [HttpGet("grades/{courseId}")]
         public IActionResult GetGrades(int courseId)
         {

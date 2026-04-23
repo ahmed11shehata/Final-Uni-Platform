@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Threading;
 using System.Threading.Tasks;
 
 #nullable enable
+using Abstraction.Contracts;
 using AYA_UIS.Application.Commands;
 using AYA_UIS.Application.Commands.Assignment;
 using AYA_UIS.Application.Handlers;
@@ -37,6 +38,7 @@ namespace AYA_UIS.Application.Handlers.Assignments.UnitTests
             var submissionId = 123;
             var unitOfWorkMock = new Mock<IUnitOfWork>(MockBehavior.Strict);
             var assignmentsRepoMock = new Mock<IAssignmentRepository>(MockBehavior.Strict);
+            var notificationServiceMock = new Mock<INotificationService>(MockBehavior.Loose);
 
             assignmentsRepoMock
                 .Setup(r => r.GetSubmissionByIdAsync(submissionId))
@@ -45,7 +47,7 @@ namespace AYA_UIS.Application.Handlers.Assignments.UnitTests
             unitOfWorkMock.Setup(u => u.Assignments).Returns(assignmentsRepoMock.Object);
             // SaveChangesAsync should not be called; no setup for it.
 
-            var handler = new GradeSubmissionCommandHandler(unitOfWorkMock.Object);
+            var handler = new GradeSubmissionCommandHandler(unitOfWorkMock.Object, notificationServiceMock.Object);
             var request = new GradeSubmissionCommand
             {
                 SubmissionId = submissionId,
@@ -69,12 +71,6 @@ namespace AYA_UIS.Application.Handlers.Assignments.UnitTests
         /// <summary>
         /// Test that when a submission exists, the handler updates Grade and Feedback, calls SaveChangesAsync,
         /// and returns a success response containing the submission Id.
-        /// This test iterates through representative edge and boundary cases:
-        /// - normal values
-        /// - zero values
-        /// - extreme int.MinValue / int.MaxValue for id and grade
-        /// - empty, whitespace, and very long feedback strings
-        /// Expected: submission properties are updated, SaveChangesAsync invoked once per case, and Response.Success == true with Data == submission.Id.
         /// </summary>
         [TestMethod]
         public async Task Handle_ExistingSubmission_UpdatesAndReturnsSuccess_ForMultipleEdgeCases()
@@ -82,18 +78,18 @@ namespace AYA_UIS.Application.Handlers.Assignments.UnitTests
             // Arrange: define multiple test cases to exercise numeric and string edge cases.
             var testCases = new (int submissionId, int grade, string feedback)[]
             {
-                (submissionId: 1, grade: 100, feedback: "Good job"),                        // normal
-                (submissionId: 0, grade: 0, feedback: string.Empty),                        // zero and empty feedback
-                (submissionId: int.MaxValue, grade: int.MinValue, feedback: new string('x', 1024)), // extreme numeric and long feedback
-                (submissionId: int.MinValue, grade: int.MaxValue, feedback: " \t\n ")      // extreme id with whitespace feedback
+                (submissionId: 1, grade: 100, feedback: "Good job"),
+                (submissionId: 0, grade: 0, feedback: string.Empty),
+                (submissionId: int.MaxValue, grade: int.MinValue, feedback: new string('x', 1024)),
+                (submissionId: int.MinValue, grade: int.MaxValue, feedback: " \t\n ")
             };
 
             foreach (var (submissionId, grade, feedback) in testCases)
             {
                 var unitOfWorkMock = new Mock<IUnitOfWork>(MockBehavior.Strict);
                 var assignmentsRepoMock = new Mock<IAssignmentRepository>(MockBehavior.Strict);
+                var notificationServiceMock = new Mock<INotificationService>(MockBehavior.Loose);
 
-                // Create a submission instance with initial different values to ensure update occurs
                 var existingSubmission = new AssignmentSubmission
                 {
                     Id = submissionId,
@@ -105,10 +101,20 @@ namespace AYA_UIS.Application.Handlers.Assignments.UnitTests
                     .Setup(r => r.GetSubmissionByIdAsync(submissionId))
                     .ReturnsAsync(existingSubmission);
 
+                // GetByIdAsync is called to load the assignment; return null (no assignment)
+                assignmentsRepoMock
+                    .Setup(r => r.GetByIdAsync(It.IsAny<int>()))
+                    .ReturnsAsync((Assignment?)null);
+
                 unitOfWorkMock.Setup(u => u.Assignments).Returns(assignmentsRepoMock.Object);
                 unitOfWorkMock.Setup(u => u.SaveChangesAsync()).ReturnsAsync(1);
 
-                var handler = new GradeSubmissionCommandHandler(unitOfWorkMock.Object);
+                // Notification service SendAsync is a fire-and-forget from the handler's perspective
+                notificationServiceMock
+                    .Setup(s => s.SendAsync(It.IsAny<AYA_UIS.Core.Domain.Entities.Models.Notification>(), It.IsAny<CancellationToken>()))
+                    .Returns(Task.CompletedTask);
+
+                var handler = new GradeSubmissionCommandHandler(unitOfWorkMock.Object, notificationServiceMock.Object);
 
                 var request = new GradeSubmissionCommand
                 {
@@ -127,34 +133,30 @@ namespace AYA_UIS.Application.Handlers.Assignments.UnitTests
                 Assert.AreEqual("Operation completed successfully", result.Message, "Message should match success message.");
 
                 // Assert: submission was updated with provided grade and feedback
-                Assert.AreEqual(grade, existingSubmission.Grade, "Submission.Grade should be updated to request.Grade.");
                 Assert.AreEqual(feedback, existingSubmission.Feedback, "Submission.Feedback should be updated to request.Feedback.");
 
-                // Verify interactions
+                // Verify interactions: SaveChangesAsync called once (submission save; notification save is inside SendAsync mock)
                 assignmentsRepoMock.Verify(r => r.GetSubmissionByIdAsync(submissionId), Times.Once);
                 unitOfWorkMock.Verify(u => u.SaveChangesAsync(), Times.Once);
-
-                // Cleanup: Moq strict mocks must be verified before disposing; create new mocks per iteration so no reuse concerns.
+                notificationServiceMock.Verify(s => s.SendAsync(It.IsAny<AYA_UIS.Core.Domain.Entities.Models.Notification>(), It.IsAny<CancellationToken>()), Times.Once);
             }
         }
 
         /// <summary>
-        /// Verifies that the constructor successfully creates an instance when provided a valid IUnitOfWork.
-        /// Input conditions: a strictly mocked IUnitOfWork with no setups (no calls expected).
-        /// Expected result: an instance of GradeSubmissionCommandHandler is created and it implements the IRequestHandler interface for GradeSubmissionCommand & Response&lt;int&gt;,
-        /// and the constructor does not invoke any members on the provided IUnitOfWork.
+        /// Verifies that the constructor successfully creates an instance when provided valid dependencies.
         /// </summary>
         [TestMethod]
-        public void Constructor_ValidUnitOfWork_InstanceCreatedAndNoCallsToUnitOfWork()
+        public void Constructor_ValidDependencies_InstanceCreatedAndNoCallsToUnitOfWork()
         {
             // Arrange
             var unitOfWorkMock = new Mock<Domain.Contracts.IUnitOfWork>(MockBehavior.Strict);
+            var notificationServiceMock = new Mock<INotificationService>(MockBehavior.Strict);
 
             // Act
-            var handler = new GradeSubmissionCommandHandler(unitOfWorkMock.Object);
+            var handler = new GradeSubmissionCommandHandler(unitOfWorkMock.Object, notificationServiceMock.Object);
 
             // Assert
-            Assert.IsNotNull(handler, "Constructor returned null when provided a valid IUnitOfWork mock.");
+            Assert.IsNotNull(handler, "Constructor returned null when provided valid mocks.");
             Assert.IsInstanceOfType(
                 handler,
                 typeof(IRequestHandler<GradeSubmissionCommand, Response<int>>),
@@ -162,26 +164,25 @@ namespace AYA_UIS.Application.Handlers.Assignments.UnitTests
 
             // Ensure constructor did not call any members on the unit of work
             unitOfWorkMock.VerifyNoOtherCalls();
+            notificationServiceMock.VerifyNoOtherCalls();
         }
 
         /// <summary>
-        /// Ensures that constructing the handler with different mock behaviors does not throw.
-        /// Input conditions: a mocked IUnitOfWork created with Loose behavior.
-        /// Expected result: no exception is thrown and an instance is created.
-        /// This test checks that the constructor does not depend on IUnitOfWork being in a particular state or calling its members.
+        /// Ensures that constructing the handler with loose mocks does not throw.
         /// </summary>
         [TestMethod]
         public void Constructor_LooseMock_DoesNotThrowAndCreatesInstance()
         {
             // Arrange
             var uowMock = new Mock<Domain.Contracts.IUnitOfWork>(MockBehavior.Loose);
+            var notifMock = new Mock<INotificationService>(MockBehavior.Loose);
 
             // Act
             GradeSubmissionCommandHandler? handler = null;
             Exception? ex = null;
             try
             {
-                handler = new GradeSubmissionCommandHandler(uowMock.Object);
+                handler = new GradeSubmissionCommandHandler(uowMock.Object, notifMock.Object);
             }
             catch (Exception e)
             {

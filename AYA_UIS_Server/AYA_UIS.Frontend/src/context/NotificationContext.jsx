@@ -1,165 +1,138 @@
 // src/context/NotificationContext.jsx
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import * as signalR from "@microsoft/signalr";
+import { useAuth } from "../hooks/useAuth";
+import {
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+} from "../services/api/notificationApi";
 
 const NotificationContext = createContext(null);
 
-/* ─── Mock notifications per role ─── */
-const MOCK = {
-  student: [
-    {
-      id: 1, type: "grade_approved", read: false,
-      title: "Assignment Graded ✅",
-      body: "Your submission for 'Neural Network from Scratch' has been approved.",
-      detail: {
-        course: "Artificial Intelligence",
-        assignment: "Neural Network from Scratch",
-        grade: 18, max: 20,
-        submittedAt: "Mar 14, 2025 · 11:45 PM",
-        file: "ahmed_neural.pdf",
-        note: "Great work! Clean implementation.",
-      },
-      time: "2 min ago",
+// ─── Hub URL (strips /api suffix from the base URL) ───────────────
+const HUB_URL = (import.meta.env.VITE_API_BASE_URL || "https://localhost:7121/api")
+  .replace(/\/api\/?$/, "") + "/hubs/notifications";
+
+// ─── Map an API notification to the context shape ─────────────────
+function mapApiNotif(n) {
+  const d = n.detail || {};
+  return {
+    id:    n.id,
+    type:  n.type,
+    read:  n.isRead,
+    title: n.title,
+    body:  n.body,
+    time:  n.time || "Just now",
+    detail: {
+      // Course
+      course:   d.courseName   ?? null,
+      courseId: d.courseId     ?? null,
+
+      // Assignment
+      assignment:   d.assignmentTitle ?? null,
+      assignmentId: d.assignmentId    ?? null,
+      grade:  d.grade          ?? null,
+      max:    d.max            ?? null,
+      reason: d.rejectionReason ?? null,
+
+      // Quiz
+      quiz:   d.quizTitle  ?? null,
+      quizId: d.quizId     ?? null,
+
+      // Lecture
+      lecture:   d.lectureTitle ?? null,
+      lectureId: d.lectureId   ?? null,
+
+      // People
+      instructor:      d.instructorName  ?? null,
+      student:         d.studentName     ?? null,
+      studentId:       d.studentCode     ?? null,
+      targetStudentId: d.targetStudentId ?? null,
+
+      // Timestamp
+      submittedAt: d.submittedAt ?? null,
     },
-    {
-      id: 2, type: "grade_rejected", read: false,
-      title: "Assignment Returned ❌",
-      body: "Your submission for 'Knowledge Base Design' was returned.",
-      detail: {
-        course: "Expert Systems",
-        assignment: "Knowledge Base Design",
-        grade: null, max: 20,
-        submittedAt: "Mar 20, 2025 · 09:10 PM",
-        file: "knowledge_v1.pdf",
-        reason: "Suspected AI-generated content",
-        note: "Please resubmit with original work.",
-      },
-      time: "1 hr ago",
-    },
-    {
-      id: 3, type: "quiz_available", read: true,
-      title: "New Quiz Available 📝",
-      body: "Quiz 3 — ML Fundamentals is now open. Deadline: Mar 25.",
-      detail: {
-        course: "Artificial Intelligence",
-        quiz: "Quiz 3 — ML Fundamentals",
-        deadline: "Mar 25, 2025",
-        duration: "20 min", questions: 10,
-      },
-      time: "3 hr ago",
-    },
-    {
-      id: 4, type: "lecture_uploaded", read: true,
-      title: "New Lecture Uploaded 🎬",
-      body: "Dr. Farouk uploaded Week 6: Deep Learning & CNNs.",
-      detail: {
-        course: "Artificial Intelligence",
-        lecture: "Week 6 — Deep Learning & CNNs",
-        uploadedAt: "Mar 17, 2025",
-        duration: "63 min", size: "380 MB",
-      },
-      time: "Yesterday",
-    },
-  ],
-  instructor: [
-    {
-      id: 1, type: "submission_new", read: false,
-      title: "New Submission 📬",
-      body: "Ahmed Hassan submitted 'Neural Network from Scratch' — AI course.",
-      detail: {
-        student: "Ahmed Hassan", studentId: "20210001",
-        course: "Artificial Intelligence",
-        assignment: "Neural Network from Scratch",
-        submittedAt: "Mar 14, 2025 · 11:45 PM",
-        file: "ahmed_neural.pdf",
-      },
-      time: "5 min ago",
-    },
-    {
-      id: 2, type: "submission_new", read: false,
-      title: "New Submission 📬",
-      body: "Sara Mohamed submitted 'Knowledge Base Design' — Expert Systems.",
-      detail: {
-        student: "Sara Mohamed", studentId: "20210002",
-        course: "Expert Systems",
-        assignment: "Knowledge Base Design",
-        submittedAt: "Mar 20, 2025 · 09:10 PM",
-        file: "sara_kb.pdf",
-      },
-      time: "1 hr ago",
-    },
-    {
-      id: 3, type: "quiz_ended", read: true,
-      title: "Quiz Ended 📊",
-      body: "Quiz 2 has ended. 28 students attempted out of 35.",
-      detail: {
-        course: "Artificial Intelligence",
-        quiz: "Quiz 2 — Knowledge Representation",
-        attempts: 28, total: 35,
-        avgScore: "7.4 / 10",
-        endedAt: "Mar 10, 2025",
-      },
-      time: "2 days ago",
-    },
-  ],
-  admin: [
-    {
-      id: 1, type: "user_registered", read: false,
-      title: "New User Registered 👤",
-      body: "Nour Ibrahim (Student) registered and awaits activation.",
-      detail: {
-        name: "Nour Ibrahim", email: "nour@uni.edu",
-        role: "Student", registeredAt: "Mar 6, 2025 · 08:30 AM",
-        status: "Pending Activation",
-      },
-      time: "10 min ago",
-    },
-    {
-      id: 2, type: "system_alert", read: false,
-      title: "System Alert ⚠️",
-      body: "Storage usage reached 82%. Consider cleanup.",
-      detail: {
-        type: "Storage Warning",
-        used: "82 GB", total: "100 GB",
-        recommendation: "Archive old lecture files.",
-        timestamp: "Mar 6, 2025",
-      },
-      time: "1 hr ago",
-    },
-    {
-      id: 3, type: "user_registered", read: true,
-      title: "Instructor Account Created 🎓",
-      body: "Dr. Rania Hassan account activated successfully.",
-      detail: {
-        name: "Dr. Rania Hassan", email: "rania@uni.edu",
-        role: "Instructor", registeredAt: "Mar 5, 2025",
-        status: "Active",
-      },
-      time: "Yesterday",
-    },
-  ],
-};
+  };
+}
 
 export function NotificationProvider({ children }) {
-  const [notifications, setNotifications] = useState(MOCK);
+  // NotificationProvider is inside AuthProvider — safe to use useAuth
+  const { user } = useAuth();
 
+  // Notifications keyed by role: { student: [], instructor: [], admin: [] }
+  const [notifications, setNotifications] = useState({ student: [], instructor: [], admin: [] });
+  const connectionRef = useRef(null);
+
+  // ── Re-run whenever the logged-in user changes (login / logout / switch) ──
+  useEffect(() => {
+    if (!user) {
+      // User logged out — clear all notifications; cleanup fn stops SignalR
+      setNotifications({ student: [], instructor: [], admin: [] });
+      return;
+    }
+
+    const role = (user.role || "student").toLowerCase();
+
+    // Fetch real notifications from the shared endpoint
+    getNotifications()
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setNotifications((prev) => ({ ...prev, [role]: data.map(mapApiNotif) }));
+        }
+      })
+      .catch(() => { /* not authenticated yet or server offline — stay with empty */ });
+
+    // ── Connect SignalR hub ─────────────────────────────────────
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(HUB_URL, {
+        accessTokenFactory: () => localStorage.getItem("token") || "",
+      })
+      .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Warning)
+      .build();
+
+    connection.on("ReceiveNotification", (notif) => {
+      const mapped = mapApiNotif(notif);
+      setNotifications((prev) => ({
+        ...prev,
+        student:    role === "student"    ? [mapped, ...prev.student]    : prev.student,
+        instructor: role === "instructor" ? [mapped, ...prev.instructor] : prev.instructor,
+        admin:      role === "admin"      ? [mapped, ...prev.admin]      : prev.admin,
+      }));
+    });
+
+    connection.start().catch(() => { /* SignalR failure is non-fatal */ });
+    connectionRef.current = connection;
+
+    // Cleanup: stop connection when user changes or component unmounts
+    return () => {
+      connection.stop();
+      connectionRef.current = null;
+    };
+  }, [user?.id]); // Re-run only when the user identity changes
+
+  // ── Public API ─────────────────────────────────────────────────
   const getNotifs = useCallback((role) => notifications[role] || [], [notifications]);
 
   const markRead = useCallback((role, id) => {
-    setNotifications(prev => ({
+    setNotifications((prev) => ({
       ...prev,
-      [role]: prev[role].map(n => n.id === id ? { ...n, read: true } : n),
+      [role]: prev[role].map((n) => (n.id === id ? { ...n, read: true } : n)),
     }));
+    markNotificationRead(id).catch(() => {});
   }, []);
 
   const markAllRead = useCallback((role) => {
-    setNotifications(prev => ({
+    setNotifications((prev) => ({
       ...prev,
-      [role]: prev[role].map(n => ({ ...n, read: true })),
+      [role]: prev[role].map((n) => ({ ...n, read: true })),
     }));
+    markAllNotificationsRead().catch(() => {});
   }, []);
 
   const addNotification = useCallback((role, notif) => {
-    setNotifications(prev => ({
+    setNotifications((prev) => ({
       ...prev,
       [role]: [{ ...notif, id: Date.now(), read: false, time: "Just now" }, ...(prev[role] || [])],
     }));

@@ -4,6 +4,7 @@ using AYA_UIS.Core.Domain.Entities;
 using AYA_UIS.Core.Domain.Entities.Models;
 using Domain.Contracts;
 using Presistence;
+using Presistence.Repositories;
 
 namespace Presistence.Repositories
 {
@@ -31,6 +32,9 @@ namespace Presistence.Repositories
         private IScheduleSessionRepository?                  _scheduleSessions;
         private IExamScheduleRepository?                     _examSchedules;
         private IRegistrationCourseInstructorRepository?     _registrationCourseInstructors;
+        private INotificationRepository?                     _notifications;
+        private IMidtermGradeRepository?                     _midtermGrades;
+        private IFinalGradeRepository?                       _finalGrades;
 
         public UnitOfWork(UniversityDbContext dbContext) => _dbContext = dbContext;
 
@@ -53,6 +57,9 @@ namespace Presistence.Repositories
         public IScheduleSessionRepository       ScheduleSessions        => _scheduleSessions       ??= new ScheduleSessionRepository(_dbContext);
         public IExamScheduleRepository                    ExamSchedules                   => _examSchedules                   ??= new ExamScheduleRepository(_dbContext);
         public IRegistrationCourseInstructorRepository    RegistrationCourseInstructors   => _registrationCourseInstructors   ??= new RegistrationCourseInstructorRepository(_dbContext);
+        public INotificationRepository                    Notifications                   => _notifications                   ??= new NotificationRepository(_dbContext);
+        public IMidtermGradeRepository                    MidtermGrades                   => _midtermGrades                   ??= new MidtermGradeRepository(_dbContext);
+        public IFinalGradeRepository                      FinalGrades                     => _finalGrades                     ??= new FinalGradeRepository(_dbContext);
 
         public IGenericRepository<TEntity, TKey> GetRepository<TEntity, TKey>() where TEntity : BaseEntities<TKey>
             => (IGenericRepository<TEntity, TKey>)_repositories.GetOrAdd(

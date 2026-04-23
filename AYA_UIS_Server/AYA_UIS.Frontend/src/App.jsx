@@ -39,7 +39,6 @@ import QuizDetail             from "./pages/student/QuizDetail";
 import InstructorDashboard from "./pages/instructor/InstructorDashboard";
 import QuizBuilderPage     from "./pages/instructor/QuizBuilderPage";
 import AssignmentMgmtPage  from "./pages/instructor/AssignmentMgmtPage";
-import LectureUploadPage   from "./pages/instructor/LectureUploadPage";
 import UploadMaterialPage  from "./pages/instructor/UploadMaterialPage";
 import GradesMgmtPage      from "./pages/instructor/GradesMgmtPage";
 
@@ -51,6 +50,7 @@ import RegistrationManagerPage from "./pages/admin/RegistrationManagerPage";
 import RegisterEmailPage      from "./pages/admin/RegisterEmailPage";
 import AdminSchedulePage         from "./pages/admin/AdminSchedulePage";
 import InstructorControlPage    from "./pages/admin/InstructorControlPage";
+import FinalGradePage           from "./pages/admin/FinalGradePage";
 import SchedulePage              from "./pages/student/SchedulePage";
 
 export default function App() {
@@ -102,7 +102,7 @@ export default function App() {
                 <Route path="/instructor/schedule"       element={<SchedulePage />} />
                 <Route path="/instructor/quiz-builder" element={<QuizBuilderPage />} />
                 <Route path="/instructor/assignments"  element={<AssignmentMgmtPage />} />
-                <Route path="/instructor/lectures"     element={<LectureUploadPage />} />
+                <Route path="/instructor/lectures"     element={<UploadMaterialPage />} />
                 <Route path="/instructor/material"     element={<UploadMaterialPage />} />
                 <Route path="/instructor/grades"       element={<GradesMgmtPage />} />
                 <Route path="/instructor/themes"       element={<ThemePage />} />
@@ -120,6 +120,7 @@ export default function App() {
                 <Route path="/admin/email-manager"  element={<RegisterEmailPage />} />
                 <Route path="/admin/schedule"             element={<AdminSchedulePage />} />
                 <Route path="/admin/instructor-control"  element={<InstructorControlPage />} />
+                <Route path="/admin/final-grade"         element={<FinalGradePage />} />
                 <Route path="/admin/themes"              element={<ThemePage />} />
                 <Route path="/admin/profile"       element={<ProfilePage />} />
               </Route>

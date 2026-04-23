@@ -24,5 +24,9 @@ namespace AYA_UIS.Core.Domain.Contracts
         Task<AssignmentSubmission?> GetSubmissionByIdAsync(int submissionId);
 
         Task<IEnumerable<Assignment>> GetAssignmentsWithSubmissions(int courseId);
+
+        Task<AssignmentSubmission?> GetStudentSubmissionAsync(int assignmentId, string studentId);
+        Task UpdateSubmissionAsync(AssignmentSubmission submission);
+        Task DeleteSubmissionAsync(int submissionId);
     }
 }

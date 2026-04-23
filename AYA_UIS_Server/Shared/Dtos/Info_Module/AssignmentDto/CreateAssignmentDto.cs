@@ -16,6 +16,8 @@ namespace Shared.Dtos.Info_Module.AssignmentDto
 
         public DateTime Deadline { get; set; }
 
+        public DateTime? ReleaseDate { get; set; }
+
         public int CourseId { get; set; }
     }
 }

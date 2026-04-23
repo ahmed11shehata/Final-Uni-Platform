@@ -26,6 +26,9 @@ using AYA_UIS.Core.Abstractions.Contracts;
 using AYA_UIS.Core.Domain.Contracts;
 using Abstraction.Contracts;
 using AYA_UIS.API.Filters;
+using Presentation.Hubs;
+using Presentation.Services;
+using Presistence.Services;
 
 namespace AYA_UIS.API
 {
@@ -132,6 +135,19 @@ namespace AYA_UIS.API
 
                 options.Events = new JwtBearerEvents
                 {
+                    // ── Allow SignalR WebSocket connections to pass token via query string ──
+                    OnMessageReceived = ctx =>
+                    {
+                        var token = ctx.Request.Query["access_token"];
+                        var path  = ctx.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(token) &&
+                            path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ctx.Token = token;
+                        }
+                        return Task.CompletedTask;
+                    },
+
                     // ── Check blocklist by jti right after JWT signature/expiry validation ──
                     OnTokenValidated = async ctx =>
                     {
@@ -233,11 +249,15 @@ namespace AYA_UIS.API
 
             builder.Services.AddAutoMapper(cfg => cfg.AddProfile<MappingProfile>());
 
+            builder.Services.AddSignalR();
+
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IServiceManager, ServiceManager>();
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IAdminService, AdminService>();
             builder.Services.AddScoped<IStudentRegistrationService, StudentRegistrationService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddHostedService<NotificationCleanupService>();
 
             // Token blocklist for logout support (singleton — shared state across requests)
             builder.Services.AddSingleton<ITokenBlocklistService, InMemoryTokenBlocklistService>();
@@ -310,6 +330,58 @@ namespace AYA_UIS.API
                         ALTER TABLE [Registrations] ADD [NumericTotal] INT NULL;
                     END
                 ");
+
+                // ── Notification entity extensions ──
+                var notifColumns = new (string col, string def)[]
+                {
+                    ("CourseId",        "INT NULL"),
+                    ("QuizId",          "INT NULL"),
+                    ("QuizTitle",       "NVARCHAR(MAX) NULL"),
+                    ("LectureId",       "INT NULL"),
+                    ("LectureTitle",    "NVARCHAR(MAX) NULL"),
+                    ("InstructorName",  "NVARCHAR(MAX) NULL"),
+                    ("StudentName",     "NVARCHAR(MAX) NULL"),
+                    ("StudentCode",     "NVARCHAR(MAX) NULL"),
+                    ("TargetStudentId", "NVARCHAR(MAX) NULL"),
+                };
+                foreach (var (col, def) in notifColumns)
+                {
+                    await db.Database.ExecuteSqlRawAsync($@"
+                        IF NOT EXISTS (
+                            SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+                            WHERE TABLE_NAME = 'Notifications' AND COLUMN_NAME = '{col}')
+                        BEGIN
+                            ALTER TABLE [Notifications] ADD [{col}] {def};
+                        END
+                    ");
+                }
+
+                // ── AttemptCount on AssignmentSubmissions (added in previous session) ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_NAME = 'AssignmentSubmissions' AND COLUMN_NAME = 'AttemptCount')
+                    BEGIN
+                        ALTER TABLE [AssignmentSubmissions] ADD [AttemptCount] INT NOT NULL CONSTRAINT [DF_AssignmentSubmissions_AttemptCount] DEFAULT 1;
+                    END
+                ");
+
+                // ── FinalGrades table ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.TABLES
+                        WHERE TABLE_NAME = 'FinalGrades')
+                    BEGIN
+                        CREATE TABLE [FinalGrades] (
+                            [Id]         INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [StudentId]  NVARCHAR(450)     NOT NULL,
+                            [CourseId]   INT               NOT NULL,
+                            [FinalScore] INT               NOT NULL DEFAULT 0,
+                            [Bonus]      INT               NOT NULL DEFAULT 0,
+                            [Published]  BIT               NOT NULL DEFAULT 0
+                        );
+                    END
+                ");
             }
 
             app.UseHttpsRedirection();
@@ -318,6 +390,7 @@ namespace AYA_UIS.API
             app.UseMiddleware<TokenBlocklistMiddleware>(); // Check logged-out tokens
             app.UseAuthorization();
             app.MapControllers();
+            app.MapHub<NotificationHub>("/hubs/notifications");
             app.Run();
         }
     }

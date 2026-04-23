@@ -1474,3 +1474,248 @@ select.formInput { appearance:none; -webkit-appearance:none; background-image:ur
     max-width: none;
   }
 }
+
+/* ===== CREATE EMAIL FIX  STABLE PATCH ===== */
+.page {
+  min-height: calc(100vh - 62px) !important;
+  height: calc(100vh - 62px) !important;
+}
+
+.main {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.contentBox {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 16px 22px 28px !important;
+}
+
+.createPane {
+  display: block !important;
+  min-height: fit-content !important;
+}
+
+.createWrap {
+  display: grid !important;
+  grid-template-columns: 240px 1fr !important;
+  min-height: auto !important;
+  overflow: hidden !important;
+  align-items: stretch !important;
+}
+
+.createSidebar {
+  align-self: stretch !important;
+  min-height: 100% !important;
+}
+
+.createContent {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  padding: 24px 28px 28px !important;
+}
+
+.formGrid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 14px 16px !important;
+  margin-bottom: 16px !important;
+}
+
+.formField,
+.formFieldFull {
+  min-width: 0 !important;
+}
+
+.formInput,
+.pwdField,
+.createGovBox {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.createActions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  margin-top: 8px !important;
+  padding-top: 14px !important;
+  border-top: 1px solid color-mix(in srgb, var(--accent,#818cf8) 10%, var(--border)) !important;
+}
+
+.btnGhost {
+  flex: 0 0 auto !important;
+  max-width: none !important;
+  min-width: 120px !important;
+}
+
+.btnCreate {
+  flex: 0 0 auto !important;
+  max-width: none !important;
+  min-width: 170px !important;
+}
+
+@media (max-width: 900px) {
+  .createWrap {
+    grid-template-columns: 220px 1fr !important;
+  }
+
+  .createContent {
+    padding: 22px 20px 24px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .createWrap {
+    grid-template-columns: 1fr !important;
+  }
+
+  .createSidebar {
+    display: none !important;
+  }
+
+  .createContent {
+    padding: 20px 16px 24px !important;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .createActions {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+  }
+
+  .btnGhost,
+  .btnCreate {
+    width: 100% !important;
+  }
+}
+/* ===== END CREATE EMAIL FIX ===== */
+
+
+/* ===== SCROLL RESTORE PATCH ===== */
+.page {
+  height: calc(100vh - 62px) !important;
+  min-height: calc(100vh - 62px) !important;
+  overflow: hidden !important;
+}
+
+.split {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.contentBox {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 34px !important;
+}
+
+.createPane,
+.foundPane,
+.homePane,
+.notFoundPane {
+  min-height: fit-content !important;
+}
+
+@media (max-width: 760px) {
+  .contentBox {
+    padding-bottom: 54px !important;
+  }
+}
+/* ===== END SCROLL RESTORE PATCH ===== */
+
+
+/* ===== FULL PAGE SCROLL FIX (final authority) ===== */
+/*
+  All previous patches either set overflow:hidden on .page/.split/.main
+  (which clips content to the viewport) or created a nested scroll inside
+  .contentBox (which clips the Create Email form).
+
+  Correct model: .page is the natural scroll container;
+  all intermediate wrappers are transparent to scroll.
+*/
+.page {
+  height: auto !important;
+  min-height: calc(100vh - 62px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.split {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  display: block !important;
+}
+
+.main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: visible !important;
+  width: 100% !important;
+  max-width: 1180px !important;
+  margin: 0 auto !important;
+}
+
+/* contentBox must NOT be a nested scroll container —
+   let the page scroll naturally */
+.contentBox {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  padding: 16px 22px 34px !important;
+}
+
+/* createPane/createWrap must not clip content */
+.createPane {
+  min-height: fit-content !important;
+}
+
+.createWrap {
+  overflow: visible !important;
+  min-height: auto !important;
+}
+
+/* createActions is no longer sticky inside a scrolling box;
+   remove the sticky so it does not float oddly on full-page scroll */
+.createActions {
+  position: static !important;
+  background: none !important;
+}
+
+@media (max-width: 1180px) {
+  .main {
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .contentBox {
+    padding: 14px 16px 44px !important;
+  }
+}
+/* ===== END FULL PAGE SCROLL FIX ===== */
+

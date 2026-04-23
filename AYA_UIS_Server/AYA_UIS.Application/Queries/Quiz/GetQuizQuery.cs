@@ -6,5 +6,6 @@ namespace AYA_UIS.Application.Queries.Quiz
     public class GetQuizQuery : IRequest<FrontendQuizDto?>
     {
         public int QuizId { get; set; }
+        public string? StudentId { get; set; }
     }
 }

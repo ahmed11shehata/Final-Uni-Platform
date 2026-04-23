@@ -9,6 +9,7 @@ namespace AYA_UIS.Core.Domain.Entities.Models
         public string FileUrl           { get; set; } = string.Empty;
         public int    Points            { get; set; }
         public DateTime Deadline        { get; set; }
+        public DateTime? ReleaseDate    { get; set; }
         public int    CourseId          { get; set; }
         public Course?  Course          { get; set; }
         public string CreatedByUserId   { get; set; } = string.Empty;

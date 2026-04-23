@@ -29,6 +29,11 @@ namespace Domain.Contracts
         // NEW — Instructor Control
         IRegistrationCourseInstructorRepository     RegistrationCourseInstructors { get; }
 
+        // Student module
+        INotificationRepository  Notifications  { get; }
+        IMidtermGradeRepository  MidtermGrades  { get; }
+        IFinalGradeRepository    FinalGrades    { get; }
+
         Task<int> SaveChangesAsync();
         IGenericRepository<TEntity, TKey> GetRepository<TEntity, TKey>() where TEntity : BaseEntities<TKey>;
     }

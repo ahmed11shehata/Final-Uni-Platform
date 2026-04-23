@@ -68,6 +68,75 @@ export const getStudentCourseDetail = async (courseId) => {
   return res.data.data;
 };
 
+// ── Assignments ──────────────────────────────────────────────
+
+/**
+ * POST /api/student/assignments/{assignmentId}/submit
+ * Multipart form — submits or replaces file before deadline.
+ */
+export const submitAssignment = async (assignmentId, file) => {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await api.post(`/student/assignments/${assignmentId}/submit`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data;
+};
+
+/**
+ * DELETE /api/student/assignments/{assignmentId}/submit
+ * Remove own submission before deadline.
+ */
+export const removeSubmission = async (assignmentId) => {
+  const res = await api.delete(`/student/assignments/${assignmentId}/submit`);
+  return res.data.data;
+};
+
+// ── Quizzes ──────────────────────────────────────────────────
+
+/**
+ * GET /api/quizzes/{quizId}
+ * Full quiz with questions (no correct answers exposed).
+ */
+export const getQuizDetail = async (quizId) => {
+  const res = await api.get(`/quizzes/${quizId}`);
+  return res.data;
+};
+
+/**
+ * POST /api/quizzes/{quizId}/submit
+ * Body: { quizId, answers: [{ questionId, selectedOptionId }] }
+ * Returns { data: score }
+ */
+export const submitQuiz = async (quizId, answers) => {
+  const res = await api.post(`/quizzes/${quizId}/submit`, { quizId, answers });
+  return res.data;
+};
+
+// ── Notifications ─────────────────────────────────────────────
+
+/**
+ * GET /api/student/notifications
+ */
+export const getStudentNotifications = async () => {
+  const res = await api.get("/student/notifications");
+  return res.data.data;
+};
+
+/**
+ * PUT /api/student/notifications/{id}/read
+ */
+export const markNotificationRead = async (id) => {
+  await api.put(`/student/notifications/${id}/read`);
+};
+
+/**
+ * PUT /api/student/notifications/read-all
+ */
+export const markAllNotificationsRead = async () => {
+  await api.put("/student/notifications/read-all");
+};
+
 // ── Stubs (not yet implemented on backend) ──────────────────
 export const getStudentGrades = () => Promise.resolve([]);
 

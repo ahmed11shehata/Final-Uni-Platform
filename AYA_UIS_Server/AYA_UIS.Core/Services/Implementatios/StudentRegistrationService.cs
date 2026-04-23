@@ -643,11 +643,29 @@ namespace Services.Implementatios
                             !r.IsEquivalency)
                 .ToList();
 
+            // Batch-load all instructor assignments for enrolled courses in one query
+            var courseIds = activeRegs
+                .Where(r => r.Course != null)
+                .Select(r => r.CourseId)
+                .Distinct()
+                .ToList();
+
+            var instructorAssignments = await _unitOfWork.RegistrationCourseInstructors
+                .GetByCourseIdsAsync(courseIds);
+
+            var instructorByCourseid = instructorAssignments
+                .GroupBy(x => x.CourseId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.First().Instructor?.DisplayName ?? "");
+
             var result = new List<StudentCourseDto>();
             foreach (var reg in activeRegs)
             {
                 var course = reg.Course;
                 if (course == null) continue;
+
+                instructorByCourseid.TryGetValue(course.Id, out var instructorName);
 
                 var idx = StableIndex(course.Code);
                 result.Add(new StudentCourseDto
@@ -655,7 +673,7 @@ namespace Services.Implementatios
                     Id = course.Id.ToString(),
                     Code = course.Code,
                     Name = course.Name,
-                    Instructor = "",
+                    Instructor = instructorName ?? "",
                     Color = Colors[idx % Colors.Length],
                     Shade = Shades[idx % Shades.Length],
                     Pattern = Patterns[idx % Patterns.Length],
@@ -696,30 +714,217 @@ namespace Services.Implementatios
 
             var course = reg.Course;
             var idx = StableIndex(course.Code);
+            var now = DateTime.UtcNow;
+
+            // ── Assignments ──────────────────────────────────────────
+            var allAssignments = await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(courseIdInt);
+            var assignmentDtos = new List<CourseAssignmentDto>();
+
+            foreach (var asn in allAssignments)
+            {
+                var submission = asn.Submissions.FirstOrDefault(s => s.StudentId == userId);
+
+                string status;
+                int? grade = null;
+                bool canSubmit = false;
+                string? rejectionReason = null;
+
+                if (submission == null || submission.Status == "Cleared")
+                {
+                    // No active submission (or student soft-cleared their previous one)
+                    if (asn.ReleaseDate.HasValue && now < asn.ReleaseDate.Value)
+                    {
+                        status    = "upcoming";
+                        canSubmit = false;
+                    }
+                    else
+                    {
+                        canSubmit = now <= asn.Deadline;
+                        status    = canSubmit ? "available" : "locked";
+                    }
+                }
+                else if (submission.Status == "Accepted")
+                {
+                    status = "graded";
+                    grade  = submission.Grade;
+                }
+                else if (submission.Status == "Rejected")
+                {
+                    status          = "rejected";
+                    grade           = 0;
+                    rejectionReason = submission.RejectionReason;
+                }
+                else
+                {
+                    // Pending — submitted, awaiting review
+                    status    = "submitted";
+                    canSubmit = now <= asn.Deadline; // allow replace before deadline
+                }
+
+                // "upcoming" assignments are visible but not submittable — keep them in the list
+
+                // A "Cleared" submission has no active file — treat it as absent for display purposes
+                var activeSubmission = (submission != null && submission.Status != "Cleared") ? submission : null;
+
+                assignmentDtos.Add(new CourseAssignmentDto
+                {
+                    Id                  = asn.Id.ToString(),
+                    Title               = asn.Title,
+                    Description         = !string.IsNullOrWhiteSpace(asn.Description) ? asn.Description : null,
+                    Deadline            = asn.Deadline.ToString("MMM d, yyyy"),
+                    ReleaseDate         = asn.ReleaseDate?.ToString("MMM d, yyyy"),
+                    Max                 = asn.Points,
+                    Grade               = grade,
+                    Status              = status,
+                    Types               = new List<string> { "pdf", "doc", "docx", "zip" },
+                    File                = activeSubmission?.FileUrl != null ? Path.GetFileName(activeSubmission.FileUrl) : null,
+                    AttachmentUrl       = !string.IsNullOrWhiteSpace(asn.FileUrl) ? asn.FileUrl : null,
+                    RejectionReason     = rejectionReason,
+                    CanSubmit           = canSubmit,
+                    SubmissionId        = activeSubmission?.Id,
+                    SubmissionFileName  = activeSubmission != null ? Path.GetFileName(activeSubmission.FileUrl) : null,
+                    SubmissionFileUrl   = activeSubmission?.FileUrl,
+                    SubmissionDate      = activeSubmission?.SubmittedAt.ToString("MMM d, yyyy h:mm tt"),
+                    AttemptCount        = submission?.AttemptCount ?? 0,
+                });
+            }
+
+            // ── Quizzes ──────────────────────────────────────────────
+            var allQuizzes  = await _unitOfWork.Quizzes.GetQuizzesByCourseId(courseIdInt);
+            var quizDtos    = new List<CourseQuizSummaryDto>();
+
+            foreach (var quiz in allQuizzes)
+            {
+                var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(quiz.Id, userId);
+
+                string quizStatus;
+                int? score = null;
+
+                if (attempt != null)
+                {
+                    quizStatus = "completed";
+                    score      = attempt.Score;
+                }
+                else if (now < quiz.StartTime)
+                {
+                    quizStatus = "upcoming";
+                }
+                else if (now <= quiz.EndTime)
+                {
+                    quizStatus = "available";
+                }
+                else
+                {
+                    quizStatus = "completed"; // past deadline, no attempt
+                }
+
+                int qCount       = quiz.Questions?.Count ?? 0;
+                int durationMins = (int)Math.Round((quiz.EndTime - quiz.StartTime).TotalMinutes);
+
+                quizDtos.Add(new CourseQuizSummaryDto
+                {
+                    Id              = quiz.Id.ToString(),
+                    Title           = quiz.Title,
+                    Date            = quiz.StartTime.ToString("MMM d, yyyy"),
+                    StartIso        = quiz.StartTime.ToString("yyyy-MM-dd"),
+                    StartTime       = quiz.StartTime.ToString("h:mm tt"),
+                    Duration        = $"{durationMins} min",
+                    Questions       = qCount,
+                    Max             = qCount,          // 1 pt per question
+                    Score           = score,
+                    Status          = quizStatus,
+                    Deadline        = quiz.EndTime.ToString("MMM d, yyyy"),
+                    ReviewAvailable = now > quiz.EndTime
+                });
+            }
+
+            // ── Midterm ──────────────────────────────────────────────
+            var midtermGrade = await _unitOfWork.MidtermGrades.GetAsync(userId, courseIdInt);
+            CourseMidtermDto? midtermDto = null;
+
+            if (midtermGrade != null)
+            {
+                // Try to get exam schedule info
+                var examEntries = await _unitOfWork.ExamSchedules.GetAllAsync();
+                var examEntry   = examEntries.FirstOrDefault(e =>
+                    e.CourseId == courseIdInt &&
+                    e.Type.Equals("midterm", StringComparison.OrdinalIgnoreCase));
+
+                string dateStr = examEntry?.Date.ToString("MMMM d, yyyy") ?? "";
+                string timeStr = "";
+                if (examEntry != null)
+                {
+                    var startH = (int)examEntry.StartTime;
+                    var startM = (int)((examEntry.StartTime - startH) * 60);
+                    var endDbl = examEntry.StartTime + examEntry.Duration;
+                    var endH   = (int)endDbl;
+                    var endM   = (int)((endDbl - endH) * 60);
+                    timeStr = $"{startH:D2}:{startM:D2} – {endH:D2}:{endM:D2}";
+                }
+
+                midtermDto = new CourseMidtermDto
+                {
+                    Published = midtermGrade.Published,
+                    Grade     = midtermGrade.Published ? midtermGrade.Grade : (int?)null,
+                    Max       = midtermGrade.Max,
+                    Date      = dateStr,
+                    Time      = timeStr,
+                    Room      = examEntry?.Location ?? ""
+                };
+            }
+
+            // ── Lectures ─────────────────────────────────────────────
+            var allUploads  = await _unitOfWork.CourseUploads.GetByCourseIdAsync(courseIdInt);
+            var lectureDtos = allUploads
+                .Where(u => u.Type == UploadType.Lecture &&
+                            (!u.ReleaseDate.HasValue || u.ReleaseDate.Value <= now))
+                .OrderBy(u => u.Week ?? int.MaxValue)
+                .ThenBy(u => u.UploadedAt)
+                .Select(u => new CourseLectureDto
+                {
+                    Id       = u.Id.ToString(),
+                    Week     = u.Week,
+                    Title    = u.Title,
+                    Type     = Path.GetExtension(u.Url).TrimStart('.').ToLowerInvariant() is "mp4" or "webm" ? "video" : "pdf",
+                    Duration = "",
+                    Date     = u.UploadedAt.ToString("MMM d, yyyy"),
+                    Size     = "",
+                    Watched  = false,
+                    Url      = u.Url,
+                })
+                .ToList();
+
+            // ── Instructor name ──────────────────────────────────────
+            var instructorName = "";
+            var instructorRecs = await _unitOfWork.RegistrationCourseInstructors
+                .GetByCourseAsync(courseIdInt);
+            var instructorRec = instructorRecs.FirstOrDefault();
+            if (instructorRec?.Instructor != null)
+                instructorName = instructorRec.Instructor.DisplayName ?? "";
 
             return new FullCourseDetailDto
             {
                 Meta = new CourseMetaDto
                 {
-                    Id = course.Id.ToString(),
-                    Code = course.Code,
-                    Name = course.Name,
-                    Instructor = "",
-                    Color = Colors[idx % Colors.Length],
-                    Shade = Shades[idx % Shades.Length],
-                    Light = Shades[idx % Shades.Length],
-                    Credits = course.Credits,
-                    Level = studentYear,
-                    Semester = reg.StudyYear != null
+                    Id          = course.Id.ToString(),
+                    Code        = course.Code,
+                    Name        = course.Name,
+                    Instructor  = instructorName,
+                    Color       = Colors[idx % Colors.Length],
+                    Shade       = Shades[idx % Shades.Length],
+                    Light       = Shades[idx % Shades.Length],
+                    Credits     = course.Credits,
+                    Level       = studentYear,
+                    Semester    = reg.StudyYear != null
                         ? $"{reg.StudyYear.StartYear}/{reg.StudyYear.EndYear}"
                         : "",
                     Description = "",
-                    Progress = (int)reg.Progress
+                    Progress    = (int)reg.Progress
                 },
-                Lectures = new List<CourseLectureDto>(),
-                Assignments = new List<CourseAssignmentDto>(),
-                Quizzes = new List<CourseQuizSummaryDto>(),
-                Midterm = null
+                Lectures    = lectureDtos,
+                Assignments = assignmentDtos,
+                Quizzes     = quizDtos,
+                Midterm     = midtermDto
             };
         }
 

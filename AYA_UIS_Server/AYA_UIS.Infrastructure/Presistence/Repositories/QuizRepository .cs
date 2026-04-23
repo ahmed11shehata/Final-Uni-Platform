@@ -73,5 +73,11 @@ namespace Presistence.Repositories
                 .AsNoTracking()
                 .ToListAsync();
         }
+
+        public async Task<StudentQuizAttempt?> GetStudentAttemptAsync(int quizId, string studentId)
+        {
+            return await _dbContext.StudentQuizAttempts
+                .FirstOrDefaultAsync(a => a.QuizId == quizId && a.StudentId == studentId);
+        }
     }
 }

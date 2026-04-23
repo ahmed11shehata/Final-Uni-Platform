@@ -8,7 +8,8 @@ namespace Shared.Dtos.Instructor_Module
         public int Duration { get; set; }
         public int Questions { get; set; }
         public string Status { get; set; } = string.Empty;
-        public string Deadline { get; set; } = string.Empty;
+        public string StartTime { get; set; } = string.Empty;
+        public string EndTime { get; set; } = string.Empty;
         public int Submissions { get; set; }
         public decimal? AvgScore { get; set; }
     }
@@ -20,13 +21,16 @@ namespace Shared.Dtos.Instructor_Module
         public int Duration { get; set; }
         public List<QuizQuestionInputDto> Questions { get; set; } = new();
         public int GradePerQ { get; set; }
-        public string Deadline { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty;
+        /// <summary>ISO 8601 — when quiz opens</summary>
+        public DateTime StartTime { get; set; }
+        /// <summary>ISO 8601 — when quiz closes</summary>
+        public DateTime EndTime { get; set; }
     }
 
     public class QuizQuestionInputDto
     {
         public string Text { get; set; } = string.Empty;
+        public string? ImageUrl { get; set; }
         public List<AnswerOptionDto> Answers { get; set; } = new();
         public int Correct { get; set; }
     }

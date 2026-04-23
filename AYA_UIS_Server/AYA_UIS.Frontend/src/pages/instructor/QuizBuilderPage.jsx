@@ -1,92 +1,219 @@
 // src/pages/instructor/QuizBuilderPage.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import styles from "./QuizBuilderPage.module.css";
+import { getInstructorCourses, createQuiz } from "../../services/api/instructorApi";
 
-const MY_COURSES = [
-  { id:"cs401", code:"CS401", name:"Artificial Intelligence", color:"#f59e0b", icon:"🤖" },
-  { id:"cs404", code:"CS404", name:"Expert Systems",          color:"#e05c8a", icon:"🧠" },
-];
-const LETTERS = ["A","B","C","D","E","F"];
-const sp = { type:"spring", stiffness:400, damping:28 };
+const LETTERS = ["A", "B", "C", "D", "E", "F"];
+const spring = { type: "spring", stiffness: 320, damping: 28 };
 
 const makeQ = () => ({
   id: Date.now() + Math.random(),
   text: "",
-  answers: [{text:""},{text:""},{text:""},{text:""}],
+  answers: [{ text: "" }, { text: "" }, { text: "" }, { text: "" }],
   correct: 0,
 });
 
-/* ── Answer row ── */
-function ARow({ a, idx, correct, onText, onCorrect, onRemove, canRemove, color }) {
-  return (
-    <div className={styles.answerRow}
-      style={correct?{borderColor:`${color}55`,background:`${color}0b`}:{}}>
-      <div className={styles.answerLetter}
-        style={correct?{background:color,borderColor:color,color:"#fff"}:{}}>
-        {LETTERS[idx]}
+function CourseSelector({ courses, courseId, onSelect }) {
+  if (courses.length === 0) {
+    return (
+      <div className={styles.warningCard}>
+        <span className={styles.warningIcon}>⚠️</span>
+        <div>
+          <p className={styles.warningTitle}>No assigned courses</p>
+          <p className={styles.warningText}>This account is not responsible for any course yet.</p>
+        </div>
       </div>
-      <input className={styles.answerInp}
-        placeholder={`Answer ${LETTERS[idx]}…`}
-        value={a.text} onChange={e=>onText(e.target.value)}/>
-      <button className={`${styles.correctBtn} ${correct?styles.correctBtnOn:""}`}
-        style={correct?{background:color,borderColor:color}:{}}
-        onClick={onCorrect}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-        {correct ? "✓ Correct" : "Mark correct"}
-      </button>
-      {canRemove && <button className={styles.removeAnsBtn} onClick={onRemove}>✕</button>}
+    );
+  }
+
+  return (
+    <div className={styles.courseGrid}>
+      {courses.map((course, index) => {
+        const active = courseId === course.id;
+        return (
+          <motion.button
+            key={course.id}
+            type="button"
+            className={`${styles.courseCard} ${active ? styles.courseCardActive : ""}`}
+            style={{ "--accent": course.color || "#7c3aed" }}
+            onClick={() => onSelect(course.id)}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: index * 0.04 }}
+            whileHover={{ y: -3 }}
+            whileTap={{ scale: 0.985 }}
+          >
+            <div className={styles.courseBadge}>{course.icon}</div>
+            <div className={styles.courseCopy}>
+              <span className={styles.courseCode}>{course.code}</span>
+              <span className={styles.courseName}>{course.name}</span>
+            </div>
+            <span className={styles.courseFlag}>{active ? "Selected" : "Pick"}</span>
+          </motion.button>
+        );
+      })}
     </div>
   );
 }
 
-/* ── Question card ── */
-function QCard({ q, idx, color, onChange, onDelete, canDelete }) {
+function SettingCard({ icon, title, subtitle, color, children, wide }) {
   return (
-    <motion.div className={styles.qCard} layout
-      initial={{opacity:0,y:18}} animate={{opacity:1,y:0}}
-      exit={{opacity:0,x:-20,scale:.97}} transition={sp}
-      style={{"--fc":color}}>
-
-      <div className={styles.qCardHead} style={{borderLeft:`4px solid ${color}`}}>
-        <div className={styles.qBadge} style={{background:`${color}20`,color}}>Q{idx+1}</div>
-        <div className={styles.qHeadBody}>
-          <label className={styles.qCardLabel}>Question {idx+1}</label>
-          <textarea className={styles.qTextarea}
-            placeholder="Type your question here…"
-            value={q.text} rows={2}
-            onChange={e=>onChange({...q,text:e.target.value})}/>
+    <div
+      className={`${styles.settingCard} ${wide ? styles.settingCardWide : ""}`}
+      style={{ "--accent": color }}
+    >
+      <div className={styles.settingHead}>
+        <div className={styles.settingIcon}>{icon}</div>
+        <div>
+          <h3 className={styles.settingTitle}>{title}</h3>
+          <p className={styles.settingSubtitle}>{subtitle}</p>
         </div>
-        {canDelete&&(
-          <button className={styles.qDeleteBtn} onClick={onDelete}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-            </svg>
+      </div>
+      <div className={styles.settingBody}>{children}</div>
+    </div>
+  );
+}
+
+function StepIndicator({ step, setStep, color, questions }) {
+  const tabs = [
+    {
+      n: 1,
+      icon: "📋",
+      title: "Quiz settings",
+      desc: "Course, title, time, grading",
+    },
+    {
+      n: 2,
+      icon: "❓",
+      title: "Questions",
+      desc: `${questions.length} question${questions.length !== 1 ? "s" : ""}`,
+    },
+  ];
+
+  return (
+    <div className={styles.stepRail}>
+      {tabs.map((tab) => {
+        const active = step === tab.n;
+        const complete = step > tab.n;
+        return (
+          <button
+            key={tab.n}
+            type="button"
+            className={`${styles.stepCard} ${active ? styles.stepCardActive : ""}`}
+            style={{ "--accent": color }}
+            onClick={() => complete && setStep(tab.n)}
+          >
+            <div className={`${styles.stepNumber} ${complete ? styles.stepNumberDone : ""}`}>
+              {complete ? "✓" : tab.n}
+            </div>
+            <div className={styles.stepCopy}>
+              <strong>
+                {tab.icon} {tab.title}
+              </strong>
+              <span>{tab.desc}</span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function AnswerRow({ answer, idx, correct, onText, onCorrect, onRemove, canRemove, color }) {
+  return (
+    <div className={`${styles.answerRow} ${correct ? styles.answerRowCorrect : ""}`} style={{ "--accent": color }}>
+      <div className={`${styles.answerLetter} ${correct ? styles.answerLetterCorrect : ""}`}>{LETTERS[idx]}</div>
+      <input
+        className={styles.answerInput}
+        placeholder={`Answer ${LETTERS[idx]}…`}
+        value={answer.text}
+        onChange={(e) => onText(e.target.value)}
+      />
+      <button
+        type="button"
+        className={`${styles.correctButton} ${correct ? styles.correctButtonActive : ""}`}
+        onClick={onCorrect}
+      >
+        {correct ? "Correct" : "Mark correct"}
+      </button>
+      {canRemove && (
+        <button type="button" className={styles.removeButton} onClick={onRemove}>
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
+function QuestionCard({ q, idx, color, onChange, onDelete, canDelete }) {
+  return (
+    <motion.div
+      className={styles.questionCard}
+      style={{ "--accent": color }}
+      layout
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20, scale: 0.97 }}
+      transition={spring}
+    >
+      <div className={styles.questionHead}>
+        <div className={styles.questionBadge}>Q{idx + 1}</div>
+        <div className={styles.questionMain}>
+          <label className={styles.fieldLabel}>Question {idx + 1}</label>
+          <textarea
+            className={styles.textarea}
+            placeholder="Type your question here…"
+            value={q.text}
+            rows={3}
+            onChange={(e) => onChange({ ...q, text: e.target.value })}
+          />
+        </div>
+        {canDelete && (
+          <button type="button" className={styles.deleteQuestion} onClick={onDelete}>
+            Delete
           </button>
         )}
       </div>
 
-      <div className={styles.answers}>
-        <div className={styles.answersTopRow}>
-          <span>Choose the correct answer →</span>
-          <span>{q.answers.length}/6 options</span>
+      <div className={styles.answerSection}>
+        <div className={styles.answerSectionTop}>
+          <span>Answer options</span>
+          <small>{q.answers.length}/6 options</small>
         </div>
-        {q.answers.map((a,ai)=>(
-          <ARow key={ai} a={a} idx={ai} correct={q.correct===ai} color={color}
-            onText={val=>onChange({...q,answers:q.answers.map((x,i)=>i===ai?{...x,text:val}:x)})}
-            onCorrect={()=>onChange({...q,correct:ai})}
-            onRemove={()=>{
-              const ans=q.answers.filter((_,i)=>i!==ai);
-              onChange({...q,answers:ans,correct:q.correct>=ans.length?ans.length-1:q.correct});
+
+        {q.answers.map((answer, ai) => (
+          <AnswerRow
+            key={ai}
+            answer={answer}
+            idx={ai}
+            correct={q.correct === ai}
+            color={color}
+            onText={(value) =>
+              onChange({
+                ...q,
+                answers: q.answers.map((item, i) => (i === ai ? { ...item, text: value } : item)),
+              })
+            }
+            onCorrect={() => onChange({ ...q, correct: ai })}
+            onRemove={() => {
+              const nextAnswers = q.answers.filter((_, i) => i !== ai);
+              onChange({
+                ...q,
+                answers: nextAnswers,
+                correct: q.correct >= nextAnswers.length ? nextAnswers.length - 1 : q.correct,
+              });
             }}
-            canRemove={q.answers.length>2}/>
+            canRemove={q.answers.length > 2}
+          />
         ))}
-        {q.answers.length<6&&(
-          <button className={styles.addAnsBtn} style={{color,borderColor:`${color}40`}}
-            onClick={()=>onChange({...q,answers:[...q.answers,{text:""}]})}>
+
+        {q.answers.length < 6 && (
+          <button
+            type="button"
+            className={styles.addOption}
+            onClick={() => onChange({ ...q, answers: [...q.answers, { text: "" }] })}
+          >
             + Add option
           </button>
         )}
@@ -95,177 +222,179 @@ function QCard({ q, idx, color, onChange, onDelete, canDelete }) {
   );
 }
 
-/* ── Step 1: Settings ── */
 function StepSettings({ data, onChange, color }) {
-  const isDurCustom = data.duration && ![10,15,20,30,45,60,90].includes(data.duration);
+  const isDurCustom = data.duration && ![10, 15, 20, 30, 45, 60, 90].includes(data.duration);
   const showPreview = data.title && data.startDate && data.startTime && data.duration;
 
   return (
-    <div className={styles.infoGrid}>
+    <div className={styles.settingsGrid}>
+      <SettingCard icon="📋" title="Quiz title" subtitle="Name your assessment clearly" color={color}>
+        <div className={styles.fieldBlock}>
+          <label className={styles.fieldLabel}>
+            Title <span className={styles.required}>*</span>
+          </label>
+          <input
+            className={styles.input}
+            placeholder="e.g. Quiz 3 — ML Fundamentals"
+            value={data.title}
+            onChange={(e) => onChange({ ...data, title: e.target.value })}
+          />
+        </div>
+      </SettingCard>
 
-      {/* LEFT COL */}
+      <SettingCard icon="⏱️" title="Duration" subtitle="Students race the timer after they start" color={color}>
+        <div className={styles.durationGrid}>
+          {[10, 15, 20, 30, 45, 60, 90].map((minutes) => (
+            <button
+              key={minutes}
+              type="button"
+              className={`${styles.durationPill} ${data.duration === minutes && !isDurCustom ? styles.durationPillActive : ""}`}
+              onClick={() => onChange({ ...data, duration: minutes })}
+            >
+              {minutes}m
+            </button>
+          ))}
+          <div className={styles.customDurationWrap}>
+            <input
+              type="number"
+              min={1}
+              max={180}
+              className={styles.customDurationInput}
+              placeholder="Custom"
+              value={isDurCustom ? data.duration : ""}
+              onChange={(e) => e.target.value && onChange({ ...data, duration: Number(e.target.value) })}
+            />
+            <span className={styles.unitLabel}>min</span>
+          </div>
+        </div>
+      </SettingCard>
 
-      {/* Title */}
-      <div className={styles.settingCard}>
-        <div className={styles.settingCardHead}>
-          <div className={styles.settingCardIcon} style={{background:`${color}18`,color}}>📋</div>
-          <div>
-            <div className={styles.settingCardTitle}>Quiz Title</div>
-            <div className={styles.settingCardSub}>Name of this quiz</div>
+      <SettingCard icon="🗓️" title="Schedule" subtitle="Define when the quiz opens and closes" color={color}>
+        <div className={styles.twoCol}>
+          <div className={styles.fieldBlock}>
+            <label className={styles.fieldLabel}>
+              Start date <span className={styles.required}>*</span>
+            </label>
+            <input
+              type="date"
+              className={styles.input}
+              value={data.startDate}
+              onChange={(e) => onChange({ ...data, startDate: e.target.value })}
+              min={new Date().toISOString().split("T")[0]}
+            />
+          </div>
+          <div className={styles.fieldBlock}>
+            <label className={styles.fieldLabel}>
+              Start time <span className={styles.required}>*</span>
+            </label>
+            <input
+              type="time"
+              className={styles.input}
+              value={data.startTime}
+              onChange={(e) => onChange({ ...data, startTime: e.target.value })}
+            />
+          </div>
+          <div className={styles.fieldBlock}>
+            <label className={styles.fieldLabel}>
+              Deadline date <span className={styles.required}>*</span>
+            </label>
+            <p className={styles.hint}>No new starts after this date.</p>
+            <input
+              type="date"
+              className={styles.input}
+              value={data.deadlineDate}
+              onChange={(e) => onChange({ ...data, deadlineDate: e.target.value })}
+              min={data.startDate || new Date().toISOString().split("T")[0]}
+            />
+          </div>
+          <div className={styles.fieldBlock}>
+            <label className={styles.fieldLabel}>
+              Deadline time <span className={styles.required}>*</span>
+            </label>
+            <p className={styles.hint}>Quiz locks at this exact time.</p>
+            <input
+              type="time"
+              className={styles.input}
+              value={data.deadlineTime}
+              onChange={(e) => onChange({ ...data, deadlineTime: e.target.value })}
+            />
           </div>
         </div>
-        <div className={styles.settingCardBody}>
-          <div className={styles.field}>
-            <label className={styles.label}>Title <span className={styles.req}>*</span></label>
-            <input className={styles.inp} style={{"--fc":color}}
-              placeholder="e.g. Quiz 3 — ML Fundamentals"
-              value={data.title} onChange={e=>onChange({...data,title:e.target.value})}/>
-          </div>
-        </div>
-      </div>
+      </SettingCard>
 
-      {/* Duration */}
-      <div className={styles.settingCard}>
-        <div className={styles.settingCardHead}>
-          <div className={styles.settingCardIcon} style={{background:"rgba(239,68,68,.14)",color:"#ef4444"}}>⏱</div>
-          <div>
-            <div className={styles.settingCardTitle}>Duration</div>
-            <div className={styles.settingCardSub}>Timer starts when student clicks Start</div>
-          </div>
+      <SettingCard icon="⚙️" title="Options" subtitle="Grading and randomization behavior" color={color}>
+        <div className={styles.fieldBlock}>
+          <label className={styles.fieldLabel}>Points per question</label>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            className={styles.input}
+            value={data.gradePerQ || ""}
+            placeholder="1"
+            onChange={(e) => onChange({ ...data, gradePerQ: Number(e.target.value) })}
+          />
         </div>
-        <div className={styles.settingCardBody}>
-          <div className={styles.durGrid}>
-            {[10,15,20,30,45,60,90].map(m=>(
-              <button key={m}
-                className={`${styles.durPill} ${data.duration===m&&!isDurCustom?styles.durPillOn:""}`}
-                style={data.duration===m&&!isDurCustom?{borderColor:color,background:`${color}14`,color}:{}}
-                onClick={()=>onChange({...data,duration:m})}>
-                {m}m
-              </button>
-            ))}
-            <div className={styles.durCustomWrap}>
-              <input type="number" min={1} max={180} className={styles.durCustomInp}
-                style={isDurCustom?{borderColor:`${color}60`}:{}}
-                placeholder="Custom"
-                value={isDurCustom?data.duration:""}
-                onChange={e=>e.target.value&&onChange({...data,duration:Number(e.target.value)})}/>
-              <span className={styles.durUnit}>min</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Schedule */}
-      <div className={styles.settingCard}>
-        <div className={styles.settingCardHead}>
-          <div className={styles.settingCardIcon} style={{background:"rgba(14,165,233,.15)",color:"#0ea5e9"}}>📅</div>
-          <div>
-            <div className={styles.settingCardTitle}>Schedule</div>
-            <div className={styles.settingCardSub}>When the quiz opens and closes</div>
+        <div className={styles.fieldBlock}>
+          <label className={styles.fieldLabel}>Shuffle</label>
+          <div className={styles.toggleRow}>
+            <button
+              type="button"
+              className={`${styles.toggleChip} ${data.shuffleQ ? styles.toggleChipActive : ""}`}
+              onClick={() => onChange({ ...data, shuffleQ: !data.shuffleQ })}
+            >
+              <span className={styles.toggleDot} />
+              Shuffle questions
+            </button>
+            <button
+              type="button"
+              className={`${styles.toggleChip} ${data.shuffleA ? styles.toggleChipActive : ""}`}
+              onClick={() => onChange({ ...data, shuffleA: !data.shuffleA })}
+            >
+              <span className={styles.toggleDot} />
+              Shuffle answers
+            </button>
+          </div>
+          <div className={styles.infoBox}>
+            <strong>Shuffle Questions</strong> changes the question order per student. <br />
+            <strong>Shuffle Answers</strong> randomizes A/B/C/D options to reduce copying.
           </div>
         </div>
-        <div className={styles.settingCardBody}>
-          <div className={styles.twoCol}>
-            <div className={styles.field}>
-              <label className={styles.label}>Start Date <span className={styles.req}>*</span></label>
-              <input type="date" className={styles.inp} style={{"--fc":color}}
-                value={data.startDate}
-                onChange={e=>onChange({...data,startDate:e.target.value})}
-                min={new Date().toISOString().split("T")[0]}/>
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Start Time <span className={styles.req}>*</span></label>
-              <input type="time" className={styles.inp} style={{"--fc":color}}
-                value={data.startTime} onChange={e=>onChange({...data,startTime:e.target.value})}/>
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Deadline Date <span className={styles.req}>*</span></label>
-              <p className={styles.hint}>No new starts after this date</p>
-              <input type="date" className={styles.inp} style={{"--fc":color}}
-                value={data.deadlineDate}
-                onChange={e=>onChange({...data,deadlineDate:e.target.value})}
-                min={data.startDate||new Date().toISOString().split("T")[0]}/>
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label}>Deadline Time <span className={styles.req}>*</span></label>
-              <p className={styles.hint}>Quiz locks at this time</p>
-              <input type="time" className={styles.inp} style={{"--fc":color}}
-                value={data.deadlineTime} onChange={e=>onChange({...data,deadlineTime:e.target.value})}/>
-            </div>
-          </div>
-        </div>
-      </div>
+      </SettingCard>
 
-      {/* Options */}
-      <div className={styles.settingCard}>
-        <div className={styles.settingCardHead}>
-          <div className={styles.settingCardIcon} style={{background:"rgba(129,140,248,.15)",color:"#818cf8"}}>⚙️</div>
-          <div>
-            <div className={styles.settingCardTitle}>Options</div>
-            <div className={styles.settingCardSub}>Grading and randomization</div>
-          </div>
-        </div>
-        <div className={styles.settingCardBody}>
-          <div className={styles.field}>
-            <label className={styles.label}>Points per question</label>
-            <input type="number" min={1} max={10} className={styles.inp} style={{"--fc":color}}
-              value={data.gradePerQ||""} placeholder="1"
-              onChange={e=>onChange({...data,gradePerQ:Number(e.target.value)})}/>
-          </div>
-          <div className={styles.field} style={{marginTop:14}}>
-            <label className={styles.label}>Shuffle</label>
-            <div className={styles.toggleRow}>
-              <button className={`${styles.toggle} ${data.shuffleQ?styles.toggleOn:""}`}
-                style={data.shuffleQ?{borderColor:color,background:`${color}12`,color}:{}}
-                onClick={()=>onChange({...data,shuffleQ:!data.shuffleQ})}>
-                <span className={styles.toggleDot} style={data.shuffleQ?{background:color}:{}}/>
-                Shuffle Questions
-              </button>
-              <button className={`${styles.toggle} ${data.shuffleA?styles.toggleOn:""}`}
-                style={data.shuffleA?{borderColor:color,background:`${color}12`,color}:{}}
-                onClick={()=>onChange({...data,shuffleA:!data.shuffleA})}>
-                <span className={styles.toggleDot} style={data.shuffleA?{background:color}:{}}/>
-                Shuffle Answers
-              </button>
-            </div>
-            {/* Shuffle explanation */}
-            <div className={styles.shuffleExplain}>
-              <strong>Shuffle Questions</strong> — each student gets questions in a different random order.<br/>
-              <strong>Shuffle Answers</strong> — the A/B/C/D options are randomized per student, preventing copying.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Preview — spans full width */}
       <AnimatePresence>
         {showPreview && (
-          <motion.div className={`${styles.settingCard} ${styles.infoGridFull}`}
-            style={{borderColor:`${color}30`}}
-            initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0}}>
-            <div className={styles.settingCardHead}>
-              <div className={styles.settingCardIcon} style={{background:`${color}18`,color}}>✅</div>
-              <div>
-                <div className={styles.settingCardTitle}>Quiz Summary</div>
-                <div className={styles.settingCardSub}>All good — proceed to add questions</div>
-              </div>
+          <motion.div
+            className={styles.previewCard}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className={styles.previewHead}>
+              <span className={styles.previewKicker}>Ready to continue</span>
+              <h3 className={styles.previewTitle}>Quiz summary</h3>
             </div>
-            <div className={styles.settingCardBody}>
-              <div className={styles.previewRow}>
-                {[
-                  {l:"Title",        v:data.title},
-                  {l:"Opens",        v:`${data.startDate} · ${data.startTime}`},
-                  {l:"Closes",       v:`${data.deadlineDate||"—"} · ${data.deadlineTime||"—"}`},
-                  {l:"Duration",     v:`${data.duration} minutes`},
-                  {l:"Pts/Question", v:data.gradePerQ||1},
-                  {l:"Shuffle",      v:[data.shuffleQ?"Questions":"",data.shuffleA?"Answers":""].filter(Boolean).join(", ")||"Off"},
-                ].map(x=>(
-                  <div key={x.l} className={styles.previewItem}>
-                    <span className={styles.previewLabel}>{x.l}</span>
-                    <span className={styles.previewVal}>{x.v}</span>
-                  </div>
-                ))}
-              </div>
+            <div className={styles.previewGrid}>
+              {[
+                { label: "Title", value: data.title },
+                { label: "Opens", value: `${data.startDate} · ${data.startTime}` },
+                { label: "Closes", value: `${data.deadlineDate || "—"} · ${data.deadlineTime || "—"}` },
+                { label: "Duration", value: `${data.duration} minutes` },
+                { label: "Pts / question", value: data.gradePerQ || 1 },
+                {
+                  label: "Shuffle",
+                  value:
+                    [data.shuffleQ ? "Questions" : "", data.shuffleA ? "Answers" : ""]
+                      .filter(Boolean)
+                      .join(", ") || "Off",
+                },
+              ].map((item) => (
+                <div key={item.label} className={styles.previewItem}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
             </div>
           </motion.div>
         )}
@@ -274,136 +403,151 @@ function StepSettings({ data, onChange, color }) {
   );
 }
 
-/* ── Step 2: Questions ── */
 function StepQuestions({ questions, setQuestions, color }) {
-  const addQ = () => setQuestions(p=>[...p, makeQ()]);
-  const filled = questions.filter(q=>q.text.trim()&&q.answers.some(a=>a.text.trim())).length;
-  const pct    = questions.length>0 ? Math.round(filled/questions.length*100) : 0;
+  const addQuestion = () => setQuestions((prev) => [...prev, makeQ()]);
+  const filled = questions.filter((q) => q.text.trim() && q.answers.some((a) => a.text.trim())).length;
+  const correctMarked = questions.filter((q) => q.answers[q.correct]?.text.trim()).length;
+  const progress = questions.length > 0 ? Math.round((filled / questions.length) * 100) : 0;
 
-  /* bulk add N questions */
   const bulkAdd = (target) => {
     const current = questions.length;
-    if(target <= current) return;
-    const toAdd = Array.from({length: target-current}, makeQ);
-    setQuestions(p=>[...p,...toAdd]);
+    if (target <= current) return;
+    const toAdd = Array.from({ length: target - current }, makeQ);
+    setQuestions((prev) => [...prev, ...toAdd]);
   };
 
   return (
-    <div className={styles.qLayout}>
-
-      {/* LEFT: questions */}
-      <div className={styles.qList}>
-        <div className={styles.qListHeader}>
-          <div className={styles.qCountInfo}>
-            <div className={styles.qCountNum}>{questions.length} Question{questions.length!==1?"s":""}</div>
-            <div className={styles.qCountSub}>{filled} filled · mark the correct answer for each</div>
+    <div className={styles.questionsLayout}>
+      <div className={styles.questionsMain}>
+        <div className={styles.listHeader}>
+          <div>
+            <h3 className={styles.listTitle}>{questions.length} question{questions.length !== 1 ? "s" : ""}</h3>
+            <p className={styles.listText}>{filled} filled · choose exactly one correct answer per question</p>
           </div>
-          <motion.button className={styles.addQBtn}
-            style={{background:`linear-gradient(135deg,${color}cc,${color})`}}
-            onClick={addQ} whileHover={{scale:1.03}} whileTap={{scale:.97}}>
-            + Add Question
+          <motion.button
+            type="button"
+            className={styles.primaryButton}
+            style={{ "--accent": color }}
+            onClick={addQuestion}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.985 }}
+          >
+            + Add question
           </motion.button>
         </div>
 
-        {questions.length===0&&(
-          <div className={styles.qEmpty}>
-            <div className={styles.qEmptyIcon}>❓</div>
-            <p className={styles.qEmptyTitle}>No questions yet</p>
-            <p className={styles.qEmptyHint}>Use the sidebar to set how many questions you need, or click below</p>
-            <motion.button className={styles.addQBtnBig}
-              style={{background:`linear-gradient(135deg,${color}cc,${color})`}}
-              onClick={addQ} whileHover={{scale:1.02}} whileTap={{scale:.97}}>
-              + Add First Question
+        {questions.length === 0 && (
+          <div className={styles.emptyQuestions}>
+            <div className={styles.emptyQuestionsIcon}>❓</div>
+            <h3 className={styles.emptyQuestionsTitle}>No questions yet</h3>
+            <p className={styles.emptyQuestionsText}>Set the target count from the sidebar or create your first question now.</p>
+            <motion.button
+              type="button"
+              className={styles.primaryButton}
+              style={{ "--accent": color }}
+              onClick={addQuestion}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.985 }}
+            >
+              + Add first question
             </motion.button>
           </div>
         )}
 
         <AnimatePresence>
-          {questions.map((q,i)=>(
-            <QCard key={q.id} q={q} idx={i} color={color}
-              onChange={nq=>setQuestions(p=>p.map(x=>x.id===q.id?nq:x))}
-              onDelete={()=>setQuestions(p=>p.filter(x=>x.id!==q.id))}
-              canDelete={questions.length>1}/>
+          {questions.map((question, index) => (
+            <QuestionCard
+              key={question.id}
+              q={question}
+              idx={index}
+              color={color}
+              onChange={(nextQuestion) =>
+                setQuestions((prev) => prev.map((item) => (item.id === question.id ? nextQuestion : item)))
+              }
+              onDelete={() => setQuestions((prev) => prev.filter((item) => item.id !== question.id))}
+              canDelete={questions.length > 1}
+            />
           ))}
         </AnimatePresence>
 
-        {questions.length>0&&(
-          <motion.button className={styles.addMoreBtn}
-            style={{color,borderColor:`${color}40`}}
-            onClick={addQ} initial={{opacity:0}} animate={{opacity:1}}
-            whileHover={{scale:1.01}} whileTap={{scale:.98}}>
-            + Add Another Question
-          </motion.button>
+        {questions.length > 0 && (
+          <button type="button" className={styles.secondaryButton} onClick={addQuestion}>
+            + Add another question
+          </button>
         )}
       </div>
 
-      {/* RIGHT: sidebar */}
-      <div className={styles.qSidebar}>
-
-        {/* Question count control */}
-        <div className={styles.qSideCard}>
-          <div className={styles.qSideHead}>
-            🔢 Number of Questions
-          </div>
-          <div className={styles.qSideBody}>
-            <div className={styles.field}>
-              <label className={styles.label}>Target count</label>
-              <div className={styles.qCountInput}>
-                <button className={styles.qCountMinus}
-                  onClick={()=>questions.length>1&&setQuestions(p=>p.slice(0,-1))}>−</button>
-                <input type="number" min={1} max={50} className={styles.qCountNum2}
-                  value={questions.length}
-                  onChange={e=>{
-                    const n=Number(e.target.value);
-                    if(n<1||n>50) return;
-                    if(n>questions.length) bulkAdd(n);
-                    else if(n<questions.length) setQuestions(p=>p.slice(0,n));
-                  }}/>
-                <button className={styles.qCountPlus}
-                  onClick={()=>questions.length<50&&addQ()}>+</button>
-              </div>
-              <p className={styles.qCountHint}>Change to add/remove questions in bulk (max 50)</p>
+      <div className={styles.sidebar}>
+        <div className={styles.sideCard}>
+          <div className={styles.sideHead}>🔢 Number of questions</div>
+          <div className={styles.sideBody}>
+            <div className={styles.counterWrap}>
+              <button
+                type="button"
+                className={styles.counterButton}
+                onClick={() => questions.length > 1 && setQuestions((prev) => prev.slice(0, -1))}
+              >
+                −
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                className={styles.counterInput}
+                value={questions.length}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  if (next < 1 || next > 50) return;
+                  if (next > questions.length) bulkAdd(next);
+                  else if (next < questions.length) setQuestions((prev) => prev.slice(0, next));
+                }}
+              />
+              <button
+                type="button"
+                className={styles.counterButton}
+                onClick={() => questions.length < 50 && addQuestion()}
+              >
+                +
+              </button>
             </div>
-          </div>
-        </div>
-
-        {/* Progress */}
-        <div className={styles.qSideCard}>
-          <div className={styles.qSideHead}>📊 Progress</div>
-          <div className={styles.qSideBody}>
-            <div className={styles.qStatRow}>
-              <span className={styles.qStatLabel}>Questions added</span>
-              <span className={styles.qStatVal} style={{color}}>{questions.length}</span>
-            </div>
-            <div className={styles.qStatRow}>
-              <span className={styles.qStatLabel}>Filled in</span>
-              <span className={styles.qStatVal} style={{color:"#22c55e"}}>{filled}</span>
-            </div>
-            <div className={styles.qStatRow}>
-              <span className={styles.qStatLabel}>Correct marked</span>
-              <span className={styles.qStatVal} style={{color:"#818cf8"}}>
-                {questions.filter(q=>q.answers[q.correct]?.text.trim()).length}
-              </span>
-            </div>
-            <div className={styles.qFillBar}>
-              <div className={styles.qFillFill} style={{width:`${pct}%`,background:pct===100?"#22c55e":color}}/>
-            </div>
-            <span className={styles.qCountHint}>{pct}% complete</span>
+            <p className={styles.sideHint}>Increase or reduce the full list in bulk. Maximum 50 questions.</p>
           </div>
         </div>
 
-        {/* Tips */}
-        <div className={styles.qSideCard}>
-          <div className={styles.qSideHead}>💡 Tips</div>
-          <div className={styles.qSideBody}>
+        <div className={styles.sideCard}>
+          <div className={styles.sideHead}>📊 Progress</div>
+          <div className={styles.sideBody}>
+            <div className={styles.metricRow}>
+              <span>Questions added</span>
+              <strong style={{ color }}>{questions.length}</strong>
+            </div>
+            <div className={styles.metricRow}>
+              <span>Filled</span>
+              <strong style={{ color: "#22c55e" }}>{filled}</strong>
+            </div>
+            <div className={styles.metricRow}>
+              <span>Correct marked</span>
+              <strong style={{ color: "#38bdf8" }}>{correctMarked}</strong>
+            </div>
+            <div className={styles.progressTrack}>
+              <div className={styles.progressFill} style={{ width: `${progress}%`, background: progress === 100 ? "#22c55e" : color }} />
+            </div>
+            <p className={styles.sideHint}>{progress}% complete</p>
+          </div>
+        </div>
+
+        <div className={styles.sideCard}>
+          <div className={styles.sideHead}>💡 Tips</div>
+          <div className={styles.sideBody}>
             {[
-              "Each question needs at least 2 options",
-              "Mark one answer as correct per question",
-              "Add up to 6 options per question",
-              "Use + Add option to add more choices",
-            ].map((t,i)=>(
-              <div key={i} style={{fontSize:".74rem",color:"var(--text-muted)",display:"flex",gap:8,lineHeight:1.5}}>
-                <span style={{color,flexShrink:0,fontWeight:900}}>·</span>{t}
+              "Each question needs at least 2 options.",
+              "Mark one option as correct for every question.",
+              "You can add up to 6 answer choices.",
+              "Keep question wording short and unambiguous.",
+            ].map((tip) => (
+              <div key={tip} className={styles.tipRow}>
+                <span className={styles.tipDot} style={{ background: color }} />
+                <span>{tip}</span>
               </div>
             ))}
           </div>
@@ -413,166 +557,263 @@ function StepQuestions({ questions, setQuestions, color }) {
   );
 }
 
-/* ══ MAIN ══ */
 export default function QuizBuilderPage() {
-  const [courseId, setCourseId] = useState(MY_COURSES[0].id);
-  const [step,     setStep]     = useState(1);
-  const [saving,   setSaving]   = useState(false);
-  const [done,     setDone]     = useState(false);
-  const [info,     setInfo]     = useState({
-    title:"", startDate:"", startTime:"", deadlineDate:"", deadlineTime:"",
-    duration:20, gradePerQ:1, shuffleQ:false, shuffleA:false,
+  const [courses, setCourses] = useState([]);
+  const [courseId, setCourseId] = useState(null);
+  const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [info, setInfo] = useState({
+    title: "",
+    startDate: "",
+    startTime: "",
+    deadlineDate: "",
+    deadlineTime: "",
+    duration: 20,
+    gradePerQ: 1,
+    shuffleQ: false,
+    shuffleA: false,
   });
   const [questions, setQuestions] = useState([makeQ()]);
 
-  const c       = MY_COURSES.find(x=>x.id===courseId)||MY_COURSES[0];
-  const infoOk  = info.title&&info.startDate&&info.startTime&&info.deadlineDate&&info.deadlineTime&&info.duration;
-  const questOk = questions.length>0&&questions.every(q=>q.text.trim()&&q.answers.some(a=>a.text.trim()));
+  useEffect(() => {
+    getInstructorCourses()
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setCourses(list);
+      })
+      .catch(() => {});
+  }, []);
 
-  const publish = () => {
-    if(!infoOk||!questOk) return;
+  const currentCourse = (courseId ? courses.find((course) => course.id === courseId) : null) || {
+    color: "#8b5cf6",
+    code: "Select a course",
+    name: "",
+    icon: "📚",
+  };
+
+  const infoOk = !!courseId && info.title && info.startDate && info.startTime && info.deadlineDate && info.deadlineTime && info.duration;
+  const questionsOk = questions.length > 0 && questions.every((q) => q.text.trim() && q.answers.some((a) => a.text.trim()));
+
+  const publish = async () => {
+    if (!infoOk || !questionsOk) return;
     setSaving(true);
-    setTimeout(()=>{ setSaving(false); setDone(true); }, 1600);
+    try {
+      const dto = {
+        title: info.title,
+        duration: info.duration,
+        startTime: new Date(`${info.startDate}T${info.startTime}:00`).toISOString(),
+        endTime: new Date(`${info.deadlineDate}T${info.deadlineTime}:00`).toISOString(),
+        gradePerQ: info.gradePerQ || 1,
+        questions: questions.map((q) => ({
+          text: q.text,
+          answers: q.answers.map((a) => ({ text: a.text })),
+          correct: q.correct,
+        })),
+      };
+      await createQuiz(courseId, dto);
+      setDone(true);
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || "Failed to publish quiz");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const reset = () => {
-    setDone(false); setStep(1);
-    setInfo({title:"",startDate:"",startTime:"",deadlineDate:"",deadlineTime:"",duration:20,gradePerQ:1,shuffleQ:false,shuffleA:false});
+    setDone(false);
+    setStep(1);
+    setInfo({
+      title: "",
+      startDate: "",
+      startTime: "",
+      deadlineDate: "",
+      deadlineTime: "",
+      duration: 20,
+      gradePerQ: 1,
+      shuffleQ: false,
+      shuffleA: false,
+    });
     setQuestions([makeQ()]);
   };
 
-  if(done) return (
-    <div className={styles.page}>
-      <motion.div className={styles.successWrap}
-        initial={{opacity:0,scale:.92}} animate={{opacity:1,scale:1}} transition={sp}>
-        <div className={styles.successIcon} style={{background:`${c.color}18`,color:c.color}}>🎉</div>
-        <h2 className={styles.successTitle}>Quiz Published!</h2>
-        <p className={styles.successSub}>
-          <strong>{info.title}</strong> is live for <strong>{c.code}</strong>.<br/>
-          Opens <strong>{info.startDate}</strong> at <strong>{info.startTime}</strong> · Lasts <strong>{info.duration} min</strong>.
-        </p>
-        <div className={styles.successStats}>
-          {[
-            {v:questions.length,             l:"Questions"},
-            {v:info.duration+"m",            l:"Duration"},
-            {v:questions.length*(info.gradePerQ||1), l:"Total Pts"},
-          ].map(s=>(
-            <div key={s.l} style={{textAlign:"center"}}>
-              <span className={styles.sstatV} style={{color:c.color}}>{s.v}</span>
-              <span className={styles.sstatL}>{s.l}</span>
-            </div>
-          ))}
+  if (done) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.successPage} style={{ "--accent": currentCourse.color }}>
+          <div className={styles.successIcon}>🎉</div>
+          <span className={styles.heroKicker}>Published</span>
+          <h2 className={styles.successTitle}>Quiz published successfully</h2>
+          <p className={styles.successText}>
+            <strong>{info.title}</strong> is live for <strong>{currentCourse.code}</strong>. It opens on {info.startDate} at {info.startTime} and runs for {info.duration} minutes.
+          </p>
+          <div className={styles.successStats}>
+            {[
+              { value: questions.length, label: "Questions" },
+              { value: `${info.duration}m`, label: "Duration" },
+              { value: questions.length * (info.gradePerQ || 1), label: "Total pts" },
+            ].map((item) => (
+              <div key={item.label} className={styles.successStat}>
+                <strong>{item.value}</strong>
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
+          <button type="button" className={styles.primaryButton} style={{ "--accent": currentCourse.color }} onClick={reset}>
+            Create another quiz
+          </button>
         </div>
-        <button className={styles.successBtn} style={{background:c.color}} onClick={reset}>
-          Create Another Quiz
-        </button>
-      </motion.div>
-    </div>
-  );
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
-
-      {/* Header */}
-      <div className={styles.header}>
-        <div className={styles.headerBg}/>
-        <div className={styles.headerContent}>
+      <section className={styles.hero}>
+        <div className={styles.heroGlowLeft} />
+        <div className={styles.heroGlowRight} />
+        <div className={styles.heroContent}>
           <div>
-            <h1 className={styles.pageTitle}>Quiz Builder</h1>
-            <p className={styles.pageSub}>Build and publish quizzes for your students</p>
+            <span className={styles.heroKicker}>Assessment workspace</span>
+            <h1 className={styles.heroTitle}>Quiz Builder</h1>
+            <p className={styles.heroText}>
+              Create structured quizzes with a cleaner setup flow, refined question management, and a much stronger visual hierarchy.
+            </p>
           </div>
-          <div className={styles.courseRow}>
-            {MY_COURSES.map((cr,i)=>(
-              <motion.button key={cr.id}
-                className={`${styles.cPill} ${courseId===cr.id?styles.cPillOn:""}`}
-                style={{"--cp":cr.color}}
-                onClick={()=>setCourseId(cr.id)}
-                initial={{opacity:0,x:12}} animate={{opacity:1,x:0}}
-                transition={{delay:i*.06,...sp}}
-                whileHover={{y:-2}} whileTap={{scale:.96}}>
-                <span>{cr.icon}</span>
+          <div className={styles.heroStats}>
+            <div className={styles.heroStatCard}>
+              <strong>{courses.length}</strong>
+              <span>Available courses</span>
+            </div>
+            <div className={styles.heroStatCard}>
+              <strong>{questions.length}</strong>
+              <span>Current questions</span>
+            </div>
+            <div className={styles.heroStatCard}>
+              <strong>{step}/2</strong>
+              <span>Current step</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className={styles.content}>
+        <section className={styles.panel}>
+          <div className={styles.sectionHead}>
+            <div>
+              <span className={styles.sectionKicker}>Step 1</span>
+              <h2 className={styles.sectionTitle}>Choose the course</h2>
+              <p className={styles.sectionText}>The selected course controls where the quiz will be published.</p>
+            </div>
+            {!courseId && courses.length > 0 && <div className={styles.inlineWarning}>Choose a course to continue</div>}
+          </div>
+          <CourseSelector courses={courses} courseId={courseId} onSelect={setCourseId} />
+        </section>
+
+        {!courseId && courses.length > 0 && (
+          <div className={styles.emptyCard}>
+            <div className={styles.emptyCardIcon}>🧭</div>
+            <h3>Select a course first</h3>
+            <p>After that, you can configure the quiz settings and start writing questions.</p>
+          </div>
+        )}
+
+        {courseId && (
+          <>
+            <section className={styles.panel}>
+              <div className={styles.sectionHead}>
                 <div>
-                  <span className={styles.cpCode} style={{color:cr.color}}>{cr.code}</span>
-                  <span className={styles.cpName}>{cr.name}</span>
+                  <span className={styles.sectionKicker}>Build flow</span>
+                  <h2 className={styles.sectionTitle}>Configure then publish</h2>
+                  <p className={styles.sectionText}>
+                    {currentCourse.icon} {currentCourse.code} · {currentCourse.name}
+                  </p>
                 </div>
-              </motion.button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Step tabs */}
-      <div className={styles.stepTabs}>
-        {[
-          {n:1,icon:"📋",title:"Quiz Settings",desc:"Title, schedule & duration"},
-          {n:2,icon:"❓",title:"Questions",     desc:`${questions.length} question${questions.length!==1?"s":""}`},
-        ].map(s=>{
-          const on   = step===s.n;
-          const done = step>s.n;
-          return (
-            <button key={s.n}
-              className={`${styles.stepTab} ${on?styles.stepTabOn:""}`}
-              style={{"--st":c.color}}
-              onClick={()=>done&&setStep(s.n)}>
-              {done
-                ? <div className={styles.stepTabCheck}>✓</div>
-                : <div className={`${styles.stepTabNum} ${on?styles.stepTabNumOn:""}`}>{s.n}</div>
-              }
-              <div className={styles.stepTabLabel}>
-                <span className={styles.stepTabTitle}>{s.icon} {s.title}</span>
-                <span className={styles.stepTabDesc}>{s.desc}</span>
+                <div className={styles.courseMiniBadge} style={{ "--accent": currentCourse.color }}>
+                  {currentCourse.code}
+                </div>
               </div>
-            </button>
-          );
-        })}
-      </div>
+              <StepIndicator step={step} setStep={setStep} color={currentCourse.color} questions={questions} />
+            </section>
 
-      {/* Body */}
-      <div className={styles.body}>
-        <AnimatePresence mode="wait">
-          {step===1&&(
-            <motion.div key="s1"
-              initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-16}} transition={{duration:.22}}>
-              <StepSettings data={info} onChange={setInfo} color={c.color}/>
-            </motion.div>
-          )}
-          {step===2&&(
-            <motion.div key="s2"
-              initial={{opacity:0,x:20}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-16}} transition={{duration:.22}}>
-              <StepQuestions questions={questions} setQuestions={setQuestions} color={c.color}/>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            <div className={styles.bodyPanel}>
+              <AnimatePresence mode="wait">
+                {step === 1 && (
+                  <motion.div
+                    key="settings"
+                    initial={{ opacity: 0, x: 16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -12 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <StepSettings data={info} onChange={setInfo} color={currentCourse.color} />
+                  </motion.div>
+                )}
+                {step === 2 && (
+                  <motion.div
+                    key="questions"
+                    initial={{ opacity: 0, x: 16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -12 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <StepQuestions questions={questions} setQuestions={setQuestions} color={currentCourse.color} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
-      {/* Footer */}
-      <div className={styles.footer}>
-        <div className={styles.footerInfo}>
-          {step===1 ? "Step 1 of 2 — Fill quiz settings then proceed to questions"
-                    : `Step 2 of 2 — ${questions.length} questions · ${questions.filter(q=>q.text.trim()).length} filled`}
-        </div>
-        <div className={styles.footerBtns}>
-          {step===2&&<button className={styles.footerBack} onClick={()=>setStep(1)}>← Back</button>}
-          {step===1&&(
-            <motion.button className={styles.footerNext}
-              style={{background:`linear-gradient(135deg,${c.color}cc,${c.color})`,opacity:infoOk?1:.4}}
-              disabled={!infoOk} onClick={()=>setStep(2)}
-              whileHover={infoOk?{scale:1.02}:{}} whileTap={infoOk?{scale:.97}:{}}>
-              Next: Add Questions →
-            </motion.button>
-          )}
-          {step===2&&(
-            <motion.button className={styles.footerPublish}
-              style={{background:`linear-gradient(135deg,${c.color}cc,${c.color})`,opacity:(infoOk&&questOk)?1:.4}}
-              disabled={!infoOk||!questOk||saving} onClick={publish}
-              whileHover={(infoOk&&questOk)?{scale:1.02}:{}} whileTap={(infoOk&&questOk)?{scale:.97}:{}}>
-              {saving
-                ? <><motion.span animate={{rotate:360}} transition={{duration:.7,repeat:Infinity,ease:"linear"}}>⟳</motion.span> Publishing…</>
-                : <>✅ Publish Quiz ({questions.length}Q)</>
-              }
-            </motion.button>
-          )}
-        </div>
+            <div className={styles.footerBar}>
+              <div className={styles.footerInfo}>
+                {step === 1
+                  ? "Step 1 of 2 — finish the quiz settings, then move to the questions."
+                  : `Step 2 of 2 — ${questions.length} questions · ${questions.filter((q) => q.text.trim()).length} drafted.`}
+              </div>
+              <div className={styles.footerActions}>
+                {step === 2 && (
+                  <button type="button" className={styles.backButton} onClick={() => setStep(1)}>
+                    ← Back
+                  </button>
+                )}
+                {step === 1 && (
+                  <motion.button
+                    type="button"
+                    className={styles.primaryButton}
+                    style={{ "--accent": currentCourse.color }}
+                    disabled={!infoOk}
+                    onClick={() => setStep(2)}
+                    whileHover={infoOk ? { y: -2 } : {}}
+                    whileTap={infoOk ? { scale: 0.985 } : {}}
+                  >
+                    Next: add questions →
+                  </motion.button>
+                )}
+                {step === 2 && (
+                  <motion.button
+                    type="button"
+                    className={styles.primaryButton}
+                    style={{ "--accent": currentCourse.color }}
+                    disabled={!infoOk || !questionsOk || saving}
+                    onClick={publish}
+                    whileHover={infoOk && questionsOk ? { y: -2 } : {}}
+                    whileTap={infoOk && questionsOk ? { scale: 0.985 } : {}}
+                  >
+                    {saving ? (
+                      <>
+                        <motion.span animate={{ rotate: 360 }} transition={{ duration: 0.7, repeat: Infinity, ease: "linear" }}>
+                          ⟳
+                        </motion.span>
+                        Publishing…
+                      </>
+                    ) : (
+                      <>✅ Publish quiz ({questions.length}Q)</>
+                    )}
+                  </motion.button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

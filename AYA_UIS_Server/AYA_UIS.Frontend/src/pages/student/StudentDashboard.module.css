@@ -492,7 +492,8 @@
 
 .contactIcon {
   width: 38px; height: 38px;
-  background: #f5f0ff; border-radius: 11px;
+  background: color-mix(in srgb, var(--accent, #818cf8) 10%, var(--card-bg, white));
+  border-radius: 11px;
   display: flex; align-items: center; justify-content: center;
   font-size: 16px; flex-shrink: 0;
 }
@@ -529,10 +530,10 @@
 .mapOpenBtn {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 11px 22px; border-radius: 12px;
-  background: linear-gradient(135deg, #4338ca, #818cf8);
+  background: var(--accent, #818cf8);
   color: #fff; font-size: 0.86rem; font-weight: 700;
   text-decoration: none; font-family: "Sora", sans-serif;
-  box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent, #818cf8) 35%, transparent);
   transition: filter 0.18s; width: fit-content;
 }
 .mapOpenBtn:hover { filter: brightness(1.1); }

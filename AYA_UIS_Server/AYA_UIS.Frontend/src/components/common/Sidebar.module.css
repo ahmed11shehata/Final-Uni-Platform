@@ -126,7 +126,7 @@
   width: 8px; height: 8px;
   border-radius: 50%;
   background: #4ade80;
-  border: 2px solid #0d0f1c;
+  border: 2px solid var(--sidebar-bg, #16192a);
 }
 
 /* Text */
@@ -328,9 +328,9 @@
 }
 
 .badgeNew {
-  background: rgba(139, 124, 248, 0.15);
-  color: #a99ff5;
-  border: 1px solid rgba(139, 124, 248, 0.25);
+  background: color-mix(in srgb, var(--accent, #818cf8) 15%, transparent);
+  color: color-mix(in srgb, var(--accent, #818cf8) 80%, white);
+  border: 1px solid color-mix(in srgb, var(--accent, #818cf8) 28%, transparent);
   animation: newPulse 3s ease-in-out infinite;
 }
 

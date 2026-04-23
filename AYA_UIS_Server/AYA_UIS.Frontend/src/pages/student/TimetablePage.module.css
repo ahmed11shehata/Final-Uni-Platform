@@ -140,7 +140,7 @@
   width: 100%; padding: 0;
   border: 2px solid var(--c, #818cf8);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--c, #818cf8) 14%, white);
+  background: color-mix(in srgb, var(--c, #818cf8) 14%, var(--card-bg, white));
   cursor: pointer;
   font-family: "Sora",sans-serif;
   overflow: hidden; flex-shrink: 0;
@@ -149,7 +149,7 @@
 .evChip:hover {
   box-shadow: 2px 2px 12px var(--c, #00000033);
   transform: translateX(2px);
-  background: color-mix(in srgb, var(--c, #818cf8) 22%, white);
+  background: color-mix(in srgb, var(--c, #818cf8) 22%, var(--card-bg, white));
 }
 .evChip:hover .evName { font-weight: 700; }
 
@@ -165,7 +165,7 @@
 .evName {
   flex: 1;
   font-size: 10px; font-weight: 800;
-  color: color-mix(in srgb, var(--c, #818cf8) 75%, #1e1b3a);
+  color: color-mix(in srgb, var(--c, #818cf8) 75%, var(--text-primary, #1e1b3a));
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   text-align: left;
   padding: 3.5px 4px 3.5px 5px;
@@ -295,7 +295,7 @@
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; flex-shrink: 0; transition: all .18s;
 }
-.popClose:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+.popClose:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #dc2626; }
 .popClose svg { width: 13px; height: 13px; }
 
 /* 2×2 info grid */
@@ -353,7 +353,7 @@
 
 /* ── Status badges ── */
 .badge  { font-size:9.5px; font-weight:800; padding:2px 9px; border-radius:20px; white-space:nowrap; text-transform:uppercase; letter-spacing:.05em; }
-.bNew   { background:#f0fdf4; color:#166534; border:1px solid rgba(22,101,52,.2); }
+.bNew   { background:rgba(34,197,94,.12); color:#16a34a; border:1px solid rgba(34,197,94,.28); }
 .bExp   { background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.25); }
 .bToday { background:rgba(220,38,38,.12); color:#dc2626; border:1px solid rgba(220,38,38,.28); }
 .bTmrw  { background:rgba(234,88,12,.12); color:#ea580c; border:1px solid rgba(234,88,12,.26); }

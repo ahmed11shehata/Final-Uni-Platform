@@ -4,9 +4,11 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using Abstraction.Contracts;
 using AYA_UIS.Application.Contracts;
 using AYA_UIS.Core.Abstractions.Contracts;
 using AYA_UIS.Core.Domain.Entities.Identity;
+using AYA_UIS.Core.Domain.Entities.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -23,7 +25,8 @@ namespace Presentation.Controllers
         IServiceManager _serviceManager,
         UserManager<User> _userManager,
         UniversityDbContext _dbContext,
-        IEmailService _emailService) : ControllerBase
+        IEmailService _emailService,
+        INotificationService _notificationService) : ControllerBase
     {
 
         // Post =>  Register 
@@ -146,6 +149,21 @@ namespace Presentation.Controllers
 
             user.MustChangePassword = false;
             await _userManager.UpdateAsync(user);
+
+            // Notify the user their password was changed
+            try
+            {
+                var now = DateTime.UtcNow;
+                await _notificationService.SendAsync(new Notification
+                {
+                    UserId = userId,
+                    Type   = "password_changed",
+                    Title  = "Password Changed 🔒",
+                    Body   = $"Your password was successfully changed on {now:MMM d} at {now:h:mm tt} UTC.",
+                    IsRead = false,
+                });
+            }
+            catch { /* never block the response */ }
 
             return Ok(new { success = true, message = "Password changed successfully. Please log in again." });
         }

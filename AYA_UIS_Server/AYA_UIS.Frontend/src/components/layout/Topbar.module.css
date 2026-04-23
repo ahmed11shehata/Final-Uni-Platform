@@ -78,7 +78,7 @@
 .bellBtn:hover {
   background: var(--detail-bg, #f1f5f9);
   color: var(--text-primary, #0f172a);
-  border-color: #d1d9e0;
+  border-color: var(--border, #e2e8f0);
 }
 
 .badge {
@@ -139,7 +139,7 @@
 .markAllBtn {
   font-size: 11.5px;
   font-weight: 600;
-  color: #6366f1;
+  color: var(--accent, #818cf8);
   background: none;
   border: none;
   cursor: pointer;
@@ -153,7 +153,7 @@
 }
 
 .notifList::-webkit-scrollbar { width: 4px; }
-.notifList::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
+.notifList::-webkit-scrollbar-thumb { background: var(--border, #e2e8f0); border-radius: 20px; }
 
 .emptyNotif {
   padding: 32px;
@@ -167,7 +167,7 @@
   display: flex;
   align-items: flex-start;
   gap: 11px;
-  padding: 13px 18px;
+  padding: 14px 18px;
   cursor: pointer;
   border-bottom: 1px solid #f8fafc;
   transition: background 0.15s;
@@ -177,8 +177,8 @@
 .notifItem:hover { background: var(--detail-bg, #f8fafc); }
 .notifItem:last-child { border-bottom: none; }
 
-.notifUnread { background: var(--detail-bg, #fafbff); }
-.notifUnread:hover { background: #f3f4ff; }
+.notifUnread { background: color-mix(in srgb, var(--accent, #818cf8) 5%, var(--card-bg, white)); }
+.notifUnread:hover { background: color-mix(in srgb, var(--accent, #818cf8) 10%, var(--card-bg, white)); }
 
 .notifDot {
   width: 38px; height: 38px;
@@ -191,22 +191,24 @@
 .notifText { flex: 1; min-width: 0; }
 
 .notifItemTitle {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--text-primary, #0f172a);
   margin-bottom: 3px;
 }
 
 .notifBody {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-secondary, #475569);
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.45;
   margin-bottom: 4px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .notifTime {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-muted, #94a3b8);
   font-weight: 500;
 }
@@ -273,6 +275,8 @@
   font-weight: 800;
   color: var(--text-primary, #0f172a);
   line-height: 1.3;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .detailTime {
@@ -291,7 +295,7 @@
 
 .field {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 9px;
   padding: 10px 13px;
   background: var(--detail-bg, #f8fafc);
@@ -299,16 +303,24 @@
   border: 1px solid var(--detail-border, #f1f5f9);
 }
 
-.fieldIcon { font-size: 14px; flex-shrink: 0; }
+.fieldIcon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  line-height: 1.4;
+}
 
 .fieldLabel {
   font-size: 11.5px;
   font-weight: 600;
   color: var(--text-muted, #94a3b8);
   width: 72px;
+  min-width: 72px;
   flex-shrink: 0;
   text-transform: uppercase;
   letter-spacing: 0.4px;
+  padding-top: 1px;
+  line-height: 1.4;
 }
 
 .fieldValue {
@@ -316,13 +328,14 @@
   font-weight: 600;
   color: var(--text-secondary, #475569);
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
 }
 
 .fieldFile {
-  color: #6366f1;
+  color: var(--accent, #818cf8);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -370,6 +383,9 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary, #475569);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
 }
 
 .detailNote {
@@ -379,9 +395,9 @@
   color: var(--text-secondary, #475569);
   font-weight: 500;
   padding: 10px 13px;
-  background: #fffbeb;
+  background: rgba(245,158,11,0.08);
   border-radius: 10px;
-  border: 1px solid #fef3c7;
+  border: 1px solid rgba(245,158,11,0.22);
   line-height: 1.5;
 }
 

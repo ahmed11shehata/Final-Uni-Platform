@@ -18,6 +18,8 @@ namespace Presistence.Repositories
         public async Task<Assignment?> GetByIdAsync(int id)
             => await _context.Assignments
                 .Include(x => x.Submissions)
+                .Include(x => x.Course)
+                .Include(x => x.CreatedBy)
                 .FirstOrDefaultAsync(x => x.Id == id);
 
         public async Task<IEnumerable<Assignment>> GetAssignmentsByCourseIdAsync(int courseId)
@@ -38,7 +40,7 @@ namespace Presistence.Repositories
 
         public async Task<IEnumerable<AssignmentSubmission>> GetSubmissions(int assignmentId)
             => await _context.AssignmentSubmissions
-                .Where(x => x.AssignmentId == assignmentId)
+                .Where(x => x.AssignmentId == assignmentId && x.Status != "Cleared")
                 .Include(x => x.Student)
                 .AsNoTracking()
                 .ToListAsync();
@@ -55,5 +57,21 @@ namespace Presistence.Repositories
                 .Where(a => a.CourseId == courseId)
                 .AsNoTracking()
                 .ToListAsync();
+
+        public async Task<AssignmentSubmission?> GetStudentSubmissionAsync(int assignmentId, string studentId)
+            => await _context.AssignmentSubmissions
+                .FirstOrDefaultAsync(s => s.AssignmentId == assignmentId && s.StudentId == studentId);
+
+        public Task UpdateSubmissionAsync(AssignmentSubmission submission)
+        {
+            _context.AssignmentSubmissions.Update(submission);
+            return Task.CompletedTask;
+        }
+
+        public async Task DeleteSubmissionAsync(int submissionId)
+        {
+            var sub = await _context.AssignmentSubmissions.FindAsync(submissionId);
+            if (sub != null) _context.AssignmentSubmissions.Remove(sub);
+        }
     }
 }

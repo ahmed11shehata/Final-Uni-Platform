@@ -309,6 +309,9 @@ namespace Presistence.Migrations
                     b.Property<int>("Points")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("ReleaseDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -333,6 +336,10 @@ namespace Presistence.Migrations
                     b.Property<int>("AssignmentId")
                         .HasColumnType("int");
 
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
                     b.Property<string>("Feedback")
                         .HasColumnType("nvarchar(max)");
 
@@ -342,6 +349,13 @@ namespace Presistence.Migrations
 
                     b.Property<int?>("Grade")
                         .HasColumnType("int");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("StudentId")
                         .IsRequired()
@@ -500,6 +514,9 @@ namespace Presistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<DateTime?>("ReleaseDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -521,6 +538,9 @@ namespace Presistence.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("Week")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -638,6 +658,99 @@ namespace Presistence.Migrations
                     b.HasIndex("StudyYearId");
 
                     b.ToTable("Fees");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.MidtermGrade", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Grade")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Max")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Published")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("StudyYearId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("StudyYearId");
+
+                    b.ToTable("MidtermGrades");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Notification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AssignmentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AssignmentTitle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CourseName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("Grade")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("Max")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Quiz", b =>
@@ -1538,6 +1651,42 @@ namespace Presistence.Migrations
                     b.Navigation("Department");
 
                     b.Navigation("StudyYear");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.MidtermGrade", b =>
+                {
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Models.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Identity.User", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Models.StudyYear", "StudyYear")
+                        .WithMany()
+                        .HasForeignKey("StudyYearId");
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Student");
+
+                    b.Navigation("StudyYear");
+                });
+
+            modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Notification", b =>
+                {
+                    b.HasOne("AYA_UIS.Core.Domain.Entities.Identity.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AYA_UIS.Core.Domain.Entities.Models.Quiz", b =>

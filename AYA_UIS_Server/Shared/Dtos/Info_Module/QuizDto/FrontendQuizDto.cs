@@ -17,6 +17,12 @@ namespace Shared.Dtos.Info_Module.QuizDto
 
         // Populated only in GetQuiz (detail endpoint)
         public List<FrontendQuizQuestionDto>? Questions { get; set; }
+
+        /// <summary>True when EndTime has passed — answer review unlocked</summary>
+        public bool ReviewAvailable { get; set; }
+
+        /// <summary>Student's own attempt score if already submitted (null if not attempted)</summary>
+        public int? MyScore { get; set; }
     }
 
     public class FrontendQuizQuestionDto

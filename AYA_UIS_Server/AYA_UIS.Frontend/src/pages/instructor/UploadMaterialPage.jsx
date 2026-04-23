@@ -1,461 +1,814 @@
 // src/pages/instructor/UploadMaterialPage.jsx
-import { useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import styles from "./UploadMaterialPage.module.css";
+import {
+  createAssignment,
+  getInstructorCourses,
+  uploadLecture,
+} from "../../services/api/instructorApi";
 
-const MY_COURSES = [
-  { id:"cs401", code:"CS401", name:"Artificial Intelligence", color:"#f59e0b", icon:"🤖" },
-  { id:"cs404", code:"CS404", name:"Expert Systems",          color:"#e05c8a", icon:"🧠" },
-];
+const WEEKS = Array.from({ length: 16 }, (_, i) => `Week ${i + 1}`);
+const spring = { type: "spring", stiffness: 320, damping: 28 };
 
-const WEEKS = Array.from({length:16},(_,i)=>`Week ${i+1}`);
+function FileZone({ accept, onFile, file, color, label, helper }) {
+  const ref = useRef(null);
+  const [dragging, setDragging] = useState(false);
 
-const sp = { type:"spring", stiffness:400, damping:28 };
+  const handleFile = (incoming) => {
+    if (incoming) onFile(incoming);
+  };
 
-/* ── Drag-drop file zone ── */
-function FileZone({ accept, onFile, file, color }) {
-  const ref = useRef();
-  const [drag, setDrag] = useState(false);
-
-  const handle = (f) => { if(f) onFile(f); };
   return (
-    <div
-      className={`${styles.fileZone} ${drag?styles.fileZoneDrag:""} ${file?styles.fileZoneHas:""}`}
-      style={file||drag?{borderColor:color,background:`${color}08`}:{}}
-      onDragOver={e=>{e.preventDefault();setDrag(true);}}
-      onDragLeave={()=>setDrag(false)}
-      onDrop={e=>{e.preventDefault();setDrag(false);handle(e.dataTransfer.files[0]);}}
-      onClick={()=>ref.current?.click()}>
-      <input ref={ref} type="file" accept={accept} style={{display:"none"}}
-        onChange={e=>handle(e.target.files[0])}/>
-      {file ? (
-        <div className={styles.fileHas}>
-          <span className={styles.fileHasIco}>📎</span>
-          <div>
-            <div className={styles.fileHasName}>{file.name}</div>
-            <div className={styles.fileHasSize}>{(file.size/1024/1024).toFixed(2)} MB</div>
+    <button
+      type="button"
+      className={`${styles.fileZone} ${dragging ? styles.fileZoneDrag : ""} ${file ? styles.fileZoneFilled : ""}`}
+      style={{ "--accent": color }}
+      onClick={() => ref.current?.click()}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        handleFile(e.dataTransfer.files[0]);
+      }}
+    >
+      <input
+        ref={ref}
+        type="file"
+        accept={accept}
+        className={styles.hiddenInput}
+        onChange={(e) => handleFile(e.target.files?.[0])}
+      />
+
+      <div className={styles.fileZoneGlow} />
+
+      {!file ? (
+        <div className={styles.fileEmpty}>
+          <div className={styles.fileEmptyIcon}>⤴</div>
+          <div className={styles.fileEmptyCopy}>
+            <strong>{label}</strong>
+            <span>Drop file here or click to browse</span>
+            <small>{helper}</small>
           </div>
-          <button className={styles.fileRemove} onClick={e=>{e.stopPropagation();onFile(null);}}>✕</button>
+          <span className={styles.fileZoneFormats}>{accept}</span>
         </div>
       ) : (
-        <div className={styles.fileEmpty}>
-          <div className={styles.fileEmptyIcon} style={{color}}>☁️</div>
-          <div className={styles.fileEmptyText}>Drop file here or click to browse</div>
-          <div className={styles.fileEmptyAccept}>{accept}</div>
+        <div className={styles.fileCard}>
+          <div className={styles.fileBadge}>📎</div>
+          <div className={styles.fileMeta}>
+            <span className={styles.fileName}>{file.name}</span>
+            <span className={styles.fileSize}>{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+          </div>
+          <button
+            type="button"
+            className={styles.fileRemove}
+            onClick={(e) => {
+              e.stopPropagation();
+              onFile(null);
+            }}
+          >
+            Remove
+          </button>
         </div>
       )}
+    </button>
+  );
+}
+
+function CoursePicker({ courses, course, setCourse }) {
+  if (courses.length === 0) {
+    return (
+      <div className={styles.noticeCard}>
+        <span className={styles.noticeIcon}>⚠️</span>
+        <div>
+          <p className={styles.noticeTitle}>No assigned courses</p>
+          <p className={styles.noticeText}>This account is not responsible for any course yet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.courseGrid}>
+      {courses.map((item, index) => {
+        const active = course === item.id;
+        return (
+          <motion.button
+            key={item.id}
+            type="button"
+            className={`${styles.courseCard} ${active ? styles.courseCardActive : ""}`}
+            style={{ "--accent": item.color || "#7c3aed" }}
+            onClick={() => setCourse(item.id)}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: index * 0.04 }}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.99 }}
+          >
+            <span className={styles.courseBadge}>{item.icon}</span>
+            <div className={styles.courseCopy}>
+              <span className={styles.courseCode}>{item.code}</span>
+              <span className={styles.courseName}>{item.name}</span>
+            </div>
+            <span className={styles.courseState}>{active ? "Selected" : "Choose"}</span>
+          </motion.button>
+        );
+      })}
     </div>
   );
 }
 
-/* ── Lecture Form ── */
-function LectureForm({ courseId, color }) {
-  const [title,    setTitle]    = useState("");
-  const [week,     setWeek]     = useState("");
-  const [desc,     setDesc]     = useState("");
-  const [file,     setFile]     = useState(null);
-  const [relDate,  setRelDate]  = useState("");
-  const [relNow,   setRelNow]   = useState(true);
-  const [done,     setDone]     = useState(false);
-  const [loading,  setLoading]  = useState(false);
+function TypeSelector({ matType, setMatType, accent }) {
+  const cards = [
+    {
+      key: "lecture",
+      icon: "🎬",
+      title: "Upload Lecture",
+      subtitle: "Video, PDF slides, labs, and supporting material.",
+      points: ["MP4, PDF, PPTX, ZIP", "Optional week mapping", "Immediate or scheduled release"],
+      color: "#5a67d8",
+    },
+    {
+      key: "assignment",
+      icon: "📝",
+      title: "Create Assignment",
+      subtitle: "Homework, project briefs, and student submissions.",
+      points: ["Deadline is required", "Starter attachment is optional", "Release timing is controlled"],
+      color: accent,
+    },
+  ];
 
-  const valid = title.trim() && week && file && (relNow || relDate);
+  return (
+    <div className={styles.typeGrid}>
+      {cards.map((card, index) => {
+        const active = matType === card.key;
+        return (
+          <motion.button
+            key={card.key}
+            type="button"
+            className={`${styles.typeCard} ${active ? styles.typeCardActive : ""}`}
+            style={{ "--accent": card.color }}
+            onClick={() => setMatType((prev) => (prev === card.key ? null : card.key))}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.05 + index * 0.05 }}
+            whileHover={{ y: -3 }}
+            whileTap={{ scale: 0.99 }}
+          >
+            <div className={styles.typeTop}>
+              <span className={styles.typeBadge}>{card.icon}</span>
+              <span className={styles.typePill}>{active ? "Opened" : "Open"}</span>
+            </div>
+            <h3 className={styles.typeTitle}>{card.title}</h3>
+            <p className={styles.typeSubtitle}>{card.subtitle}</p>
+            <div className={styles.typeList}>
+              {card.points.map((point) => (
+                <span key={point} className={styles.typeChip}>
+                  {point}
+                </span>
+              ))}
+            </div>
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
 
-  const submit = () => {
-    if(!valid) return;
-    setLoading(true);
-    setTimeout(()=>{ setLoading(false); setDone(true); }, 1500);
-  };
+function ReleaseControl({ relNow, setRelNow, relDate, setRelDate, color, title, text }) {
+  return (
+    <div className={styles.releasePanel} style={{ "--accent": color }}>
+      <div className={styles.releaseIntro}>
+        <span className={styles.sectionEyebrow}>Visibility</span>
+        <h4 className={styles.releaseTitle}>{title}</h4>
+        <p className={styles.releaseText}>{text}</p>
+      </div>
 
-  if(done) return (
-    <motion.div className={styles.successWrap}
-      initial={{opacity:0,scale:.9}} animate={{opacity:1,scale:1}} transition={sp}>
-      <div className={styles.successIcon} style={{background:`${color}18`,color}}>🎬</div>
-      <h3 className={styles.successTitle}>Lecture Uploaded!</h3>
-      <p className={styles.successSub}><strong>{title}</strong> is {relNow?"now visible":"scheduled for "+relDate} to students.</p>
-      <button className={styles.successReset} style={{background:color}} onClick={()=>{setDone(false);setTitle("");setWeek("");setDesc("");setFile(null);setRelDate("");setRelNow(true);}}>
-        Upload Another
+      <div className={styles.releaseGrid}>
+        <button
+          type="button"
+          className={`${styles.releaseCard} ${relNow ? styles.releaseCardActive : ""}`}
+          onClick={() => setRelNow(true)}
+        >
+          <span className={styles.releaseIcon}>⚡</span>
+          <span className={styles.releaseCardCopy}>
+            <strong>Publish now</strong>
+            <small>Students can access it immediately.</small>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className={`${styles.releaseCard} ${!relNow ? styles.releaseCardActive : ""}`}
+          onClick={() => setRelNow(false)}
+        >
+          <span className={styles.releaseIcon}>🗓️</span>
+          <span className={styles.releaseCardCopy}>
+            <strong>Schedule for later</strong>
+            <small>Choose the day students can see it.</small>
+          </span>
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {!relNow && (
+          <motion.div
+            className={styles.releaseDateWrap}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22 }}
+          >
+            <label className={styles.fieldLabel}>Release date</label>
+            <input
+              type="date"
+              className={styles.input}
+              value={relDate}
+              onChange={(e) => setRelDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+            />
+            <p className={styles.fieldHint}>Students will not see this item before the selected date.</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function SuccessState({ icon, title, text, buttonText, color, onReset }) {
+  return (
+    <motion.div
+      className={styles.successShell}
+      style={{ "--accent": color }}
+      initial={{ opacity: 0, scale: 0.96, y: 14 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={spring}
+    >
+      <div className={styles.successOrb}>{icon}</div>
+      <span className={styles.sectionEyebrow}>Completed</span>
+      <h3 className={styles.successTitle}>{title}</h3>
+      <p className={styles.successText}>{text}</p>
+      <button type="button" className={styles.primaryAction} onClick={onReset}>
+        {buttonText}
       </button>
     </motion.div>
   );
+}
+
+function LectureForm({ courseId, color }) {
+  const [title, setTitle] = useState("");
+  const [week, setWeek] = useState("");
+  const [desc, setDesc] = useState("");
+  const [file, setFile] = useState(null);
+  const [relDate, setRelDate] = useState("");
+  const [relNow, setRelNow] = useState(true);
+  const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const valid = title.trim() && file && (relNow || relDate);
+
+  const reset = () => {
+    setDone(false);
+    setTitle("");
+    setWeek("");
+    setDesc("");
+    setFile(null);
+    setRelDate("");
+    setRelNow(true);
+  };
+
+  const submit = async () => {
+    if (!valid) return;
+    setLoading(true);
+    try {
+      const weekNum = week ? parseInt(week.replace("Week ", ""), 10) : undefined;
+      await uploadLecture(
+        courseId,
+        {
+          title,
+          description: desc || undefined,
+          week: weekNum,
+          releaseDate: relNow ? null : relDate || null,
+        },
+        file,
+      );
+      setDone(true);
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || "Upload failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <SuccessState
+        icon="🎬"
+        title="Lecture uploaded successfully"
+        text={`${title} is ${relNow ? "visible to students now" : `scheduled for ${relDate}`}.`}
+        buttonText="Upload another lecture"
+        color={color}
+        onReset={reset}
+      />
+    );
+  }
 
   return (
-    <div className={styles.form}>
-      {/* Title */}
-      <div className={styles.field}>
-        <label className={styles.label}>Lecture Title <span className={styles.req}>*</span></label>
-        <input className={styles.inp} style={title?{borderColor:`${color}60`}:{}}
-          placeholder="e.g. Deep Learning & CNNs"
-          value={title} onChange={e=>setTitle(e.target.value)}/>
+    <div className={styles.formShell} style={{ "--accent": color }}>
+      <div className={styles.formIntro}>
+        <div>
+          <span className={styles.sectionEyebrow}>Lecture setup</span>
+          <h3 className={styles.formTitle}>Create a focused lecture post</h3>
+          <p className={styles.formText}>
+            Add the lecture details, upload the final file, and choose how students receive it.
+          </p>
+        </div>
+        <div className={styles.metaRail}>
+          <div className={styles.metaCard}>
+            <strong>{file ? "1 file attached" : "File required"}</strong>
+            <span>{relNow ? "Instant release" : "Scheduled release"}</span>
+          </div>
+          <div className={styles.metaCard}>
+            <strong>{week || "No week selected"}</strong>
+            <span>Week mapping</span>
+          </div>
+        </div>
       </div>
 
-      {/* Week + Course row */}
-      <div className={styles.twoCol}>
-        <div className={styles.field}>
-          <label className={styles.label}>Week <span className={styles.req}>*</span></label>
-          <select className={styles.sel} style={week?{borderColor:`${color}60`}:{}}
-            value={week} onChange={e=>setWeek(e.target.value)}>
+      <div className={styles.formGrid}>
+        <div className={styles.fieldBlock}>
+          <label className={styles.fieldLabel}>
+            Lecture title <span className={styles.required}>*</span>
+          </label>
+          <input
+            className={styles.input}
+            placeholder="e.g. Deep Learning & CNNs"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.fieldBlock}>
+          <label className={styles.fieldLabel}>Week</label>
+          <select className={styles.select} value={week} onChange={(e) => setWeek(e.target.value)}>
             <option value="">Select week…</option>
-            {WEEKS.map(w=><option key={w} value={w}>{w}</option>)}
+            {WEEKS.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
           </select>
         </div>
-        <div className={styles.field}>
-          <label className={styles.label}>Type</label>
-          <select className={styles.sel}>
+
+        <div className={styles.fieldBlock}>
+          <label className={styles.fieldLabel}>Type</label>
+          <select className={styles.select} defaultValue="Video Lecture">
             <option>Video Lecture</option>
             <option>PDF Slides</option>
             <option>Lab Session</option>
           </select>
         </div>
-      </div>
 
-      {/* Description */}
-      <div className={styles.field}>
-        <label className={styles.label}>Description <span className={styles.opt}>(optional)</span></label>
-        <textarea className={styles.textarea} rows={3}
-          placeholder="Brief overview of what students will learn…"
-          value={desc} onChange={e=>setDesc(e.target.value)}/>
-      </div>
-
-      {/* File upload */}
-      <div className={styles.field}>
-        <label className={styles.label}>File <span className={styles.req}>*</span></label>
-        <FileZone accept=".mp4,.pdf,.pptx,.zip" onFile={setFile} file={file} color={color}/>
-      </div>
-
-      {/* Release schedule */}
-      <div className={styles.releaseWrap}>
-        <div className={styles.releaseHead}>
-          <span className={styles.releaseTitle}>📅 Release Schedule</span>
-          <span className={styles.releaseSub}>When should students see this lecture?</span>
+        <div className={`${styles.fieldBlock} ${styles.fieldBlockWide}`}>
+          <label className={styles.fieldLabel}>Description</label>
+          <textarea
+            className={styles.textarea}
+            rows={4}
+            placeholder="Brief overview of what students will learn…"
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
         </div>
-        <div className={styles.releaseOpts}>
-          <button
-            className={`${styles.releaseBtn} ${relNow?styles.releaseBtnOn:""}`}
-            style={relNow?{background:color,borderColor:color}:{}}
-            onClick={()=>setRelNow(true)}>
-            ⚡ Publish Immediately
-          </button>
-          <button
-            className={`${styles.releaseBtn} ${!relNow?styles.releaseBtnOn:""}`}
-            style={!relNow?{background:color,borderColor:color}:{}}
-            onClick={()=>setRelNow(false)}>
-            📅 Schedule for Later
-          </button>
+
+        <div className={`${styles.fieldBlock} ${styles.fieldBlockWide}`}>
+          <FileZone
+            accept=".mp4,.pdf,.pptx,.zip"
+            onFile={setFile}
+            file={file}
+            color={color}
+            label="Lecture file"
+            helper="Use the final version students should access."
+          />
         </div>
-        <AnimatePresence>
-          {!relNow&&(
-            <motion.div className={styles.dateWrap}
-              initial={{height:0,opacity:0}} animate={{height:"auto",opacity:1}}
-              exit={{height:0,opacity:0}} transition={{duration:.22}}>
-              <input type="date" className={styles.dateInput}
-                style={relDate?{borderColor:`${color}60`}:{}}
-                value={relDate} onChange={e=>setRelDate(e.target.value)}
-                min={new Date().toISOString().split("T")[0]}/>
-              <p className={styles.dateHint}>Students won't see this until the selected date</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
-      {/* Submit */}
-      <motion.button className={styles.submitBtn}
-        style={{background:`linear-gradient(135deg,${color}cc,${color})`, opacity:valid?1:.45}}
-        disabled={!valid||loading}
+      <ReleaseControl
+        relNow={relNow}
+        setRelNow={setRelNow}
+        relDate={relDate}
+        setRelDate={setRelDate}
+        color={color}
+        title="Choose when students can access this lecture"
+        text="You can publish immediately or keep it hidden until the selected date."
+      />
+
+      <motion.button
+        type="button"
+        className={styles.primaryAction}
+        disabled={!valid || loading}
         onClick={submit}
-        whileHover={valid?{scale:1.02,filter:"brightness(1.08)"}:{}}
-        whileTap={valid?{scale:.97}:{}}>
+        whileHover={valid ? { y: -2 } : {}}
+        whileTap={valid ? { scale: 0.99 } : {}}
+      >
         {loading ? (
-          <motion.span animate={{rotate:360}} transition={{duration:.8,repeat:Infinity,ease:"linear"}}>⟳</motion.span>
-        ) : "🎬 Upload Lecture"}
+          <motion.span animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}>
+            ⟳
+          </motion.span>
+        ) : (
+          "Upload lecture"
+        )}
       </motion.button>
     </div>
   );
 }
 
-/* ── Assignment Form ── */
-function AssignmentForm({ courseId, color }) {
-  const [title,    setTitle]    = useState("");
-  const [desc,     setDesc]     = useState("");
+function AssignmentForm({ courseCode, color }) {
+  const [title, setTitle] = useState("");
+  const [desc, setDesc] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [releaseDate,setReleaseDate]=useState("");
-  const [relNow,   setRelNow]   = useState(true);
-  const [maxPts,   setMaxPts]   = useState("20");
-  const [file,     setFile]     = useState(null);
+  const [releaseDate, setReleaseDate] = useState("");
+  const [relNow, setRelNow] = useState(true);
+  const [maxPts, setMaxPts] = useState("20");
+  const [file, setFile] = useState(null);
   const [allowFmt, setAllowFmt] = useState(["pdf"]);
-  const [done,     setDone]     = useState(false);
-  const [loading,  setLoading]  = useState(false);
+  const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const FMTS = ["pdf","zip","docx","py","cpp","java","mp4"];
-  const toggleFmt = f => setAllowFmt(p=>p.includes(f)?p.filter(x=>x!==f):[...p,f]);
-  const valid = title.trim() && deadline && allowFmt.length > 0 && (relNow || releaseDate);
-
-  const submit = () => {
-    if(!valid) return;
-    setLoading(true);
-    setTimeout(()=>{ setLoading(false); setDone(true); }, 1500);
+  const formats = ["pdf", "zip", "docx", "py", "cpp", "java", "mp4"];
+  const toggleFmt = (format) => {
+    setAllowFmt((prev) =>
+      prev.includes(format) ? prev.filter((item) => item !== format) : [...prev, format],
+    );
   };
 
-  if(done) return (
-    <motion.div className={styles.successWrap}
-      initial={{opacity:0,scale:.9}} animate={{opacity:1,scale:1}} transition={sp}>
-      <div className={styles.successIcon} style={{background:`${color}18`,color}}>📋</div>
-      <h3 className={styles.successTitle}>Assignment Created!</h3>
-      <p className={styles.successSub}><strong>{title}</strong> will be {relNow?"visible now":"released on "+releaseDate}. Deadline: {deadline}.</p>
-      <button className={styles.successReset} style={{background:color}} onClick={()=>{setDone(false);setTitle("");setDesc("");setDeadline("");setReleaseDate("");setRelNow(true);setMaxPts("20");setFile(null);setAllowFmt(["pdf"]);}}>
-        Create Another
-      </button>
-    </motion.div>
-  );
+  const valid = title.trim() && deadline && allowFmt.length > 0 && (relNow || releaseDate);
+
+  const reset = () => {
+    setDone(false);
+    setTitle("");
+    setDesc("");
+    setDeadline("");
+    setReleaseDate("");
+    setRelNow(true);
+    setMaxPts("20");
+    setFile(null);
+    setAllowFmt(["pdf"]);
+  };
+
+  const submit = async () => {
+    if (!valid) return;
+    setLoading(true);
+    try {
+      await createAssignment(
+        {
+          title,
+          description: desc,
+          courseCode,
+          deadline: new Date(`${deadline}T23:59:00`).toISOString(),
+          releaseDate: relNow
+            ? null
+            : releaseDate
+              ? new Date(`${releaseDate}T00:00:00`).toISOString()
+              : null,
+          maxGrade: Number(maxPts),
+          allowedFormats: allowFmt,
+        },
+        file,
+      );
+      setDone(true);
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || "Failed to create assignment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <SuccessState
+        icon="📝"
+        title="Assignment created successfully"
+        text={`${title} will be ${relNow ? "available immediately" : `released on ${releaseDate}`}. Deadline: ${deadline}.`}
+        buttonText="Create another assignment"
+        color={color}
+        onReset={reset}
+      />
+    );
+  }
 
   return (
-    <div className={styles.form}>
-      {/* Title */}
-      <div className={styles.field}>
-        <label className={styles.label}>Assignment Title <span className={styles.req}>*</span></label>
-        <input className={styles.inp} style={title?{borderColor:`${color}60`}:{}}
-          placeholder="e.g. Neural Network from Scratch"
-          value={title} onChange={e=>setTitle(e.target.value)}/>
-      </div>
-
-      {/* Description */}
-      <div className={styles.field}>
-        <label className={styles.label}>Instructions <span className={styles.opt}>(optional)</span></label>
-        <textarea className={styles.textarea} rows={3}
-          placeholder="Describe what students need to do…"
-          value={desc} onChange={e=>setDesc(e.target.value)}/>
-      </div>
-
-      {/* Deadline + Max pts */}
-      <div className={styles.twoCol}>
-        <div className={styles.field}>
-          <label className={styles.label}>Deadline <span className={styles.req}>*</span></label>
-          <input type="date" className={styles.inp} style={deadline?{borderColor:`${color}60`}:{}}
-            value={deadline} onChange={e=>setDeadline(e.target.value)}
-            min={new Date().toISOString().split("T")[0]}/>
+    <div className={styles.formShell} style={{ "--accent": color }}>
+      <div className={styles.formIntro}>
+        <div>
+          <span className={styles.sectionEyebrow}>Assignment setup</span>
+          <h3 className={styles.formTitle}>Prepare a clean student submission brief</h3>
+          <p className={styles.formText}>
+            Set the instructions, choose accepted formats, attach a starter file if needed, and control release timing.
+          </p>
         </div>
-        <div className={styles.field}>
-          <label className={styles.label}>Max Grade (1–5)</label>
-          <div className={styles.starRow}>
-            {[1,2,3,4,5].map(n=>(
-              <button key={n}
-                className={`${styles.starBtn} ${Number(maxPts)===n?styles.starBtnOn:""}`}
-                style={Number(maxPts)===n?{background:color,borderColor:color}:{}}
-                onClick={()=>setMaxPts(String(n))}>
-                {n}
+        <div className={styles.metaRail}>
+          <div className={styles.metaCard}>
+            <strong>{deadline || "Deadline required"}</strong>
+            <span>Final due date</span>
+          </div>
+          <div className={styles.metaCard}>
+            <strong>{allowFmt.length} format(s)</strong>
+            <span>Submission types</span>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.formGrid}>
+        <div className={styles.fieldBlock}>
+          <label className={styles.fieldLabel}>
+            Assignment title <span className={styles.required}>*</span>
+          </label>
+          <input
+            className={styles.input}
+            placeholder="e.g. Neural Network from Scratch"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.fieldBlock}>
+          <label className={styles.fieldLabel}>
+            Deadline <span className={styles.required}>*</span>
+          </label>
+          <input
+            type="date"
+            className={styles.input}
+            value={deadline}
+            onChange={(e) => setDeadline(e.target.value)}
+            min={new Date().toISOString().split("T")[0]}
+          />
+        </div>
+
+        <div className={styles.fieldBlock}>
+          <label className={styles.fieldLabel}>Max grade (1–5)</label>
+          <div className={styles.scoreRow}>
+            {[1, 2, 3, 4, 5].map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={`${styles.scoreButton} ${Number(maxPts) === item ? styles.scoreButtonActive : ""}`}
+                onClick={() => setMaxPts(String(item))}
+              >
+                {item}
               </button>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Allowed formats */}
-      <div className={styles.field}>
-        <label className={styles.label}>Allowed File Formats <span className={styles.req}>*</span></label>
-        <div className={styles.fmtRow}>
-          {FMTS.map(f=>(
-            <button key={f}
-              className={`${styles.fmtBtn} ${allowFmt.includes(f)?styles.fmtBtnOn:""}`}
-              style={allowFmt.includes(f)?{background:color,borderColor:color}:{}}
-              onClick={()=>toggleFmt(f)}>
-              .{f}
-            </button>
-          ))}
+        <div className={`${styles.fieldBlock} ${styles.fieldBlockWide}`}>
+          <label className={styles.fieldLabel}>Instructions</label>
+          <textarea
+            className={styles.textarea}
+            rows={4}
+            placeholder="Describe what students need to do…"
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
+        </div>
+
+        <div className={`${styles.fieldBlock} ${styles.fieldBlockWide}`}>
+          <label className={styles.fieldLabel}>
+            Allowed file formats <span className={styles.required}>*</span>
+          </label>
+          <div className={styles.formatRow}>
+            {formats.map((format) => (
+              <button
+                key={format}
+                type="button"
+                className={`${styles.formatPill} ${allowFmt.includes(format) ? styles.formatPillActive : ""}`}
+                onClick={() => toggleFmt(format)}
+              >
+                .{format}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={`${styles.fieldBlock} ${styles.fieldBlockWide}`}>
+          <FileZone
+            accept=".pdf,.zip,.docx"
+            onFile={setFile}
+            file={file}
+            color={color}
+            label="Starter attachment"
+            helper="Optional: upload a template or reference file for students."
+          />
         </div>
       </div>
 
-      {/* Attachment (optional) */}
-      <div className={styles.field}>
-        <label className={styles.label}>Attachment <span className={styles.opt}>(starter file, optional)</span></label>
-        <FileZone accept=".pdf,.zip,.docx" onFile={setFile} file={file} color={color}/>
-      </div>
+      <ReleaseControl
+        relNow={relNow}
+        setRelNow={setRelNow}
+        relDate={releaseDate}
+        setRelDate={setReleaseDate}
+        color={color}
+        title="Choose when students can see this assignment"
+        text="Assignments can appear instantly or stay pending until the selected release date."
+      />
 
-      {/* Release schedule */}
-      <div className={styles.releaseWrap}>
-        <div className={styles.releaseHead}>
-          <span className={styles.releaseTitle}>📅 Release to Students</span>
-          <span className={styles.releaseSub}>When should this assignment be visible?</span>
-        </div>
-        <div className={styles.releaseOpts}>
-          <button
-            className={`${styles.releaseBtn} ${relNow?styles.releaseBtnOn:""}`}
-            style={relNow?{background:color,borderColor:color}:{}}
-            onClick={()=>setRelNow(true)}>
-            ⚡ Publish Now
-          </button>
-          <button
-            className={`${styles.releaseBtn} ${!relNow?styles.releaseBtnOn:""}`}
-            style={!relNow?{background:color,borderColor:color}:{}}
-            onClick={()=>setRelNow(false)}>
-            📅 Schedule Release
-          </button>
-        </div>
-        <AnimatePresence>
-          {!relNow&&(
-            <motion.div className={styles.dateWrap}
-              initial={{height:0,opacity:0}} animate={{height:"auto",opacity:1}}
-              exit={{height:0,opacity:0}} transition={{duration:.22}}>
-              <input type="date" className={styles.dateInput}
-                style={releaseDate?{borderColor:`${color}60`}:{}}
-                value={releaseDate} onChange={e=>setReleaseDate(e.target.value)}
-                min={new Date().toISOString().split("T")[0]}/>
-              <p className={styles.dateHint}>Students won't see this assignment until this date</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Submit */}
-      <motion.button className={styles.submitBtn}
-        style={{background:`linear-gradient(135deg,${color}cc,${color})`, opacity:valid?1:.45}}
-        disabled={!valid||loading}
+      <motion.button
+        type="button"
+        className={styles.primaryAction}
+        disabled={!valid || loading}
         onClick={submit}
-        whileHover={valid?{scale:1.02,filter:"brightness(1.08)"}:{}}
-        whileTap={valid?{scale:.97}:{}}>
+        whileHover={valid ? { y: -2 } : {}}
+        whileTap={valid ? { scale: 0.99 } : {}}
+      >
         {loading ? (
-          <motion.span animate={{rotate:360}} transition={{duration:.8,repeat:Infinity,ease:"linear"}}>⟳</motion.span>
-        ) : "📋 Create Assignment"}
+          <motion.span animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}>
+            ⟳
+          </motion.span>
+        ) : (
+          "Create assignment"
+        )}
       </motion.button>
     </div>
   );
 }
 
-/* ════════════ MAIN PAGE ════════════ */
 export default function UploadMaterialPage() {
-  const [course,  setCourse]  = useState(MY_COURSES[0].id);
-  const [matType, setMatType] = useState(null); // null | "lecture" | "assignment"
+  const [courses, setCourses] = useState([]);
+  const [course, setCourse] = useState(null);
+  const [matType, setMatType] = useState(null);
 
-  const c = MY_COURSES.find(x=>x.id===course)||MY_COURSES[0];
+  useEffect(() => {
+    getInstructorCourses()
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setCourses(list);
+      })
+      .catch(() => {});
+  }, []);
+
+  const currentCourse = useMemo(
+    () =>
+      (course ? courses.find((item) => item.id === course) : null) || {
+        color: "#7c3aed",
+        code: "",
+        name: "",
+        icon: "📚",
+      },
+    [course, courses],
+  );
+
+  const activeAccent = matType === "lecture" ? "#5a67d8" : currentCourse.color || "#7c3aed";
 
   return (
     <div className={styles.page}>
-
-      {/* ── Hero header ── */}
-      <motion.div className={styles.hero}
-        initial={{opacity:0,y:-18}} animate={{opacity:1,y:0}}
-        transition={{duration:.45,ease:[.22,1,.36,1]}}>
-        <div className={styles.heroBg}/>
-        <div className={styles.heroContent}>
-          <div>
-            <h1 className={styles.heroTitle}>Upload Material</h1>
-            <p className={styles.heroSub}>Add lectures and assignments for your students</p>
+      <section className={styles.hero}>
+        <div className={styles.heroAuraLeft} />
+        <div className={styles.heroAuraRight} />
+        <div className={styles.heroGrid}>
+          <div className={styles.heroCopy}>
+            <span className={styles.sectionEyebrow}>Instructor workspace</span>
+            <h1 className={styles.heroTitle}>Material Publishing Studio</h1>
+            <p className={styles.heroText}>
+              A calmer, academic workflow for organizing lectures and assignments with better rhythm,
+              clearer structure, and polished release control.
+            </p>
           </div>
-          {/* Course selector */}
-          <div className={styles.courseRow}>
-            {MY_COURSES.map((cr,i)=>(
-              <motion.button key={cr.id}
-                className={`${styles.coursePill} ${course===cr.id?styles.coursePillOn:""}`}
-                style={{"--cp":cr.color}}
-                onClick={()=>{setCourse(cr.id);setMatType(null);}}
-                initial={{opacity:0,x:16}} animate={{opacity:1,x:0}}
-                transition={{delay:i*.07,type:"spring",stiffness:400,damping:26}}
-                whileHover={{y:-2}} whileTap={{scale:.96}}>
-                <span>{cr.icon}</span>
-                <div>
-                  <span className={styles.cpCode}>{cr.code}</span>
-                  <span className={styles.cpName}>{cr.name}</span>
-                </div>
-              </motion.button>
-            ))}
+
+          <div className={styles.heroSummary}>
+            <div className={styles.heroChip}>
+              <strong>{courses.length}</strong>
+              <span>Courses available</span>
+            </div>
+            <div className={styles.heroChip}>
+              <strong>{matType || "idle"}</strong>
+              <span>Current mode</span>
+            </div>
+            <div className={styles.heroChip}>
+              <strong>{course ? currentCourse.code : "none"}</strong>
+              <span>Selected course</span>
+            </div>
           </div>
         </div>
-      </motion.div>
+      </section>
 
-      {/* ── Type selector ── */}
-      <div className={styles.typeRow}>
-        {[
-          {
-            key:"lecture",
-            icon:"🎬",
-            title:"Upload Lecture",
-            sub:"Video, PDF slides, or lab materials",
-            bullet:["📁 Supports MP4, PDF, PPTX, ZIP","📅 Schedule release date","📚 Assign to a specific week"],
-            color:"#6366f1",
-          },
-          {
-            key:"assignment",
-            icon:"📋",
-            title:"Create Assignment",
-            sub:"Homework, projects & submissions",
-            bullet:["📅 Set deadline & release date","📎 Attach starter files","🎯 Grade out of 1–5"],
-            color:c.color,
-          },
-        ].map((t,i)=>(
-          <motion.button key={t.key}
-            className={`${styles.typeCard} ${matType===t.key?styles.typeCardOn:""}`}
-            style={{"--tc":t.color}}
-            onClick={()=>setMatType(p=>p===t.key?null:t.key)}
-            initial={{opacity:0,y:22}} animate={{opacity:1,y:0}}
-            transition={{delay:i*.08,type:"spring",stiffness:380,damping:28}}
-            whileHover={matType!==t.key?{y:-4,boxShadow:`0 16px 40px ${t.color}22`}:{}}
-            whileTap={{scale:.98}}>
-
-            <motion.div className={styles.typeAccent} style={{background:t.color}}
-              animate={{scaleX:matType===t.key?1:0}} transition={{duration:.28,ease:[.22,1,.36,1]}}/>
-
-            <div className={styles.typeTop}>
-              <div className={styles.typeIcon}
-                style={{background:`${t.color}18`, border:`2px solid ${t.color}28`, color:t.color}}>
-                {t.icon}
-              </div>
-              <div className={styles.typeGlow}
-                style={{background:`radial-gradient(circle at 50% 50%, ${t.color}15, transparent 70%)`}}
-                hidden={matType!==t.key}/>
-              <div className={styles.typeChev}
-                style={matType===t.key?{color:t.color}:{}}>
-                {matType===t.key?"▼":"▶"}
-              </div>
+      <main className={styles.shell}>
+        <section className={styles.surface}>
+          <div className={styles.surfaceHead}>
+            <div>
+              <span className={styles.sectionEyebrow}>Step 1</span>
+              <h2 className={styles.sectionTitle}>Choose your course</h2>
+              <p className={styles.sectionText}>
+                Start by selecting the course, then move to lecture upload or assignment creation.
+              </p>
             </div>
-            <div className={styles.typeTitle}
-              style={matType===t.key?{color:t.color}:{}}>{t.title}</div>
-            <div className={styles.typeSub}>{t.sub}</div>
-            <ul className={styles.typeBullets}>
-              {t.bullet.map(b=><li key={b}>{b}</li>)}
-            </ul>
-          </motion.button>
-        ))}
-      </div>
-
-      {/* ── Form panel ── */}
-      <AnimatePresence mode="wait">
-        {matType && (
-          <motion.div key={`${course}-${matType}`} className={styles.formPanel}
-            style={{"--fp": matType==="lecture"?"#6366f1":c.color}}
-            initial={{opacity:0,y:24}} animate={{opacity:1,y:0}}
-            exit={{opacity:0,y:-16}} transition={{duration:.28,ease:[.22,1,.36,1]}}>
-
-            <div className={styles.formPanelHead}
-              style={{borderTop:`3px solid ${matType==="lecture"?"#6366f1":c.color}`}}>
-              <span className={styles.formPanelIcon}>{matType==="lecture"?"🎬":"📋"}</span>
-              <div>
-                <div className={styles.formPanelTitle}>
-                  {matType==="lecture"?"New Lecture":"New Assignment"}
-                </div>
-                <div className={styles.formPanelSub}>{c.icon} {c.code} · {c.name}</div>
+            {course && (
+              <div className={styles.currentCourseTag} style={{ "--accent": currentCourse.color || "#7c3aed" }}>
+                <span>{currentCourse.icon}</span>
+                <strong>{currentCourse.code}</strong>
+                <small>{currentCourse.name}</small>
               </div>
-              <button className={styles.formClose}
-                onClick={()=>setMatType(null)}>✕ Cancel</button>
-            </div>
+            )}
+          </div>
 
-            {matType==="lecture"&&(
-              <LectureForm key={`${course}-lec`} courseId={course} color="#6366f1"/>
-            )}
-            {matType==="assignment"&&(
-              <AssignmentForm key={`${course}-asn`} courseId={course} color={c.color}/>
-            )}
-          </motion.div>
+          <CoursePicker
+            courses={courses}
+            course={course}
+            setCourse={(value) => {
+              setCourse(value);
+              setMatType(null);
+            }}
+          />
+        </section>
+
+        {!course && courses.length > 0 && (
+          <motion.section
+            className={styles.emptyState}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className={styles.emptyIcon}>📚</div>
+            <h3 className={styles.emptyTitle}>Select a course to continue</h3>
+            <p className={styles.emptyText}>
+              Once a course is selected, you can switch between lecture uploads and assignment creation.
+            </p>
+          </motion.section>
         )}
-      </AnimatePresence>
 
-      {/* Idle */}
-      {!matType&&(
-        <motion.div className={styles.idle}
-          initial={{opacity:0}} animate={{opacity:1}}>
-          <div className={styles.idleIcon} style={{background:`${c.color}14`,color:c.color}}>{c.icon}</div>
-          <p className={styles.idleTitle}>Select a material type above</p>
-          <p className={styles.idleSub}>Choose Lecture or Assignment to start uploading content for <strong>{c.code}</strong></p>
-        </motion.div>
-      )}
+        {course && (
+          <>
+            <section className={styles.surface}>
+              <div className={styles.surfaceHead}>
+                <div>
+                  <span className={styles.sectionEyebrow}>Step 2</span>
+                  <h2 className={styles.sectionTitle}>Choose the material type</h2>
+                  <p className={styles.sectionText}>
+                    You are working inside <strong>{currentCourse.code}</strong> · {currentCourse.name}.
+                  </p>
+                </div>
+              </div>
+
+              <TypeSelector matType={matType} setMatType={setMatType} accent={currentCourse.color || "#7c3aed"} />
+            </section>
+
+            <AnimatePresence mode="wait">
+              {matType ? (
+                <motion.section
+                  key={`${course}-${matType}`}
+                  className={styles.formPanel}
+                  initial={{ opacity: 0, y: 18 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.24 }}
+                  style={{ "--accent": activeAccent }}
+                >
+                  <div className={styles.formPanelHead}>
+                    <div>
+                      <span className={styles.sectionEyebrow}>
+                        {matType === "lecture" ? "Lecture mode" : "Assignment mode"}
+                      </span>
+                      <h2 className={styles.formPanelTitle}>
+                        {matType === "lecture" ? "Publish a new lecture" : "Create a new assignment"}
+                      </h2>
+                      <p className={styles.formPanelText}>
+                        {currentCourse.icon} {currentCourse.code} · {currentCourse.name}
+                      </p>
+                    </div>
+
+                    <button type="button" className={styles.ghostAction} onClick={() => setMatType(null)}>
+                      Close panel
+                    </button>
+                  </div>
+
+                  {matType === "lecture" ? (
+                    <LectureForm courseId={course} color="#5a67d8" />
+                  ) : (
+                    <AssignmentForm courseCode={currentCourse.code} color={currentCourse.color || "#7c3aed"} />
+                  )}
+                </motion.section>
+              ) : (
+                <motion.section
+                  key={`${course}-idle`}
+                  className={styles.idleState}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <div className={styles.idleBadge} style={{ "--accent": currentCourse.color || "#7c3aed" }}>
+                    {currentCourse.icon}
+                  </div>
+                  <h3 className={styles.emptyTitle}>Choose a material type</h3>
+                  <p className={styles.emptyText}>
+                    Use the cards above to start a lecture upload or create an assignment for {currentCourse.code}.
+                  </p>
+                </motion.section>
+              )}
+            </AnimatePresence>
+          </>
+        )}
+      </main>
     </div>
   );
 }

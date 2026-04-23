@@ -698,6 +698,18 @@
   transition: all 0.15s;
 }
 .reviewBtn:hover { background: var(--hover-bg, #f1f5f9); }
+.reviewLocked {
+  flex: 1;
+  padding: 13px;
+  border-radius: 14px;
+  border: 1.5px dashed var(--card-border, #e2e8f0);
+  background: var(--card-bg, #fff);
+  font-family: "Sora", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  text-align: center;
+}
 .backBtn {
   flex: 1;
   padding: 13px;

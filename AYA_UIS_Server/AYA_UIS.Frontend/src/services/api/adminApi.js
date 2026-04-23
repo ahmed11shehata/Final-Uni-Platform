@@ -134,6 +134,43 @@ export const adminSaveAcademicSetup = async (studentId, dto) => {
   return res.data.data;
 };
 
+// ── Final Grade Audit ────────────────────────────────────────
+
+/**
+ * GET /api/admin/final-grade/student/{studentCode}
+ * Returns the student + all registered courses with final grade status.
+ */
+export const adminGetFinalGrades = async (studentCode) => {
+  const res = await api.get(`/admin/final-grade/student/${encodeURIComponent(studentCode)}`);
+  return res.data.data;
+};
+
+/**
+ * POST /api/admin/final-grade/publish/{studentId}
+ * Publishes all assigned final grades to the student.
+ * @param {string} studentId - GUID
+ * @param {number[]|null} courseIds - if null, publishes all assigned courses
+ */
+export const adminPublishFinalGrades = async (studentId, courseIds = null) => {
+  const res = await api.post(
+    `/admin/final-grade/publish/${encodeURIComponent(studentId)}`,
+    { courseIds }
+  );
+  return res.data.data;
+};
+
+/**
+ * POST /api/admin/final-grade/notify/{studentId}/{courseId}
+ * Sends a warning notification to all instructors of this course
+ * about the missing final grade for this student.
+ */
+export const adminNotifyInstructor = async (studentId, courseId) => {
+  const res = await api.post(
+    `/admin/final-grade/notify/${encodeURIComponent(studentId)}/${courseId}`
+  );
+  return res.data.data;
+};
+
 // ── Instructor Control ────────────────────────────────────────
 
 /** GET /api/admin/instructor-control */

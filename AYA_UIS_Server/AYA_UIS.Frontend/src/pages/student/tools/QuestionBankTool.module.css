@@ -13,7 +13,7 @@
 .uzT{font-size:14px;font-weight:800;color:var(--text-primary);margin:0;}.uzS{font-size:11.5px;color:var(--text-muted);margin:0;}
 .fileChip{display:flex;align-items:center;gap:10px;width:100%;font-size:22px;}
 .fcN{font-size:13px;font-weight:700;color:var(--text-primary);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px;}.fcM{font-size:11px;color:var(--text-muted);margin:0;font-weight:600;}
-.fcX{margin-left:auto;width:24px;height:24px;border-radius:7px;border:1.5px solid var(--card-border);background:var(--card-bg-2);color:var(--text-muted);font-size:10px;cursor:pointer;transition:all .15s;}.fcX:hover{background:#fee2e2;color:#dc2626;}
+.fcX{margin-left:auto;width:24px;height:24px;border-radius:7px;border:1.5px solid var(--card-border);background:var(--card-bg-2);color:var(--text-muted);font-size:10px;cursor:pointer;transition:all .15s;}.fcX:hover{background:rgba(239,68,68,0.1);color:#dc2626;}
 .divider{height:1.5px;background:var(--card-border);}
 .configRow{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;}
 .cfgGrp{display:flex;flex-direction:column;gap:8px;}.cfgL{font-size:10.5px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;}
@@ -24,9 +24,8 @@
 .genBtn{padding:14px;border:none;border-radius:14px;color:white;font-family:"Sora",sans-serif;font-size:15px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;}.genBtn:disabled{opacity:.45;cursor:not-allowed;}
 .stRow,.okRow,.errRow{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;font-size:12.5px;font-weight:600;}
 .stRow{background:var(--card-bg-2);border:1.5px solid var(--card-border);color:var(--text-secondary);}
-.okRow{background:#f0fdf4;border:1.5px solid #bbf7d0;color:#16a34a;}
+.okRow{background:rgba(34,197,94,.1);border:1.5px solid rgba(34,197,94,.28);color:#16a34a;}
 .errRow{background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.25);color:#ef4444;}
-[data-theme="dark"] .okRow,[data-theme="space"] .okRow,[data-theme="ocean"] .okRow,[data-theme="forest"] .okRow,[data-theme="ramadan"] .okRow,[data-theme="arctic"] .okRow,[data-theme="pharaoh"] .okRow,[data-theme="saladin"] .okRow,[data-theme="fog"] .okRow{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);}
 .okDot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;}
 
 /* idle */
@@ -46,8 +45,7 @@
 .paperTitle{font-size:22px;font-weight:900;color:var(--text-primary);margin:0 0 4px;}
 .paperFile{font-size:12.5px;color:var(--text-muted);margin:0;font-weight:600;}
 .actBtn{padding:8px 16px;border-radius:10px;border:1.5px solid var(--card-border);background:var(--card-bg-2);font-family:"Sora",sans-serif;font-size:12px;font-weight:700;color:var(--text-secondary);cursor:pointer;transition:all .15s;}.actBtn:hover{background:var(--hover-bg);}
-.actBtnG{border-color:#bbf7d0;color:#16a34a;background:#f0fdf4;}
-[data-theme="dark"] .actBtnG,[data-theme="space"] .actBtnG,[data-theme="ocean"] .actBtnG,[data-theme="forest"] .actBtnG,[data-theme="ramadan"] .actBtnG,[data-theme="arctic"] .actBtnG,[data-theme="pharaoh"] .actBtnG,[data-theme="saladin"] .actBtnG,[data-theme="fog"] .actBtnG{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);}
+.actBtnG{border-color:rgba(34,197,94,.3);color:#16a34a;background:rgba(34,197,94,.1);}
 
 /* exam sheet */
 .examSheet{padding:28px;display:flex;flex-direction:column;gap:22px;}

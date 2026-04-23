@@ -28,14 +28,12 @@
 .fpName{font-size:13px;font-weight:700;color:var(--text-primary);margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .fpMeta{font-size:11px;color:var(--text-muted);margin:0;font-weight:600;}
 .fpX{width:26px;height:26px;border-radius:8px;border:1.5px solid var(--card-border);background:var(--card-bg-2);color:var(--text-muted);font-size:11px;cursor:pointer;transition:all .15s;flex-shrink:0;}
-.fpX:hover{background:#fee2e2;color:#dc2626;}
+.fpX:hover{background:rgba(239,68,68,0.1);color:#dc2626;}
 
 .sRow,.okRow,.errRow{display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:12px;font-size:12.5px;font-weight:600;}
 .sRow{background:var(--card-bg);border:1.5px solid var(--card-border);color:var(--text-secondary);}
-.okRow{background:#f0fdf4;border:1.5px solid #bbf7d0;color:#16a34a;}
+.okRow{background:rgba(34,197,94,.1);border:1.5px solid rgba(34,197,94,.28);color:#16a34a;}
 .errRow{background:rgba(239,68,68,.1);border:1.5px solid rgba(239,68,68,.25);color:#ef4444;}
-[data-theme="dark"] .okRow,[data-theme="space"] .okRow,[data-theme="ocean"] .okRow,[data-theme="forest"] .okRow,
-[data-theme="ramadan"] .okRow,[data-theme="arctic"] .okRow,[data-theme="pharaoh"] .okRow,[data-theme="saladin"] .okRow,[data-theme="fog"] .okRow{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);}
 .spin{width:15px;height:15px;border-radius:50%;border:2.5px solid rgba(0,0,0,.1);border-top-color:var(--c,#6366f1);animation:spin .7s linear infinite;flex-shrink:0;display:inline-block;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .okDot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;}
@@ -70,7 +68,7 @@
 .rTitle{font-size:15px;font-weight:900;color:var(--text-primary);}
 .rBtn{padding:7px 16px;border-radius:9px;border:1.5px solid var(--card-border);background:var(--card-bg);font-family:"Sora",sans-serif;font-size:12px;font-weight:700;color:var(--text-secondary);cursor:pointer;transition:all .15s;}
 .rBtn:hover{background:var(--hover-bg);}
-.rBtnG{border-color:#bbf7d0;color:#16a34a;background:#f0fdf4;}
+.rBtnG{border-color:rgba(34,197,94,.3);color:#16a34a;background:rgba(34,197,94,.1);}
 .rBody{padding:40px 48px;}
 
 /* doc render */

@@ -39,7 +39,11 @@ namespace Presentation.Controllers
             if (quizId <= 0)
                 return BadRequest(new { errors = "Invalid quiz ID." });
 
-            var result = await _mediator.Send(new GetQuizQuery { QuizId = quizId });
+            var result = await _mediator.Send(new GetQuizQuery
+            {
+                QuizId    = quizId,
+                StudentId = CurrentUserId
+            });
             if (result is null)
                 return NotFound(new { errors = "Quiz not found." });
             return Ok(result);

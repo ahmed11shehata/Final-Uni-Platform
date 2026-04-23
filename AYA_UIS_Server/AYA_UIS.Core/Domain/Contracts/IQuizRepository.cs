@@ -13,5 +13,6 @@ namespace Domain.Contracts
         Task<bool> AttemptExists(int quizId, string studentId);
         Task AddAttemptAsync(StudentQuizAttempt attempt);
         Task<IEnumerable<StudentQuizAttempt>> GetAttemptsByQuizIdAsync(int quizId);
+        Task<StudentQuizAttempt?> GetStudentAttemptAsync(int quizId, string studentId);
     }
 }

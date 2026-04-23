@@ -9,6 +9,7 @@ namespace Shared.Dtos.Instructor_Module
         public string Size { get; set; } = string.Empty;
         public string Date { get; set; } = string.Empty;
         public int Downloads { get; set; }
+        public string? ReleaseDate { get; set; }
     }
 
     public class CreateMaterialDto

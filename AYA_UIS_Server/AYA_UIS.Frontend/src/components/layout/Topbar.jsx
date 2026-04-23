@@ -24,16 +24,114 @@ const PORTAL_LABEL = {
 /* ── Notification type icon & color ── */
 function notifMeta(type) {
   const map = {
-    grade_approved:  { emoji: "✅", color: "#22c55e", bg: "rgba(34,197,94,0.1)"  },
-    grade_rejected:  { emoji: "❌", color: "#ef4444", bg: "rgba(239,68,68,0.1)"  },
-    quiz_available:  { emoji: "📝", color: "#6366f1", bg: "rgba(99,102,241,0.1)" },
-    lecture_uploaded:{ emoji: "🎬", color: "#0ea5e9", bg: "rgba(14,165,233,0.1)" },
-    submission_new:  { emoji: "📬", color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
-    quiz_ended:      { emoji: "📊", color: "#8b5cf6", bg: "rgba(139,92,246,0.1)" },
-    user_registered: { emoji: "👤", color: "#06b6d4", bg: "rgba(6,182,212,0.1)"  },
-    system_alert:    { emoji: "⚠️", color: "#f97316", bg: "rgba(249,115,22,0.1)" },
+    // Student — grading
+    grade_approved:       { emoji: "✅", color: "#22c55e", bg: "rgba(34,197,94,0.1)"   },
+    grade_rejected:       { emoji: "❌", color: "#ef4444", bg: "rgba(239,68,68,0.1)"   },
+    // Backward-compat aliases (older DB rows before type-name fix)
+    assignment_accepted:  { emoji: "✅", color: "#22c55e", bg: "rgba(34,197,94,0.1)"   },
+    assignment_rejected:  { emoji: "❌", color: "#ef4444", bg: "rgba(239,68,68,0.1)"   },
+    // Student — content published
+    assignment_published: { emoji: "📋", color: "#8b5cf6", bg: "rgba(139,92,246,0.1)"  },
+    quiz_published:       { emoji: "📝", color: "#6366f1", bg: "rgba(99,102,241,0.1)"  },
+    lecture_uploaded:     { emoji: "🎬", color: "#0ea5e9", bg: "rgba(14,165,233,0.1)"  },
+    // Student — legacy alias
+    quiz_available:       { emoji: "📝", color: "#6366f1", bg: "rgba(99,102,241,0.1)"  },
+    // Student — security
+    password_changed:     { emoji: "🔒", color: "#10b981", bg: "rgba(16,185,129,0.1)"  },
+    // Instructor
+    submission_new:       { emoji: "📬", color: "#f59e0b", bg: "rgba(245,158,11,0.1)"  },
+    submission_updated:   { emoji: "🔄", color: "#f59e0b", bg: "rgba(245,158,11,0.1)"  },
+    quiz_ended:           { emoji: "📊", color: "#8b5cf6", bg: "rgba(139,92,246,0.1)"  },
+    // Admin
+    gpa_low:              { emoji: "📉", color: "#ef4444", bg: "rgba(239,68,68,0.1)"   },
+    student_failed:       { emoji: "❌", color: "#ef4444", bg: "rgba(239,68,68,0.1)"   },
+    user_registered:      { emoji: "👤", color: "#06b6d4", bg: "rgba(6,182,212,0.1)"   },
+    system_alert:         { emoji: "⚠️", color: "#f97316", bg: "rgba(249,115,22,0.1)"  },
+    // Instructor — final grade missing warning (sent by admin)
+    final_grade_warning:  { emoji: "⚠️", color: "#ef4444", bg: "rgba(239,68,68,0.12)" },
   };
   return map[type] || { emoji: "🔔", color: "#6366f1", bg: "rgba(99,102,241,0.1)" };
+}
+
+/* ── Compute the target route for a notification's action button ── */
+function getActionRoute(notif) {
+  if (!notif) return null;
+  const d = notif.detail || {};
+  switch (notif.type) {
+    // Student — graded assignment
+    case "grade_approved":
+    case "grade_rejected":
+    case "assignment_accepted":
+    case "assignment_rejected":
+    case "assignment_published":
+    case "lecture_uploaded":
+      return d.courseId ? `/student/courses/${d.courseId}` : null;
+    // Student — quiz
+    case "quiz_published":
+    case "quiz_available":
+      if (d.courseId && d.quizId) return `/student/quiz/${d.courseId}/${d.quizId}`;
+      return d.courseId ? `/student/courses/${d.courseId}` : null;
+    // Instructor — submissions
+    case "submission_new":
+    case "submission_updated":
+      return "/instructor/grades";
+    // Instructor — quiz ended
+    case "quiz_ended":
+      return "/instructor/quiz-builder";
+    // Admin — student issue
+    case "gpa_low":
+    case "student_failed":
+    case "user_registered":
+    case "system_alert":
+      return "/admin/manage-users";
+    // Instructor — final grade missing warning
+    // Deep-links directly to the Final tab, correct course, correct student pre-searched.
+    // Returns { path, state } so the navigate call can pass router state.
+    case "final_grade_warning":
+      return {
+        path: "/instructor/grades",
+        state: {
+          tab:          "final",
+          courseId:     d.courseId ? String(d.courseId) : null,
+          studentQuery: d.targetStudentId || null,   // GUID — FinalGradeSection searches by it
+        },
+      };
+    default:
+      return null;
+  }
+}
+
+/* ── Compute the action button label ── */
+function getActionLabel(notif) {
+  switch (notif?.type) {
+    case "grade_approved":
+    case "assignment_accepted":
+      return "View Grade →";
+    case "grade_rejected":
+    case "assignment_rejected":
+      return "View Feedback →";
+    case "assignment_published":
+      return "View Assignment →";
+    case "quiz_published":
+    case "quiz_available":
+      return "Go to Quiz →";
+    case "lecture_uploaded":
+      return "View Lecture →";
+    case "submission_new":
+    case "submission_updated":
+      return "Grade Submission →";
+    case "quiz_ended":
+      return "View Results →";
+    case "gpa_low":
+    case "student_failed":
+    case "user_registered":
+    case "system_alert":
+      return "Manage User →";
+    case "final_grade_warning":
+      return "Enter Final Grade →";
+    default:
+      return "Got it ✓";
+  }
 }
 
 /* ── Detail Panel content ── */
@@ -46,7 +144,7 @@ function DetailContent({ notif }) {
       {/* Header */}
       <div className={styles.detailHeader} style={{ background: meta.bg }}>
         <span className={styles.detailEmoji}>{meta.emoji}</span>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div className={styles.detailTitle}>{notif.title}</div>
           <div className={styles.detailTime}>{notif.time}</div>
         </div>
@@ -54,11 +152,12 @@ function DetailContent({ notif }) {
 
       {/* Fields */}
       <div className={styles.detailFields}>
-        {d.course     && <Field icon="📚" label="Course"     value={d.course} />}
-        {d.assignment && <Field icon="📋" label="Assignment" value={d.assignment} />}
-        {d.quiz       && <Field icon="📝" label="Quiz"       value={d.quiz} />}
-        {d.lecture    && <Field icon="🎬" label="Lecture"    value={d.lecture} />}
-        {d.student    && <Field icon="👤" label="Student"    value={`${d.student} · ID: ${d.studentId}`} />}
+        {d.course      && <Field icon="📚" label="Course"     value={d.course} />}
+        {d.assignment  && <Field icon="📋" label="Assignment" value={d.assignment} />}
+        {d.quiz        && <Field icon="📝" label="Quiz"       value={d.quiz} />}
+        {d.lecture     && <Field icon="🎬" label="Lecture"    value={d.lecture} />}
+        {d.instructor  && <Field icon="👨‍🏫" label="Instructor" value={d.instructor} />}
+        {d.student     && <Field icon="👤" label="Student"    value={d.studentId ? `${d.student} · ID: ${d.studentId}` : d.student} />}
         {d.name       && <Field icon="👤" label="Name"       value={d.name} />}
         {d.email      && <Field icon="📧" label="Email"      value={d.email} />}
         {d.role       && <Field icon="🏷️" label="Role"       value={d.role} />}
@@ -121,12 +220,12 @@ function Field({ icon, label, value, isFile }) {
 export default function Topbar() {
   const { user } = useAuth();
   const { getNotifs, markRead, markAllRead } = useNotifications();
+  const navigate = useNavigate();
   const role   = user?.role || "student";
   const notifs = getNotifs(role);
   const unread = notifs.filter(n => !n.read).length;
 
   const [panelOpen,   setPanelOpen]   = useState(false);
-  const navigate = useNavigate();
   const [detailNotif, setDetailNotif] = useState(null);
 
   const panelRef = useRef(null);
@@ -137,18 +236,21 @@ export default function Topbar() {
     return `${parts[0]} ${parts[parts.length - 1]}`;
   })();
 
-  /* Close panel/detail on outside click */
+  /* Close the notification LIST panel on outside click.
+     The detail panel has its own backdrop + close button — do NOT
+     also call setDetailNotif(null) here, because mousedown fires
+     before the button's click event, which would null-out detailNotif
+     in the closure before getActionRoute runs, breaking deep-link nav. */
   useEffect(() => {
-    if (!panelOpen && !detailNotif) return;
+    if (!panelOpen) return;
     const handler = (e) => {
       if (panelRef.current && !panelRef.current.contains(e.target)) {
         setPanelOpen(false);
-        setDetailNotif(null);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [panelOpen, detailNotif]);
+  }, [panelOpen]);
 
   const openDetail = (notif) => {
     markRead(role, notif.id);
@@ -309,12 +411,23 @@ export default function Topbar() {
 
               <DetailContent notif={detailNotif} />
 
+              {/* Action button — navigates to target entity when a route exists */}
               <button
                 className={styles.detailDoneBtn}
                 style={{ background: notifMeta(detailNotif.type).color }}
-                onClick={() => setDetailNotif(null)}
+                onClick={() => {
+                  const route = getActionRoute(detailNotif);
+                  setDetailNotif(null);
+                  if (!route) return;
+                  // route is either a plain path string or { path, state } for deep links
+                  if (typeof route === "string") {
+                    navigate(route);
+                  } else {
+                    navigate(route.path, { state: route.state });
+                  }
+                }}
               >
-                Got it ✓
+                {getActionLabel(detailNotif)}
               </button>
             </motion.div>
           </>

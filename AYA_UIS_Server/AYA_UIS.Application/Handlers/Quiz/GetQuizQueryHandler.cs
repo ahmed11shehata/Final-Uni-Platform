@@ -24,17 +24,30 @@ namespace AYA_UIS.Application.Handlers.Quiz
 
             if (quiz == null) return null;
 
+            var now            = DateTime.UtcNow;
+            var reviewAvailable = now > quiz.EndTime;
+
+            int? myScore = null;
+            if (!string.IsNullOrEmpty(request.StudentId))
+            {
+                var attempt = await _unitOfWork.Quizzes
+                    .GetStudentAttemptAsync(quiz.Id, request.StudentId);
+                myScore = attempt?.Score;
+            }
+
             return new FrontendQuizDto
             {
-                Id            = quiz.Id,
-                Title         = quiz.Title,
-                CourseId      = quiz.CourseId,
-                CourseCode    = quiz.Course?.Code ?? string.Empty,
-                StartTime     = quiz.StartTime,
-                EndTime       = quiz.EndTime,
-                Duration      = (int)Math.Round((quiz.EndTime - quiz.StartTime).TotalMinutes),
-                QuestionCount = quiz.Questions?.Count ?? 0,
-                Questions     = quiz.Questions?.Select(q => new FrontendQuizQuestionDto
+                Id              = quiz.Id,
+                Title           = quiz.Title,
+                CourseId        = quiz.CourseId,
+                CourseCode      = quiz.Course?.Code ?? string.Empty,
+                StartTime       = quiz.StartTime,
+                EndTime         = quiz.EndTime,
+                Duration        = (int)Math.Round((quiz.EndTime - quiz.StartTime).TotalMinutes),
+                QuestionCount   = quiz.Questions?.Count ?? 0,
+                ReviewAvailable = reviewAvailable,
+                MyScore         = myScore,
+                Questions       = quiz.Questions?.Select(q => new FrontendQuizQuestionDto
                 {
                     Id   = q.Id,
                     Text = q.QuestionText,

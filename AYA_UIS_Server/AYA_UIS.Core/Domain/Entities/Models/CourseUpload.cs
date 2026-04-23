@@ -21,5 +21,7 @@ namespace AYA_UIS.Core.Domain.Entities.Models
         public int CourseId { get; set; }
         public Course Course { get; set; } = null!;
         public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? ReleaseDate { get; set; }
+        public int? Week { get; set; }
     }
 }

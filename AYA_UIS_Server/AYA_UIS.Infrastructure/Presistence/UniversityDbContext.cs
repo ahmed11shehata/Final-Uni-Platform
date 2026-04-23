@@ -47,5 +47,8 @@ namespace Presistence
         public DbSet<SchedulePublish>                SchedulePublishes               { get; set; }
         public DbSet<PasswordResetOtp>               PasswordResetOtps               { get; set; }
         public DbSet<RegistrationCourseInstructor>   RegistrationCourseInstructors   { get; set; }
+        public DbSet<Notification>                   Notifications                   { get; set; }
+        public DbSet<MidtermGrade>                   MidtermGrades                   { get; set; }
+        public DbSet<FinalGrade>                     FinalGrades                     { get; set; }
     }
 }

@@ -76,7 +76,6 @@ namespace AYA_UIS.Application.Handlers.Quiz
             };
 
             await _unitOfWork.Quizzes.AddAttemptAsync(attempt);
-
             await _unitOfWork.SaveChangesAsync();
 
             return Response<int>.SuccessResponse(score);

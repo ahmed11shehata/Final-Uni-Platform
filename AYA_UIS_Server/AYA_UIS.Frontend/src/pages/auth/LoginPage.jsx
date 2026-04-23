@@ -807,11 +807,11 @@ export default function LoginPage() {
                     Use your registered account credentials
                   </span>
                 </div>
-                <p style={{ textAlign:"center", marginTop:"14px", fontSize:"0.8rem", color:"rgba(255,255,255,0.45)" }}>
+                <p className={s.forgotRow}>
                   Forgot your password?{" "}
                   <span
                     onClick={() => navigate("/forgot-password")}
-                    style={{ color:"rgba(255,255,255,0.75)", fontWeight:600, cursor:"pointer", textDecoration:"underline" }}
+                    className={s.forgotLink}
                   >
                     Reset it here
                   </span>

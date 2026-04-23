@@ -24,7 +24,18 @@
       "Bash(xargs cat:*)",
       "Bash(find \"D:\\\\kak\\\\Private\\\\final_project\\\\AYA_UIS_Server\\\\AYA_UIS.Frontend\\\\src\" -type f \\\\\\( -name \"*.jsx\" -o -name \"*.js\" \\\\\\) -exec grep -l \"setInterval.*inc\\\\|animated.*count\\\\|Counter\\\\|increment\" {} \\\\;)",
       "Bash(grep:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(npx --yes acorn --ecma2020 --module src/pages/student/CourseDetailPage.jsx)",
+      "Bash(node -e ':*)",
+      "Bash(cat Presentation.csproj)",
+      "Bash(cat *.csproj)",
+      "Bash(find .:*)",
+      "Bash(xargs -0 grep -l \"IHostedService\")",
+      "Bash(npm install:*)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('@microsoft/signalr' in p.dependencies\\)\")",
+      "Bash(npm run:*)",
+      "Bash(find D:\\\\kak\\\\Private\\\\final_project\\\\AYA_UIS_Server:*)",
+      "Bash(find:*)"
     ]
   }
 }

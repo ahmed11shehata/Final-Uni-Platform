@@ -94,7 +94,7 @@
   color: var(--text-muted); font-size: 12px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: all 0.15s;
 }
-.fileBarRemove:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
+.fileBarRemove:hover { background: rgba(239,68,68,0.1); color: #dc2626; border-color: rgba(239,68,68,0.3); }
 
 /* ── Extracting / extracted ── */
 .extractingBar {
@@ -113,19 +113,8 @@
 .extractedBadge {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 16px; border-radius: 12px;
-  background: #f0fdf4; border: 1.5px solid #bbf7d0;
+  background: rgba(34,197,94,0.1); border: 1.5px solid rgba(34,197,94,0.28);
   font-size: 13px; font-weight: 700; color: #16a34a;
-}
-[data-theme="dark"] .extractedBadge,
-[data-theme="space"] .extractedBadge,
-[data-theme="ocean"] .extractedBadge,
-[data-theme="forest"] .extractedBadge,
-[data-theme="ramadan"] .extractedBadge,
-[data-theme="arctic"] .extractedBadge,
-[data-theme="pharaoh"] .extractedBadge,
-[data-theme="saladin"] .extractedBadge,
-[data-theme="fog"] .extractedBadge {
-  background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.3);
 }
 
 /* ── Options row ── */
@@ -188,8 +177,8 @@
   display: flex; align-items: center; gap: 5px;
 }
 .actionBtn:hover { background: var(--hover-bg); }
-.actionBtnGreen { border-color: #bbf7d0; color: #16a34a; background: #f0fdf4; }
-.actionBtnGreen:hover { background: #dcfce7; }
+.actionBtnGreen { border-color: rgba(34,197,94,0.3); color: #16a34a; background: rgba(34,197,94,0.1); }
+.actionBtnGreen:hover { background: rgba(34,197,94,0.16); }
 
 /* _ToolShell.module.css — shared spinner only */
 .spin{width:15px;height:15px;border-radius:50%;border:2.5px solid rgba(0,0,0,.1);border-top-color:var(--c,#6366f1);animation:spin .7s linear infinite;flex-shrink:0;display:inline-block;}

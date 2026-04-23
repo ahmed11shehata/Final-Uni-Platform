@@ -20,6 +20,7 @@ namespace Presistence.Repositories
 
         public async Task<List<RegistrationCourseInstructor>> GetByCourseAsync(int courseId)
             => await _ctx.RegistrationCourseInstructors
+                .Include(x => x.Instructor)
                 .Where(x => x.CourseId == courseId)
                 .ToListAsync();
 

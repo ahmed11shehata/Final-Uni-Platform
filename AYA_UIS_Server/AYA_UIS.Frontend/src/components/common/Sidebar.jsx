@@ -22,6 +22,7 @@ const IC = {
   schedule:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="8" y2="18"/><line x1="12" y1="18" x2="12" y2="18"/></svg>,
   themes:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.93" y1="4.93" x2="7.05" y2="7.05"/><line x1="16.95" y1="16.95" x2="19.07" y2="19.07"/><line x1="19.07" y1="4.93" x2="16.95" y2="7.05"/><line x1="7.05" y1="16.95" x2="4.93" y2="19.07"/></svg>,
   instructor_ctrl: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4h-4"/><circle cx="9" cy="7" r="4"/><line x1="15" y1="11" x2="21" y2="11"/><line x1="18" y1="8" x2="18" y2="14"/></svg>,
+  final_grade:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>,
   settings:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
   chevL:       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>,
 };
@@ -56,6 +57,7 @@ const NAV = {
     { label: "Manage Users",    path: "/admin/manage-users",   icon: IC.users,    badge: null },
     { label: "Registration",      path: "/admin/registration",       icon: IC.register,        badge: null },
     { label: "Instructor Control",path: "/admin/instructor-control", icon: IC.instructor_ctrl, badge: null },
+    { label: "Final Grade",       path: "/admin/final-grade",        icon: IC.final_grade,     badge: null },
     { label: "Email Manager",     path: "/admin/email-manager",      icon: IC.courses,         badge: null },
     { label: "Schedule",          path: "/admin/schedule",           icon: IC.schedule,        badge: null },
     { label: "Themes",            path: "/admin/themes",             icon: IC.themes,          badge: null },
@@ -186,18 +188,23 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   const dynamicBadges = {
     student: {
-      "/student/quizzes":     unread.filter(n => n.type === "quiz_available").length   || null,
-
-      "/student/courses":     unread.filter(n => n.type === "lecture_uploaded").length || null,
-      "/student/ai-tools":    "NEW",
+      "/student/quizzes":
+        unread.filter(n => n.type === "quiz_available" || n.type === "quiz_published").length || null,
+      "/student/courses":
+        unread.filter(n => n.type === "lecture_uploaded" || n.type === "assignment_published").length || null,
+      "/student/ai-tools": "NEW",
     },
     instructor: {
-      "/instructor/assignments": unread.filter(n => n.type === "submission_new").length || null,
-      "/instructor/grades":      unread.filter(n => n.type === "quiz_ended").length     || null,
+      "/instructor/assignments":
+        unread.filter(n => n.type === "submission_new" || n.type === "submission_updated").length || null,
+      "/instructor/grades":
+        unread.filter(n => n.type === "quiz_ended").length || null,
     },
     admin: {
-      "/admin/manage-users": unread.filter(n => n.type === "user_registered").length || null,
-      "/admin/register":     unread.filter(n => n.type === "system_alert").length    || null,
+      "/admin/manage-users":
+        unread.filter(n => n.type === "user_registered" || n.type === "gpa_low" || n.type === "student_failed").length || null,
+      "/admin/register":
+        unread.filter(n => n.type === "system_alert").length || null,
     },
   };
 
