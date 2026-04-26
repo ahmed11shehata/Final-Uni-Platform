@@ -33,6 +33,7 @@ namespace Domain.Contracts
         INotificationRepository  Notifications  { get; }
         IMidtermGradeRepository  MidtermGrades  { get; }
         IFinalGradeRepository    FinalGrades    { get; }
+        IFinalGradeReviewRepository FinalGradeReviews { get; }
 
         Task<int> SaveChangesAsync();
         IGenericRepository<TEntity, TKey> GetRepository<TEntity, TKey>() where TEntity : BaseEntities<TKey>;

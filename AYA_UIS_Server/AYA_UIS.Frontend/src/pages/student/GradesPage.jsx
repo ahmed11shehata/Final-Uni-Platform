@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getStudentTranscript, getStudentRegistrationStatus } from "../../services/api/studentApi";
+import { getStudentTranscript, getStudentRegistrationStatus, getStudentPublishedFinalGrades } from "../../services/api/studentApi";
 import styles from "./GradesPage.module.css";
 
 const GRADE_MAP = {
@@ -45,7 +45,12 @@ const YEAR_COLORS = ["#f59e0b", "#6366f1", "#14b8a6", "#ec4899"];
 const YEAR_LABELS = ["", "First Year", "Second Year", "Third Year", "Fourth Year"];
 const YEAR_ORDINALS = ["1st", "2nd", "3rd", "4th"];
 
-function CurrentCoursesView({ courses }) {
+const FINAL_GRADE_COLOR = { A: "#22c55e", B: "#3b82f6", C: "#f59e0b", D: "#fb923c", F: "#ef4444" };
+
+// finalGradesMap: { [courseCode]: { total, letterGrade, finalScore, courseworkTotal } }
+function CurrentCoursesView({ courses, finalGradesMap }) {
+  const publishedCount = courses.filter(c => finalGradesMap[(c.code ?? c.courseCode)] != null).length;
+
   return (
     <motion.section
       className={styles.semView}
@@ -58,35 +63,42 @@ function CurrentCoursesView({ courses }) {
         <div className={styles.tableHead}>
           <span>Course</span>
           <span className={styles.thCenter}>Credits</span>
-          <span className={styles.thCenter}>Status</span>
-          <span className={styles.thCenter}>Note</span>
+          <span className={styles.thCenter}>Grade</span>
         </div>
 
         {courses.length ? (
-          courses.map((course, i) => (
-            <motion.div
-              key={course.code ?? course.courseCode ?? `${course.name}-${i}`}
-              className={`${styles.tableRow} ${styles.currentTableRow}`}
-              initial={{ opacity: 0, x: -14 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.12 + i * 0.04, duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <div className={styles.tdCourse}>
-                <span className={styles.courseCode}>{course.code ?? course.courseCode ?? "COURSE"}</span>
-                <span className={styles.courseName}>{course.name ?? "Registered Course"}</span>
-              </div>
+          courses.map((course, i) => {
+            const code = course.code ?? course.courseCode;
+            const fg   = finalGradesMap[code] ?? null;
+            const gc   = fg ? (FINAL_GRADE_COLOR[fg.letterGrade] ?? "#818cf8") : null;
 
-              <span className={styles.tdCredits}>{course.credits ?? 3} hrs</span>
+            return (
+              <motion.div
+                key={code ?? `${course.name}-${i}`}
+                className={`${styles.tableRow} ${styles.currentTableRow}`}
+                initial={{ opacity: 0, x: -14 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.12 + i * 0.04, duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <div className={styles.tdCourse}>
+                  <span className={styles.courseCode}>{code ?? "COURSE"}</span>
+                  <span className={styles.courseName}>{course.name ?? "Registered Course"}</span>
+                </div>
 
-              <span className={styles.tdGrade}>
-                <span className={`${styles.gradePill} ${styles.currentGradePill}`}>Pending</span>
-              </span>
+                <span className={styles.tdCredits}>{course.credits ?? 3} hrs</span>
 
-              <div className={styles.currentNoteCell}>
-                <span className={styles.currentHintText}>Not Published Yet</span>
-              </div>
-            </motion.div>
-          ))
+                <span className={styles.tdGrade}>
+                  {fg ? (
+                    <span className={styles.gradePill} style={{ background: `${gc}15`, color: gc }}>
+                      {fg.letterGrade}
+                    </span>
+                  ) : (
+                    <span className={`${styles.gradePill} ${styles.currentGradePill}`}>Pending</span>
+                  )}
+                </span>
+              </motion.div>
+            );
+          })
         ) : (
           <div className={styles.currentEmptyInline}>
             <div className={styles.currentEmptyTitle}>No confirmed current courses</div>
@@ -95,12 +107,24 @@ function CurrentCoursesView({ courses }) {
         )}
       </div>
 
-      {courses.length > 0 && (
+      {courses.length > 0 && publishedCount < courses.length && (
         <div className={styles.currentBigNotice}>
-          <div className={styles.currentBigNoticeTitle}>Not Published Yet</div>
-          <div className={styles.currentBigNoticeSub}>
-            These courses are confirmed in your current registration, but no grades are published for them yet.
+          <div className={styles.currentBigNoticeTitle}>
+            {publishedCount > 0
+              ? `${publishedCount} of ${courses.length} grade(s) published`
+              : "Not Published Yet"}
           </div>
+          <div className={styles.currentBigNoticeSub}>
+            {publishedCount > 0
+              ? "Remaining grades will appear here once published by the admin."
+              : "These courses are confirmed in your current registration, but no grades are published for them yet."}
+          </div>
+        </div>
+      )}
+      {courses.length > 0 && publishedCount === courses.length && (
+        <div className={styles.currentBigNotice} style={{ borderColor: "#22c55e40", background: "#22c55e08" }}>
+          <div className={styles.currentBigNoticeTitle} style={{ color: "#22c55e" }}>All grades published ✓</div>
+          <div className={styles.currentBigNoticeSub}>All final grades for this semester have been published.</div>
         </div>
       )}
     </motion.section>
@@ -188,8 +212,9 @@ function SemesterView({ semCourses, allCompleted, totalEarned, yearColor }) {
 }
 
 export default function GradesPage() {
-  const [transcript, setTranscript] = useState(null);
-  const [regStatus, setRegStatus] = useState(null);
+  const [transcript,   setTranscript]   = useState(null);
+  const [regStatus,    setRegStatus]    = useState(null);
+  const [finalGrades,  setFinalGrades]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -198,11 +223,13 @@ export default function GradesPage() {
     Promise.all([
       getStudentTranscript(),
       getStudentRegistrationStatus().catch(() => null),
+      getStudentPublishedFinalGrades().catch(() => []),
     ])
-      .then(([t, r]) => {
+      .then(([t, r, fg]) => {
         if (!cancelled) {
           setTranscript(t);
           setRegStatus(r);
+          setFinalGrades(Array.isArray(fg) ? fg : []);
         }
       })
       .catch((e) => {
@@ -218,14 +245,23 @@ export default function GradesPage() {
     if (!transcript) return { years: [], allCompleted: [], totalEarned: 0, currentYear: 1 };
 
     const curYear = transcript.student?.currentYear ?? 1;
+    const curSemNum = regStatus?.currentSemesterNum ?? 1;
+    const hasCurrent = (regStatus?.registeredCourses ?? []).length > 0;
+
     const grouped = {};
 
     for (const c of (transcript.completedCourses ?? [])) {
       const yr = c.year ?? 1;
       const sm = c.semester ?? 1;
       if (!grouped[yr]) grouped[yr] = {};
-      if (!grouped[yr][sm]) grouped[yr][sm] = [];
-      grouped[yr][sm].push(c);
+      if (!grouped[yr][sm]) grouped[yr][sm] = { courses: [], isCurrent: false };
+      grouped[yr][sm].courses.push(c);
+    }
+
+    if (hasCurrent) {
+      if (!grouped[curYear]) grouped[curYear] = {};
+      if (!grouped[curYear][curSemNum]) grouped[curYear][curSemNum] = { courses: [], isCurrent: false };
+      grouped[curYear][curSemNum].isCurrent = true;
     }
 
     const all = transcript.completedCourses ?? [];
@@ -238,16 +274,26 @@ export default function GradesPage() {
         yr,
         sems: Object.keys(grouped[yr]).map(Number).sort((a, b) => a - b).map((sm) => ({
           sm,
-          courses: grouped[yr][sm],
+          courses: grouped[yr][sm].courses,
+          isCurrent: grouped[yr][sm].isCurrent,
         })),
       }));
 
     return { years: parsedYears, allCompleted: all, totalEarned: earned, currentYear: curYear };
-  }, [transcript]);
+  }, [transcript, regStatus]);
 
   const studentInfo = transcript?.student;
   const overallGpa = gpaFromCourses(allCompleted) ?? "—";
   const currentCourses = regStatus?.registeredCourses ?? [];
+
+  // Build a lookup map: courseCode → published final grade entry
+  const finalGradesMap = useMemo(() => {
+    const map = {};
+    for (const fg of finalGrades) {
+      if (fg.courseCode) map[fg.courseCode] = fg;
+    }
+    return map;
+  }, [finalGrades]);
 
   const [selectedYear, setSelectedYear] = useState(null);
   const [selectedSem, setSelectedSem] = useState(null);
@@ -255,9 +301,22 @@ export default function GradesPage() {
 
   useEffect(() => {
     if (!years.length || selectedYear !== null) return;
-    const first = years[years.length - 1];
-    setSelectedYear(first.yr);
-    setSelectedSem(first.sems[0]?.sm ?? 1);
+    let currentSlot = null;
+    for (const yrData of years) {
+      for (const sem of yrData.sems) {
+        if (sem.isCurrent) currentSlot = { yr: yrData.yr, sm: sem.sm };
+      }
+    }
+    if (currentSlot) {
+      setSelectedYear(currentSlot.yr);
+      setSelectedSem(currentSlot.sm);
+      setSelectedView("current");
+    } else {
+      const last = years[years.length - 1];
+      setSelectedYear(last.yr);
+      setSelectedSem(last.sems[0]?.sm ?? 1);
+      setSelectedView("transcript");
+    }
   }, [years, selectedYear]);
 
   const activeYearData = years.find((y) => y.yr === selectedYear);
@@ -327,7 +386,7 @@ export default function GradesPage() {
         <div className={styles.transcriptControls}>
           <div className={styles.yearTabs}>
             {years.map(({ yr }) => {
-              const isActive = selectedView === "transcript" && yr === selectedYear;
+              const isActive = yr === selectedYear;
               const yc = YEAR_COLORS[yr - 1];
               return (
                 <motion.button
@@ -336,9 +395,10 @@ export default function GradesPage() {
                   style={isActive ? { background: yc, borderColor: yc, color: "#fff" } : { "--tab-accent": yc }}
                   onClick={() => {
                     const yrData = years.find((y) => y.yr === yr);
-                    setSelectedView("transcript");
+                    const firstSem = yrData?.sems[0];
                     setSelectedYear(yr);
-                    setSelectedSem(yrData?.sems[0]?.sm ?? 1);
+                    setSelectedSem(firstSem?.sm ?? 1);
+                    setSelectedView(firstSem?.isCurrent ? "current" : "transcript");
                   }}
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
@@ -349,18 +409,9 @@ export default function GradesPage() {
               );
             })}
 
-            <motion.button
-              className={`${styles.yearTab} ${styles.currentTabBtn} ${selectedView === "current" ? styles.currentTabActive : ""}`}
-              onClick={() => setSelectedView("current")}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-            >
-              <span className={styles.yearTabOrd}>•</span>
-              <span className={styles.yearTabLabel}>Current</span>
-            </motion.button>
           </div>
 
-          {selectedView === "transcript" && (
+          {activeYearData && activeYearData.sems.length > 0 && (
             <AnimatePresence mode="wait">
               <motion.div
                 key={selectedYear}
@@ -370,16 +421,24 @@ export default function GradesPage() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
               >
-                {activeYearData?.sems.map(({ sm }) => (
-                  <button
-                    key={sm}
-                    className={`${styles.semBtn} ${selectedSem === sm ? styles.semBtnActive : ""}`}
-                    style={selectedSem === sm ? { borderColor: yearColor, color: yearColor } : {}}
-                    onClick={() => setSelectedSem(sm)}
-                  >
-                    Semester {sm}
-                  </button>
-                ))}
+                {activeYearData.sems.map(({ sm, isCurrent }) => {
+                  const isActive = isCurrent
+                    ? selectedView === "current"
+                    : (selectedView === "transcript" && selectedSem === sm);
+                  return (
+                    <button
+                      key={sm}
+                      className={`${styles.semBtn} ${isActive ? styles.semBtnActive : ""}`}
+                      style={isActive ? { borderColor: yearColor, color: yearColor } : {}}
+                      onClick={() => {
+                        setSelectedSem(sm);
+                        setSelectedView(isCurrent ? "current" : "transcript");
+                      }}
+                    >
+                      {isCurrent ? "Current" : sm === 1 ? "Semester One" : "Semester Two"}
+                    </button>
+                  );
+                })}
               </motion.div>
             </AnimatePresence>
           )}
@@ -389,7 +448,7 @@ export default function GradesPage() {
       <div className={styles.content}>
         <AnimatePresence mode="wait">
           {selectedView === "current" ? (
-            <CurrentCoursesView key="current-courses" courses={currentCourses} />
+            <CurrentCoursesView key="current-courses" courses={currentCourses} finalGradesMap={finalGradesMap} />
           ) : (
             activeSemData && (
               <SemesterView

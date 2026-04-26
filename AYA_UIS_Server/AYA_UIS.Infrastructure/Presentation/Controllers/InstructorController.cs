@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Shared.Dtos.Instructor_Module;
 
 namespace Presentation.Controllers
@@ -688,6 +689,7 @@ namespace Presentation.Controllers
                 result.Add(new StudentExamGradeDto
                 {
                     StudentId   = reg.UserId,
+                    StudentCode = user.Academic_Code ?? "",
                     StudentName = user.DisplayName,
                     Grade       = midterm?.Grade,
                     MaxGrade    = midterm?.Max ?? 20,
@@ -947,8 +949,9 @@ namespace Presentation.Controllers
 
             foreach (var reg in regs)
             {
-                // Skip non-approved registrations (dropped registrations are deleted)
-                if (reg.Status != RegistrationStatus.Approved)
+                // Skip dropped/rejected registrations; allow both Pending (student self-registered)
+                // and Approved (admin force-added) — both are "active" in Student Courses.
+                if (reg.Status != RegistrationStatus.Approved && reg.Status != RegistrationStatus.Pending)
                     continue;
 
                 var user = await _userManager.FindByIdAsync(reg.UserId);
@@ -989,6 +992,7 @@ namespace Presentation.Controllers
                 result.Add(new FinalGradeStudentDto
                 {
                     StudentId        = reg.UserId,
+                    StudentCode      = user.Academic_Code ?? "",
                     StudentName      = user.DisplayName,
                     MidtermGrade     = midGrade,
                     MidtermMax       = midMax,
@@ -1040,29 +1044,77 @@ namespace Presentation.Controllers
                       ?.FirstOrDefault(r => r.UserId == studentId);
             if (reg == null)
                 return NotFound(new { success = false, error = new { message = "Student is not enrolled in this course." } });
-            if (reg.Status != RegistrationStatus.Approved)
+            if (reg.Status != RegistrationStatus.Approved && reg.Status != RegistrationStatus.Pending)
                 return BadRequest(new { success = false, error = new { message = "Student is not actively enrolled in this course." } });
+
+            // ── Bonus only fills the gap up to 40. Recompute here so the rule
+            // cannot be bypassed by a hand-crafted payload. ──
+            decimal cwQuizForCap = 0, cwAsnForCap = 0;
+            var quizzesForCap = (await _unitOfWork.Quizzes.GetQuizzesByCourseId(courseId)).ToList();
+            foreach (var q in quizzesForCap)
+            {
+                var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(q.Id, studentId);
+                if (attempt != null) cwQuizForCap += attempt.Score;
+            }
+            var asnsForCap = (await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(courseId)).ToList();
+            foreach (var a in asnsForCap)
+            {
+                var sub = await _unitOfWork.Assignments.GetStudentSubmissionAsync(a.Id, studentId);
+                if (sub != null && string.Equals(sub.Status, "Accepted", StringComparison.OrdinalIgnoreCase))
+                    cwAsnForCap += sub.Grade ?? 0;
+            }
+            decimal coreCw  = midterm.Grade + cwQuizForCap + cwAsnForCap;
+            int maxBonus    = (int)Math.Max(0m, Math.Min(10m, 40m - coreCw));
+            int effectiveBonus = Math.Min(dto.Bonus, maxBonus);
+            if (effectiveBonus < 0) effectiveBonus = 0;
+            dto.Bonus = effectiveBonus;
 
             var existing = await _unitOfWork.FinalGrades.GetAsync(studentId, courseId);
             if (existing == null)
             {
                 await _unitOfWork.FinalGrades.AddAsync(new FinalGrade
                 {
-                    StudentId  = studentId,
-                    CourseId   = courseId,
-                    FinalScore = dto.FinalScore,
-                    Bonus      = dto.Bonus,
-                    Published  = false,
+                    StudentId       = studentId,
+                    CourseId        = courseId,
+                    FinalScore      = dto.FinalScore,
+                    Bonus           = dto.Bonus,
+                    AdminFinalTotal = null, // instructor grade takes precedence
+                    Published       = false,
                 });
             }
             else
             {
-                existing.FinalScore = dto.FinalScore;
-                existing.Bonus      = dto.Bonus;
+                existing.FinalScore      = dto.FinalScore;
+                existing.Bonus           = dto.Bonus;
+                existing.AdminFinalTotal = null; // clear admin override; instructor grade is now authoritative
                 await _unitOfWork.FinalGrades.UpdateAsync(existing);
             }
 
-            await _unitOfWork.SaveChangesAsync();
+            try
+            {
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Another instructor's write landed between our read and write.
+                return Conflict(new
+                {
+                    success = false,
+                    error   = new { code = "CONCURRENT_WRITE", message = "Another instructor updated this student's grade at the same time. Please refresh and try again." }
+                });
+            }
+            catch (DbUpdateException ex)
+                when (ex.InnerException?.Message.Contains("UNIQUE",  StringComparison.OrdinalIgnoreCase) == true
+                   || ex.InnerException?.Message.Contains("unique",  StringComparison.OrdinalIgnoreCase) == true
+                   || ex.InnerException?.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                // Two concurrent first-time saves for the same student+course.
+                return Conflict(new
+                {
+                    success = false,
+                    error   = new { code = "CONCURRENT_INSERT", message = "Another instructor saved a grade for this student at the same time. Please refresh and try again." }
+                });
+            }
 
             // Recompute coursework for response
             var quizzes     = (await _unitOfWork.Quizzes.GetQuizzesByCourseId(courseId)).ToList();

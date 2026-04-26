@@ -35,6 +35,7 @@ namespace Presistence.Repositories
         private INotificationRepository?                     _notifications;
         private IMidtermGradeRepository?                     _midtermGrades;
         private IFinalGradeRepository?                       _finalGrades;
+        private IFinalGradeReviewRepository?                 _finalGradeReviews;
 
         public UnitOfWork(UniversityDbContext dbContext) => _dbContext = dbContext;
 
@@ -60,6 +61,7 @@ namespace Presistence.Repositories
         public INotificationRepository                    Notifications                   => _notifications                   ??= new NotificationRepository(_dbContext);
         public IMidtermGradeRepository                    MidtermGrades                   => _midtermGrades                   ??= new MidtermGradeRepository(_dbContext);
         public IFinalGradeRepository                      FinalGrades                     => _finalGrades                     ??= new FinalGradeRepository(_dbContext);
+        public IFinalGradeReviewRepository                FinalGradeReviews               => _finalGradeReviews               ??= new FinalGradeReviewRepository(_dbContext);
 
         public IGenericRepository<TEntity, TKey> GetRepository<TEntity, TKey>() where TEntity : BaseEntities<TKey>
             => (IGenericRepository<TEntity, TKey>)_repositories.GetOrAdd(

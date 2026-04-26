@@ -1,21 +1,12 @@
-// src/pages/admin/FinalGradePage.jsx
-import { useState, useEffect, useCallback } from "react";
+﻿// src/pages/admin/FinalGradePage.jsx
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import styles from "./FinalGradePage.module.css";
 import {
   adminGetFinalGrades,
   adminPublishFinalGrades,
   adminNotifyInstructor,
-  adminGetFinalGradeReviewList,
-  adminClassifyStudent,
-  adminPublishAllFinalGrades,
 } from "../../services/api/adminApi";
-
-const TAB_CFG = {
-  progress:      { key: "progress",      label: "Progress",      color: "#f59e0b", bg: "rgba(245,158,11,.10)", border: "rgba(245,158,11,.28)" },
-  not_completed: { key: "not_completed", label: "Not Completed", color: "#ef4444", bg: "rgba(239,68,68,.10)",  border: "rgba(239,68,68,.28)" },
-  completed:     { key: "completed",     label: "Completed",     color: "#22c55e", bg: "rgba(34,197,94,.10)",  border: "rgba(34,197,94,.28)" },
-};
 
 const sp = { type: "spring", stiffness: 400, damping: 28 };
 
@@ -37,65 +28,6 @@ function Av({ name, size = 44, bg = "#e07b6a" }) {
       background: `${bg}22`, color: bg, border: `1.5px solid ${bg}40`,
       fontSize: size > 48 ? "1rem" : ".78rem", fontWeight: 800, letterSpacing: "-.02em",
     }}>{ini}</div>
-  );
-}
-
-// ── Completed Warning Modal ───────────────────────────────────
-function CompletedWarningModal({ student, unassignedCount, onCancel, onMarkAnyway, loading }) {
-  return (
-    <motion.div className={styles.overlay} onClick={onCancel}
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.div className={styles.modal} onClick={e => e.stopPropagation()}
-        initial={{ opacity: 0, scale: .88, y: 28 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: .95 }}
-        transition={sp}>
-
-        <div className={styles.modalBand} style={{ background: "linear-gradient(90deg,#f59e0b,#ef4444)" }} />
-
-        <div className={styles.modalBody}>
-          <div className={styles.modalWarnIcon}>⚠️</div>
-          <div className={styles.modalTitle}>Missing Final Grades</div>
-
-          <div className={styles.modalInfoBlock}>
-            <div className={styles.modalInfoRow}>
-              <span className={styles.modalInfoLabel}>Student</span>
-              <span className={styles.modalInfoVal}>{student.studentName}</span>
-            </div>
-            <div className={styles.modalInfoRow}>
-              <span className={styles.modalInfoLabel}>Student Code</span>
-              <span className={styles.modalInfoVal}>{student.studentCode}</span>
-            </div>
-            <div className={styles.modalInfoRow}>
-              <span className={styles.modalInfoLabel}>Ungraded Courses</span>
-              <span className={styles.modalInfoVal} style={{ color: "#ef4444", fontWeight: 700 }}>
-                {unassignedCount} course{unassignedCount === 1 ? "" : "s"} still missing a final grade
-              </span>
-            </div>
-          </div>
-
-          <p className={styles.modalDesc}>
-            This student has <strong>{unassignedCount}</strong> registered course{unassignedCount === 1 ? "" : "s"} whose final grade has not yet been entered by the instructor.
-            Marking as <strong>Completed</strong> now means these courses will be skipped when Publish All Grades runs.
-          </p>
-
-          <div className={styles.modalActions}>
-            <button className={styles.modalCancel} onClick={onCancel} disabled={loading}>
-              Cancel
-            </button>
-            <motion.button
-              className={styles.modalNotifyBtn}
-              style={{ background: "linear-gradient(135deg,#f59e0b,#ef4444)" }}
-              onClick={onMarkAnyway}
-              disabled={loading}
-              whileHover={{ scale: 1.03, filter: "brightness(1.1)" }}
-              whileTap={{ scale: .96 }}>
-              {loading ? "Saving…" : "Mark Anyway"}
-            </motion.button>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }
 
@@ -166,112 +98,6 @@ function NotifyModal({ course, student, onClose, onSent }) {
                 whileTap={{ scale: .96 }}>
                 {loading ? "Sending…" : "🔔 SEND A NOTIFICATION"}
               </motion.button>
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ── Classification Tabs ───────────────────────────────────────
-function ClassificationTabs({ counts, onOpen, loading }) {
-  return (
-    <div className={styles.tabsRow}>
-      {["progress", "not_completed", "completed"].map(k => {
-        const cfg = TAB_CFG[k];
-        const n = counts?.[k] ?? 0;
-        return (
-          <motion.button
-            key={k}
-            type="button"
-            className={styles.tabBtn}
-            style={{
-              background: cfg.bg,
-              borderColor: cfg.border,
-              color: cfg.color,
-            }}
-            onClick={() => onOpen(k)}
-            disabled={loading}
-            whileHover={{ scale: 1.02, y: -2 }}
-            whileTap={{ scale: .97 }}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", stiffness: 380, damping: 26 }}
-          >
-            <span className={styles.tabLabel}>{cfg.label}</span>
-            <motion.span
-              className={styles.tabCount}
-              style={{ background: cfg.color, color: "#fff" }}
-              key={n}
-              initial={{ scale: .6, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 500, damping: 22 }}
-            >
-              {n}
-            </motion.span>
-          </motion.button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Classification Popup (list of students in a status) ───────
-function ClassificationPopup({ tab, students, onClose, onOpenStudent }) {
-  const cfg = TAB_CFG[tab];
-  return (
-    <motion.div className={styles.overlay} onClick={onClose}
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <motion.div className={styles.popup} onClick={e => e.stopPropagation()}
-        initial={{ opacity: 0, y: 28, scale: .96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, scale: .96 }}
-        transition={{ type: "spring", stiffness: 340, damping: 28 }}>
-        <div className={styles.popupHead} style={{ background: cfg.bg, borderColor: cfg.border }}>
-          <div>
-            <div className={styles.popupTitle} style={{ color: cfg.color }}>{cfg.label}</div>
-            <div className={styles.popupSub}>
-              {students.length === 0
-                ? "No students in this status"
-                : `${students.length} student${students.length === 1 ? "" : "s"} in this list`}
-            </div>
-          </div>
-          <button type="button" className={styles.popupClose} onClick={onClose}>✕</button>
-        </div>
-
-        <div className={styles.popupBody}>
-          {students.length === 0 ? (
-            <div className={styles.popupEmpty}>
-              <span>📭</span>
-              <p>Nothing to review here.</p>
-            </div>
-          ) : (
-            <div className={styles.popupGrid}>
-              {students.map(s => (
-                <motion.button
-                  type="button"
-                  key={s.studentId}
-                  className={styles.studentBlock}
-                  onClick={() => onOpenStudent(s)}
-                  whileHover={{ y: -3, boxShadow: "0 12px 28px rgba(0,0,0,.1)" }}
-                  whileTap={{ scale: .98 }}
-                  layout
-                >
-                  <Av name={s.studentName} size={44} bg={cfg.color} />
-                  <div className={styles.studentBlockInfo}>
-                    <div className={styles.studentBlockName}>{s.studentName}</div>
-                    <div className={styles.studentBlockMeta}>
-                      <span className={styles.studentBlockChip}>🆔 {s.studentCode}</span>
-                      <span className={styles.studentBlockChip}>🎓 {s.academicYear}</span>
-                      <span className={styles.studentBlockChip} style={{ color: cfg.color, borderColor: cfg.border }}>
-                        📚 {s.registeredCourses} course{s.registeredCourses === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                  </div>
-                  <span className={styles.studentBlockArrow}>›</span>
-                </motion.button>
-              ))}
             </div>
           )}
         </div>
@@ -414,97 +240,9 @@ export default function FinalGradePage() {
   const [publishing, setPublishing] = useState(false);
   const [toast,     setToast]     = useState(null);
 
-  // Classification state
-  const [reviewList, setReviewList] = useState({ progress: [], not_completed: [], completed: [], total: 0, canPublishAll: false });
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [popupTab, setPopupTab]                   = useState(null);   // "progress" | "not_completed" | "completed" | null
-  const [classifying, setClassifying]             = useState(false);
-  const [publishingAll, setPublishingAll]          = useState(false);
-  const [completedWarningPending, setCompletedWarningPending] = useState(false);
-
   const toast$ = (msg, t = "ok") => {
     setToast({ msg, t });
     setTimeout(() => setToast(null), 2800);
-  };
-
-  const fetchReviewList = useCallback(async () => {
-    setReviewLoading(true);
-    try {
-      const data = await adminGetFinalGradeReviewList();
-      setReviewList({
-        progress:      data?.progress      ?? [],
-        not_completed: data?.notCompleted  ?? [],
-        completed:     data?.completed     ?? [],
-        total:         data?.total         ?? 0,
-        canPublishAll: data?.canPublishAll ?? false,
-      });
-    } catch (e) {
-      // non-fatal: tabs just show 0
-      console.error("Failed to load classification list", e);
-    } finally {
-      setReviewLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchReviewList(); }, [fetchReviewList]);
-
-  const tabCounts = {
-    progress:      reviewList.progress.length,
-    not_completed: reviewList.not_completed.length,
-    completed:     reviewList.completed.length,
-  };
-
-  const openStudentFromBlock = async (s) => {
-    setPopupTab(null);
-    setQuery(s.studentCode || s.studentId);
-    setLoading(true);
-    setError(null);
-    setStudent(null);
-    try {
-      const data = await adminGetFinalGrades(s.studentCode || s.studentId);
-      setStudent(data);
-    } catch (err) {
-      setError(err?.message || "Student not found");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const doClassify = async (status) => {
-    setClassifying(true);
-    try {
-      await adminClassifyStudent(student.studentId, status);
-      toast$(`✅ Marked as ${TAB_CFG[status].label}`);
-      await fetchReviewList();
-    } catch (err) {
-      toast$(err?.response?.data?.error?.message || "Classification failed", "err");
-    } finally {
-      setClassifying(false);
-    }
-  };
-
-  const classifyCurrent = (status) => {
-    if (!student) return;
-    // Warn admin when marking Completed while courses still have no grade assigned.
-    if (status === "completed" && unassignedCount > 0) {
-      setCompletedWarningPending(true);
-      return;
-    }
-    doClassify(status);
-  };
-
-  const publishAll = async () => {
-    if (!reviewList.canPublishAll) return;
-    setPublishingAll(true);
-    try {
-      const res = await adminPublishAllFinalGrades();
-      toast$(`📢 ${res?.message || "All grades published"}`);
-      await fetchReviewList();
-    } catch (err) {
-      toast$(err?.response?.data?.error?.message || "Publish all failed", "err");
-    } finally {
-      setPublishingAll(false);
-    }
   };
 
   const search = async (e) => {
@@ -536,7 +274,7 @@ export default function FinalGradePage() {
       const res = await adminPublishFinalGrades(student.studentId, null);
       toast$(`✅ ${res.publishedCount} grade(s) published to student`);
       // Refresh
-      const updated = await adminGetFinalGrades(student.studentCode || student.studentId);
+      const updated = await adminGetFinalGrades(student.studentCode);
       setStudent(updated);
     } catch (err) {
       toast$(err?.message || "Publish failed", "err");
@@ -573,40 +311,9 @@ export default function FinalGradePage() {
         <div className={styles.heroContent}>
           <div>
             <h1 className={styles.heroTitle}>Final Grade Audit</h1>
-            <p className={styles.heroSub}>Classify every student, then publish all grades at once</p>
+            <p className={styles.heroSub}>Review one student's final grades and publish them when ready</p>
           </div>
-
-          <motion.button
-            type="button"
-            className={`${styles.publishAllBtn} ${!reviewList.canPublishAll ? styles.publishAllBtnDim : ""}`}
-            onClick={publishAll}
-            disabled={publishingAll || !reviewList.canPublishAll}
-            whileHover={reviewList.canPublishAll ? { scale: 1.03, filter: "brightness(1.08)" } : {}}
-            whileTap={reviewList.canPublishAll ? { scale: .97 } : {}}
-            title={reviewList.canPublishAll
-              ? "Publish final grades for every completed student"
-              : "Every student must be marked Completed first"}
-          >
-            {publishingAll ? "Publishing…" : "📢 Publish All Grades"}
-          </motion.button>
         </div>
-      </motion.div>
-
-      {/* ── Classification tabs ── */}
-      <motion.div className={styles.tabsSection}
-        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: .06 }}>
-        <ClassificationTabs counts={tabCounts} loading={reviewLoading} onOpen={setPopupTab} />
-        {!reviewList.canPublishAll && reviewList.total > 0 && (
-          <p className={styles.tabsHint}>
-            {(tabCounts.progress + tabCounts.not_completed)} student(s) still need review before grades can be published.
-          </p>
-        )}
-        {reviewList.canPublishAll && reviewList.total > 0 && (
-          <p className={styles.tabsHintOk}>
-            ✅ All {reviewList.total} student(s) marked Completed — ready to publish.
-          </p>
-        )}
       </motion.div>
 
       {/* ── Search ── */}
@@ -693,32 +400,6 @@ export default function FinalGradePage() {
               </motion.button>
             </motion.div>
 
-            {/* Classify actions */}
-            <motion.div className={styles.classifyBar}
-              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: .08 }}>
-              <div className={styles.classifyLabel}>Review decision</div>
-              <div className={styles.classifyBtns}>
-                {["progress", "not_completed", "completed"].map(k => {
-                  const cfg = TAB_CFG[k];
-                  return (
-                    <motion.button
-                      key={k}
-                      type="button"
-                      className={styles.classifyBtn}
-                      style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.color }}
-                      onClick={() => classifyCurrent(k)}
-                      disabled={classifying}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: .97 }}
-                    >
-                      Mark as {cfg.label}
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </motion.div>
-
             {/* Summary pills */}
             {unassignedCount > 0 && (
               <motion.div className={styles.warnBanner}
@@ -759,13 +440,13 @@ export default function FinalGradePage() {
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 transition={{ delay: .2 }}>
                 <div className={styles.publishInfo}>
-                  <div className={styles.publishInfoTitle}>Publish Final Grades for This Student</div>
+                  <div className={styles.publishInfoTitle}>Publish This Student's Final Grades</div>
                   <div className={styles.publishInfoSub}>
                     {hasUnpublished
-                      ? `${assignedCount - publishedCount} assigned grade(s) are ready to publish for this student. This student will see results immediately.`
+                      ? `${assignedCount - publishedCount} assigned grade(s) are ready to publish for this student. The student will see results immediately after publish.`
                       : publishedCount === 0
                         ? "No grades are assigned yet. Publish is unavailable until instructors enter grades."
-                        : "All assigned grades have been published to this student."}
+                        : "All assigned grades have been published to the student."}
                   </div>
                 </div>
                 <motion.button
@@ -794,31 +475,6 @@ export default function FinalGradePage() {
             student={student}
             onClose={() => setNotifyFor(null)}
             onSent={() => setNotifyFor(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* ── Completed warning modal ── */}
-      <AnimatePresence>
-        {completedWarningPending && student && (
-          <CompletedWarningModal
-            student={student}
-            unassignedCount={unassignedCount}
-            loading={classifying}
-            onCancel={() => setCompletedWarningPending(false)}
-            onMarkAnyway={() => { setCompletedWarningPending(false); doClassify("completed"); }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* ── Classification popup ── */}
-      <AnimatePresence>
-        {popupTab && (
-          <ClassificationPopup
-            tab={popupTab}
-            students={reviewList[popupTab] || []}
-            onClose={() => setPopupTab(null)}
-            onOpenStudent={openStudentFromBlock}
           />
         )}
       </AnimatePresence>

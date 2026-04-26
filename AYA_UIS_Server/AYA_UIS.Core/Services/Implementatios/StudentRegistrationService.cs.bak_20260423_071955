@@ -96,13 +96,6 @@ namespace Services.Implementatios
                 }
             }
 
-            // Derive current semester number (1 or 2) from the first active registration.
-            // SemesterId odd = Semester 1, even = Semester 2.
-            var firstActive = activeRegistrations.FirstOrDefault();
-            int currentSemesterNum = firstActive != null
-                ? (firstActive.SemesterId % 2 == 0 ? 2 : 1)
-                : 1;
-
             return new RegistrationStatusDto
             {
                 Open = settings?.IsOpen ?? false,
@@ -114,7 +107,6 @@ namespace Services.Implementatios
                 FailedCourses = failedCourses!,
                 LockedCourses = lockedCourses!,
                 CurrentYear = studentYear,
-                CurrentSemesterNum = currentSemesterNum,
                 Semester = settings?.Semester,
                 AcademicYear = settings?.AcademicYear
             };
@@ -165,27 +157,12 @@ namespace Services.Implementatios
             var allCourses = allCoursesRaw.ToDictionary(c => c.Id);
             var allCoursesByCode = allCoursesRaw.ToDictionary(c => c.Code, c => c, StringComparer.OrdinalIgnoreCase);
 
-            // ── 6b. Active non-equivalency registrations (admin-added must surface too) ──
-            var allUserRegs = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
-            var activeUserRegs = allUserRegs
-                .Where(r => (r.Status == RegistrationStatus.Approved ||
-                             r.Status == RegistrationStatus.Pending) &&
-                            !r.IsEquivalency)
-                .ToList();
-
             // Build visible set: bucket opened codes + exception course codes
-            // + any course the student is already actively registered for (including
-            // admin-added registrations that fall outside the current opened bucket).
             var visibleCodes = new HashSet<string>(openedCodes, StringComparer.OrdinalIgnoreCase);
             foreach (var excId in exceptionCourseIds)
             {
                 if (allCourses.TryGetValue(excId, out var excCourse))
                     visibleCodes.Add(excCourse.Code);
-            }
-            foreach (var reg in activeUserRegs)
-            {
-                if (allCourses.TryGetValue(reg.CourseId, out var rCourse))
-                    visibleCodes.Add(rCourse.Code);
             }
 
             if (visibleCodes.Count == 0)
@@ -815,6 +792,7 @@ namespace Services.Implementatios
             // ── Quizzes ──────────────────────────────────────────────
             var allQuizzes  = await _unitOfWork.Quizzes.GetQuizzesByCourseId(courseIdInt);
             var quizDtos    = new List<CourseQuizSummaryDto>();
+            decimal quizTotalScore = 0m; // accumulated for final-grade computation below
 
             foreach (var quiz in allQuizzes)
             {
@@ -827,6 +805,7 @@ namespace Services.Implementatios
                 {
                     quizStatus = "completed";
                     score      = attempt.Score;
+                    quizTotalScore += attempt.Score;
                 }
                 else if (now < quiz.StartTime)
                 {
@@ -893,6 +872,31 @@ namespace Services.Implementatios
                     Date      = dateStr,
                     Time      = timeStr,
                     Room      = examEntry?.Location ?? ""
+                };
+            }
+
+            // ── Final Grade (only if published by admin) ─────────────
+            var fgRecord = await _unitOfWork.FinalGrades.GetAsync(userId, courseIdInt);
+            CourseFinalGradeDto? finalGradeDto = null;
+
+            if (fgRecord != null && fgRecord.Published)
+            {
+                // Compute assignment score from already-loaded allAssignments (submissions eager-loaded)
+                decimal asnScore = allAssignments.Sum(a =>
+                    (decimal)(a.Submissions
+                        .FirstOrDefault(s => s.StudentId == userId && s.Status == "Accepted")
+                        ?.Grade ?? 0));
+
+                decimal cwTotal = Math.Min(40m,
+                    (midtermGrade?.Grade ?? 0) + quizTotalScore + asnScore + fgRecord.Bonus);
+                decimal total = cwTotal + fgRecord.FinalScore;
+
+                finalGradeDto = new CourseFinalGradeDto
+                {
+                    FinalScore      = fgRecord.FinalScore,
+                    CourseworkTotal = Math.Round(cwTotal, 1),
+                    Total           = Math.Round(total,   1),
+                    LetterGrade     = FinalScoreToLetter((int)Math.Round(total)),
                 };
             }
 

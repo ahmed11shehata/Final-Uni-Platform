@@ -163,11 +163,47 @@ export const adminPublishFinalGrades = async (studentId, courseIds = null) => {
  * POST /api/admin/final-grade/notify/{studentId}/{courseId}
  * Sends a warning notification to all instructors of this course
  * about the missing final grade for this student.
+ * Backend enforces once-per-day per (instructor, student, course).
  */
 export const adminNotifyInstructor = async (studentId, courseId) => {
   const res = await api.post(
     `/admin/final-grade/notify/${encodeURIComponent(studentId)}/${courseId}`
   );
+  return res.data.data;
+};
+
+/**
+ * GET /api/admin/final-grade/students
+ * Returns all current-term students grouped by classification:
+ * { progress: [...], notCompleted: [...], completed: [...], total, canPublishAll }
+ * Each student: { studentId, studentName, studentCode, academicYear, registeredCourses, status }
+ */
+export const adminGetFinalGradeReviewList = async () => {
+  const res = await api.get("/admin/final-grade/students");
+  return res.data.data;
+};
+
+/**
+ * POST /api/admin/final-grade/classify/{studentId}
+ * Manually set a student's review classification.
+ * @param {"progress"|"not_completed"|"completed"} status
+ */
+export const adminClassifyStudent = async (studentId, status) => {
+  const res = await api.post(
+    `/admin/final-grade/classify/${encodeURIComponent(studentId)}`,
+    { status }
+  );
+  return res.data.data;
+};
+
+/**
+ * POST /api/admin/final-grade/publish-all
+ * Globally publishes every assigned final grade for students whose
+ * classification is "completed". Backend rejects when any student is
+ * still in progress / not_completed.
+ */
+export const adminPublishAllFinalGrades = async () => {
+  const res = await api.post("/admin/final-grade/publish-all");
   return res.data.data;
 };
 

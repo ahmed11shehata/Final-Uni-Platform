@@ -512,6 +512,92 @@ namespace Presentation.Controllers
         }
 
         /// <summary>
+        /// GET /api/student/final-grades
+        /// Returns the student's own published final grades for currently registered courses.
+        /// ONLY returns records where Published == true — unpublished grades are never sent.
+        /// </summary>
+        [HttpGet("final-grades")]
+        public async Task<IActionResult> GetPublishedFinalGrades()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { success = false, error = new { code = "UNAUTHORIZED", message = "Not authenticated." } });
+
+            var regs = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            var active = (regs ?? Enumerable.Empty<Registration>())
+                .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending)
+                            && !r.IsEquivalency)
+                .ToList();
+
+            var result = new List<object>();
+
+            foreach (var reg in active)
+            {
+                var fg = await _unitOfWork.FinalGrades.GetAsync(userId, reg.CourseId);
+                // Guard: only published grades are visible to students
+                if (fg == null || !fg.Published) continue;
+
+                var course = await _unitOfWork.Courses.GetByIdAsync(reg.CourseId);
+                if (course == null) continue;
+
+                decimal total;
+                decimal cwTotal;
+                if (fg.AdminFinalTotal.HasValue)
+                {
+                    // Admin entered total directly (via Academic Setup) — use it as-is
+                    total   = fg.AdminFinalTotal.Value;
+                    cwTotal = total; // no component breakdown available in this path
+                }
+                else
+                {
+                    // Compute from components (instructor flow)
+                    var midterm  = await _unitOfWork.MidtermGrades.GetAsync(userId, reg.CourseId);
+                    var midGrade = midterm?.Grade ?? 0;
+
+                    decimal quizScore = 0;
+                    foreach (var q in (await _unitOfWork.Quizzes.GetQuizzesByCourseId(reg.CourseId)).ToList())
+                    {
+                        var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(q.Id, userId);
+                        if (attempt != null) quizScore += attempt.Score;
+                    }
+
+                    decimal asnScore = 0;
+                    foreach (var a in (await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(reg.CourseId)).ToList())
+                    {
+                        var sub = await _unitOfWork.Assignments.GetStudentSubmissionAsync(a.Id, userId);
+                        if (sub != null && string.Equals(sub.Status, "Accepted", StringComparison.OrdinalIgnoreCase))
+                            asnScore += sub.Grade ?? 0;
+                    }
+
+                    cwTotal = Math.Min(40m, midGrade + quizScore + asnScore + fg.Bonus);
+                    total   = cwTotal + fg.FinalScore;
+                }
+
+                result.Add(new
+                {
+                    courseId        = course.Id,
+                    courseCode      = course.Code,
+                    courseName      = course.Name,
+                    finalScore      = fg.AdminFinalTotal.HasValue ? (int?)null : fg.FinalScore,
+                    courseworkTotal = fg.AdminFinalTotal.HasValue ? (decimal?)null : Math.Round(cwTotal, 1),
+                    total           = Math.Round(total, 1),
+                    letterGrade     = FinalGradeToLetter((int)Math.Round(total)),
+                });
+            }
+
+            return Ok(new { success = true, data = result });
+        }
+
+        private static string FinalGradeToLetter(int total) => total switch
+        {
+            >= 90 => "A",
+            >= 80 => "B",
+            >= 70 => "C",
+            >= 60 => "D",
+            _     => "F",
+        };
+
+        /// <summary>
         /// GET /api/student/transcript
         /// Returns the logged-in student's completed academic transcript —
         /// ONLY courses that have real admin-assigned grades (equivalency

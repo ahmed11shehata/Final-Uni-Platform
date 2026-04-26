@@ -373,13 +373,72 @@ namespace AYA_UIS.API
                         WHERE TABLE_NAME = 'FinalGrades')
                     BEGIN
                         CREATE TABLE [FinalGrades] (
-                            [Id]         INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-                            [StudentId]  NVARCHAR(450)     NOT NULL,
-                            [CourseId]   INT               NOT NULL,
-                            [FinalScore] INT               NOT NULL DEFAULT 0,
-                            [Bonus]      INT               NOT NULL DEFAULT 0,
-                            [Published]  BIT               NOT NULL DEFAULT 0
+                            [Id]              INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [StudentId]       NVARCHAR(450)     NOT NULL,
+                            [CourseId]        INT               NOT NULL,
+                            [FinalScore]      INT               NOT NULL DEFAULT 0,
+                            [Bonus]           INT               NOT NULL DEFAULT 0,
+                            [AdminFinalTotal] INT               NULL,
+                            [Published]       BIT               NOT NULL DEFAULT 0,
+                            [RowVersion]      rowversion        NOT NULL
                         );
+                    END
+                ");
+
+                // ── FinalGrades.RowVersion: optimistic concurrency token (entity has [Timestamp]).
+                //     If the table already existed before this column was added to the model,
+                //     EF will SELECT it and crash with 'Invalid column name RowVersion'. Add it
+                //     idempotently here. SQL Server auto-populates existing rows. ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_NAME = 'FinalGrades' AND COLUMN_NAME = 'RowVersion')
+                    BEGIN
+                        ALTER TABLE [FinalGrades] ADD [RowVersion] rowversion NOT NULL;
+                    END
+                ");
+
+                // ── FinalGrades.AdminFinalTotal: admin-override total (0-100), nullable. ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.FinalGrades', 'AdminFinalTotal') IS NULL
+                        ALTER TABLE dbo.FinalGrades ADD AdminFinalTotal INT NULL;
+                ");
+
+                // ── FinalGrades unique index on (StudentId, CourseId) per entity attribute. ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (
+                        SELECT 1 FROM sys.indexes
+                        WHERE name = 'IX_FinalGrades_StudentId_CourseId'
+                          AND object_id = OBJECT_ID('FinalGrades'))
+                    BEGIN
+                        BEGIN TRY
+                            CREATE UNIQUE INDEX [IX_FinalGrades_StudentId_CourseId]
+                                ON [FinalGrades] ([StudentId], [CourseId]);
+                        END TRY
+                        BEGIN CATCH
+                            -- Duplicates may exist from prior runs without the unique constraint;
+                            -- skip silently so startup does not block. App-level guards already
+                            -- handle UNIQUE conflicts on insert.
+                        END CATCH
+                    END
+                ");
+
+                // ── FinalGradeReviews table (admin classification Progress / NotCompleted / Completed) ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.TABLES
+                        WHERE TABLE_NAME = 'FinalGradeReviews')
+                    BEGIN
+                        CREATE TABLE [FinalGradeReviews] (
+                            [Id]          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [StudentId]   NVARCHAR(450)     NOT NULL,
+                            [StudyYearId] INT               NOT NULL,
+                            [SemesterId]  INT               NOT NULL,
+                            [Status]      NVARCHAR(50)      NOT NULL DEFAULT 'progress',
+                            [UpdatedAt]   DATETIME2         NOT NULL DEFAULT SYSUTCDATETIME()
+                        );
+                        CREATE UNIQUE INDEX [IX_FinalGradeReviews_Student_Term]
+                            ON [FinalGradeReviews] ([StudentId], [StudyYearId], [SemesterId]);
                     END
                 ");
             }

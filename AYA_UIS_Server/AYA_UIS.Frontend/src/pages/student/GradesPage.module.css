@@ -362,6 +362,11 @@
   background: var(--card-bg);
 }
 
+.currentTable .tableHead,
+.currentTable .tableRow {
+  grid-template-columns: 1fr 100px 120px;
+}
+
 .currentTableRow {
   opacity: 0.82;
 }
@@ -472,7 +477,6 @@
   .tableHead, .tableRow { grid-template-columns: 1fr 78px 96px !important; }
   .tdBar { display: none; }
   .transcriptControls { align-items: flex-start; }
-  .currentNoteCell { justify-content: center; }
 }
 
 @media (max-width: 640px) {

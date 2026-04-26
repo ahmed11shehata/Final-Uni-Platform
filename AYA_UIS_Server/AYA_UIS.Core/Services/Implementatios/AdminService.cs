@@ -1287,11 +1287,18 @@ namespace Services.Implementatios
             var sem2 = semesters.FirstOrDefault(s => s.Title == SemesterEnum.Second_Semester);
             int defaultSemId = sem1?.Id ?? semesters.FirstOrDefault()?.Id ?? 1;
 
-            // 5. Remove old equivalency registrations for this student (tracked query)
-            var existingEquivRegs = await _unitOfWork.Registrations.GetByUserIdAsync(user.Id);
-            // Re-query tracked to allow deletion
-            var trackedRegs = _unitOfWork.Registrations as object;
-            // Use the DbContext directly via a simple approach
+            // 5. Detect courses with active (non-equivalency) registrations — these are current-term.
+            // Academic Setup for a currently-registered course writes to FinalGrade instead of
+            // creating an equivalency registration, avoiding duplicate rows.
+            var allUserRegs = await _unitOfWork.Registrations.GetByUserIdAsync(user.Id);
+            var activeNonEquivCourseIds = allUserRegs
+                .Where(r => !r.IsEquivalency &&
+                            (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending))
+                .Select(r => r.CourseId)
+                .ToHashSet();
+
+            // Remove old equivalency registrations for this student (tracked query)
+            var existingEquivRegs = allUserRegs;
             var existingEquivIds = existingEquivRegs
                 .Where(r => r.IsEquivalency)
                 .Select(r => r.Id)
@@ -1304,12 +1311,37 @@ namespace Services.Implementatios
                     await _unitOfWork.Registrations.Delete(tracked);
             }
 
-            // 6. Insert new equivalency registrations
+            // 6. Insert new equivalency registrations OR upsert FinalGrade for current-term courses
             foreach (var (code, total, yearKey, adminSemester) in flatEntries)
             {
                 var course = courseMap[code];
                 var (gradeEnum, _, _) = DeriveGrade(total);
 
+                if (activeNonEquivCourseIds.Contains(course.Id))
+                {
+                    // Current-term course: write AdminFinalTotal to FinalGrade and publish it.
+                    // This is the shared grade source that Student Grades reads.
+                    var fg = await _unitOfWork.FinalGrades.GetAsync(user.Id, course.Id);
+                    if (fg == null)
+                    {
+                        await _unitOfWork.FinalGrades.AddAsync(new FinalGrade
+                        {
+                            StudentId      = user.Id,
+                            CourseId       = course.Id,
+                            AdminFinalTotal = total,
+                            Published      = true,
+                        });
+                    }
+                    else
+                    {
+                        fg.AdminFinalTotal = total;
+                        fg.Published       = true;
+                        await _unitOfWork.FinalGrades.UpdateAsync(fg);
+                    }
+                    continue; // No equivalency registration needed
+                }
+
+                // Historical course: create equivalency registration (appears in Transcript)
                 // Determine semester: admin-supplied value wins; fall back to catalog mapping
                 int semId = defaultSemId;
                 if (adminSemester.HasValue)

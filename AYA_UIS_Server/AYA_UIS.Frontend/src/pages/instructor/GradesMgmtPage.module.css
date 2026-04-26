@@ -1160,6 +1160,56 @@
   font-weight: 800;
 }
 
+/* ── Read-only grade display + Edit/Cancel for saved grades ── */
+.readOnlyGrade {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  width: 108px;
+  min-height: 74px;
+  padding: 0 14px;
+  border-radius: 18px;
+  border: 1.5px solid;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 2rem;
+  font-weight: 900;
+  background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+}
+.readOnlyGrade strong { font-size: 2rem; font-weight: 900; }
+.readOnlyOf {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.cancelBtn {
+  padding: 0 18px;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--hover-bg);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+.cancelBtn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.25);
+}
+.cancelBtn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.bonusHint {
+  margin: 4px 0 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #c2410c;
+}
+
 .overlay {
   position: fixed;
   inset: 0;

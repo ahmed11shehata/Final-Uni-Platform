@@ -50,5 +50,6 @@ namespace Presistence
         public DbSet<Notification>                   Notifications                   { get; set; }
         public DbSet<MidtermGrade>                   MidtermGrades                   { get; set; }
         public DbSet<FinalGrade>                     FinalGrades                     { get; set; }
+        public DbSet<FinalGradeReview>               FinalGradeReviews               { get; set; }
     }
 }

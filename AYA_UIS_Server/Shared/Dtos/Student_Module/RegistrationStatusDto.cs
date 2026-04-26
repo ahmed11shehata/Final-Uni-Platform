@@ -40,6 +40,9 @@ namespace Shared.Dtos.Student_Module
         [JsonPropertyName("currentYear")]
         public int CurrentYear { get; set; }
 
+        [JsonPropertyName("currentSemesterNum")]
+        public int CurrentSemesterNum { get; set; }
+
         [JsonPropertyName("semester")]
         public string? Semester { get; set; }
 

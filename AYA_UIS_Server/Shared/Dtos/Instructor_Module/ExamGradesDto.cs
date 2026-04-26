@@ -9,6 +9,8 @@ namespace Shared.Dtos.Instructor_Module
     public class StudentExamGradeDto
     {
         public string StudentId { get; set; } = string.Empty;
+        /// <summary>Public academic code the instructor types in the search box.</summary>
+        public string StudentCode { get; set; } = string.Empty;
         public string StudentName { get; set; } = string.Empty;
         public int? Grade { get; set; }
         public int MaxGrade { get; set; }
@@ -48,6 +50,8 @@ namespace Shared.Dtos.Instructor_Module
     public class FinalGradeStudentDto
     {
         public string StudentId { get; set; } = string.Empty;
+        /// <summary>Public academic code the instructor types in the search box.</summary>
+        public string StudentCode { get; set; } = string.Empty;
         public string StudentName { get; set; } = string.Empty;
         /// <summary>Stored midterm grade value.</summary>
         public int MidtermGrade { get; set; }

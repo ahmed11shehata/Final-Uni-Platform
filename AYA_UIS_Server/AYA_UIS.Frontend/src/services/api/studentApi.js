@@ -137,6 +137,19 @@ export const markAllNotificationsRead = async () => {
   await api.put("/student/notifications/read-all");
 };
 
+// ── Final Grades (published only) ───────────────────────────
+
+/**
+ * GET /api/student/final-grades
+ * Returns published final grades for currently registered courses.
+ * Shape: [{ courseId, courseCode, courseName, finalScore, courseworkTotal, total, letterGrade }]
+ * Server enforces Published == true — unpublished grades are never returned.
+ */
+export const getStudentPublishedFinalGrades = async () => {
+  const res = await api.get("/student/final-grades");
+  return Array.isArray(res.data?.data) ? res.data.data : [];
+};
+
 // ── Stubs (not yet implemented on backend) ──────────────────
 export const getStudentGrades = () => Promise.resolve([]);
 
