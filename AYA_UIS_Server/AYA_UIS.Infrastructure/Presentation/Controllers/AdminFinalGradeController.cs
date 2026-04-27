@@ -62,7 +62,7 @@ namespace Presentation.Controllers
             // Must mirror StudentRegistrationService which treats both statuses as "registered".
             var regs = await _unitOfWork.Registrations.GetByUserIdAsync(student.Id);
             var active = (regs ?? Enumerable.Empty<Registration>())
-                .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending) && !r.IsEquivalency)
+                .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending) && !r.IsEquivalency && !r.IsArchived)
                 .ToList();
 
             var courseDtos = new List<AdminFinalGradeCourseDto>();
@@ -164,7 +164,7 @@ namespace Presentation.Controllers
                 var allRegs = await _unitOfWork.Registrations.GetAllAsync(
                     studyYearId: studyYearId, semesterId: semesterId);
                 var activeRegs = allRegs
-                    .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending) && !r.IsEquivalency)
+                    .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending) && !r.IsEquivalency && !r.IsArchived)
                     .ToList();
                 regCountByStudent = activeRegs
                     .GroupBy(r => r.UserId)
@@ -268,7 +268,7 @@ namespace Presentation.Controllers
 
             var regs = await _unitOfWork.Registrations.GetByUserIdAsync(studentId);
             var active = (regs ?? Enumerable.Empty<Registration>())
-                .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending) && !r.IsEquivalency)
+                .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending) && !r.IsEquivalency && !r.IsArchived)
                 .ToList();
 
             // Filter to specific courses if requested
@@ -362,7 +362,8 @@ namespace Presentation.Controllers
                 var regs = await _unitOfWork.Registrations.GetByUserIdAsync(user.Id);
                 var active = (regs ?? Enumerable.Empty<Registration>())
                     .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending)
-                                && !r.IsEquivalency)
+                                && !r.IsEquivalency
+                                && !r.IsArchived)
                     .ToList();
 
                 bool touched = false;

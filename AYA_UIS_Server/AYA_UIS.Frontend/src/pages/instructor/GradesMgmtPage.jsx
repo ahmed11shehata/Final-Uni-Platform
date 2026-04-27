@@ -621,6 +621,14 @@ function MidtermSection({ courseId, color }) {
 
 /* ════════ FINAL GRADE SECTION ════════ */
 const LETTER_COLOR = { A: "#22c55e", B: "#818cf8", C: "#3b82f6", D: "#f59e0b", F: "#ef4444" };
+const safeNum = (value, fallback = 0) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+const calcLetter = (total) => {
+  const t = safeNum(total);
+  return t >= 90 ? "A" : t >= 80 ? "B" : t >= 70 ? "C" : t >= 60 ? "D" : "F";
+};
 
 function FinalGradeSection({ courseId, color, initialQuery = null }) {
   const [status,    setStatus]    = useState(null);   // { locked, examDate, examTime, unlockAt }
@@ -687,7 +695,7 @@ function FinalGradeSection({ courseId, color, initialQuery = null }) {
 
   // ── Bonus rule: remaining room up to 40 after core coursework ──
   // coreCw = midterm + quizzes + assignments (before bonus)
-  const coreCw      = found ? (Number(found.midtermGrade || 0) + Number(found.quizScore || 0) + Number(found.assignmentScore || 0)) : 0;
+  const coreCw      = found ? (safeNum(found.midtermGrade, 0) + safeNum(found.quizScore, 0) + safeNum(found.assignmentScore, 0)) : 0;
   const bonusCap    = Math.max(0, Math.min(10, 40 - coreCw));
   const bonusLocked = bonusCap === 0;
 
@@ -737,21 +745,27 @@ function FinalGradeSection({ courseId, color, initialQuery = null }) {
     setSaving(true);
     try {
       const res = await setFinalGrade(courseId, found.studentId, { finalScore: fs, bonus: bn });
+      const savedFinalScore = safeNum(res?.finalScore, fs);
+      const savedBonus = safeNum(res?.bonus, bn);
+      const savedCoursework = safeNum(res?.courseworkTotal, Math.min(40, coreCw + savedBonus));
+      const savedTotal = safeNum(res?.total, Math.min(100, savedCoursework + savedFinalScore));
+      const savedLetter = res?.letterGrade || calcLetter(savedTotal);
+
       setStudents(p => p.map(s => s.studentId === found.studentId
         ? { ...s,
-            finalScore: res.finalScore,
-            bonus: res.bonus,
-            courseworkTotal: res.courseworkTotal,
-            total: res.total,
-            letterGrade: res.letterGrade,
+            finalScore: savedFinalScore,
+            bonus: savedBonus,
+            courseworkTotal: savedCoursework,
+            total: savedTotal,
+            letterGrade: savedLetter,
             submitted: true }
         : s));
       setDraft("");
-      setBonus(String(res.bonus ?? 0));
+      setBonus(String(savedBonus));
       setShowBonus(false);
       setEditing(false);
       setBonusMsg("");
-      toast$(`✓ Final grade saved · ${res.letterGrade} (${res.total}/100)`);
+      toast$(`✓ Final grade saved · ${savedLetter} (${savedTotal}/100)`);
     } catch (e) {
       const msg = e?.response?.data?.error?.message || e?.message || "Save failed";
       toast$(msg, "err");
@@ -792,13 +806,23 @@ function FinalGradeSection({ courseId, color, initialQuery = null }) {
     );
   }
 
-  const finalPts = Number(draft) || 0;
-  // Coursework total preview: core (midterm+quiz+asn) + effective bonus, capped at 40
-  const effectiveBonusPreview = bonusLocked ? 0 : (showBonus ? (Number(bonus) || 0) : (found?.bonus ?? 0));
-  const cwPreview = Math.min(40, coreCw + effectiveBonusPreview);
-  const totalPreview = Math.min(100, cwPreview + finalPts);
-  const letterPreview = totalPreview >= 90 ? "A" : totalPreview >= 80 ? "B" : totalPreview >= 70 ? "C" : totalPreview >= 60 ? "D" : "F";
+  const isEditingOrNew = editing || !found?.submitted;
+  const numericDraft = Number(draft);
+  const draftFinalScore = Number.isFinite(numericDraft) ? numericDraft : 0;
+  const savedFinalScore = safeNum(found?.finalScore, 0);
+  const finalPts = isEditingOrNew ? draftFinalScore : savedFinalScore;
+
+  // Coursework total preview: core (midterm+quiz+assignment) + effective bonus, capped at 40.
+  // When the grade is already saved and not being edited, always display the latest saved
+  // total/letter from the API instead of falling back to an empty draft, which made it look like F.
+  const effectiveBonusPreview = bonusLocked ? 0 : (showBonus ? safeNum(bonus, 0) : safeNum(found?.bonus, 0));
+  const savedCoursework = safeNum(found?.courseworkTotal, Math.min(40, coreCw + safeNum(found?.bonus, 0)));
+  const cwPreview = isEditingOrNew ? Math.min(40, coreCw + effectiveBonusPreview) : savedCoursework;
+  const savedTotal = safeNum(found?.total, Math.min(100, savedCoursework + savedFinalScore));
+  const totalPreview = isEditingOrNew ? Math.min(100, cwPreview + finalPts) : savedTotal;
+  const letterPreview = isEditingOrNew ? calcLetter(totalPreview) : (found?.letterGrade || calcLetter(totalPreview));
   const lcColor = LETTER_COLOR[letterPreview] || "#818cf8";
+  const showCircleTotal = found?.submitted || draft !== "";
   const dashArr = 2 * Math.PI * 40;
 
   return (
@@ -896,7 +920,7 @@ function FinalGradeSection({ courseId, color, initialQuery = null }) {
                 <div className={styles.finalRow}>
                   <span className={styles.finalRowLabel}>📝 Midterm</span>
                   <span className={styles.finalRowVal}>
-                    {found.midtermGrade !== undefined
+                    {found.midtermGrade !== undefined && found.midtermGrade !== null
                       ? <><strong>{found.midtermGrade}</strong>/{found.midtermMax || "—"}</>
                       : <span style={{ color: "#ef4444" }}>Not set</span>}
                   </span>
@@ -904,12 +928,12 @@ function FinalGradeSection({ courseId, color, initialQuery = null }) {
 
                 <div className={styles.finalRow}>
                   <span className={styles.finalRowLabel}>🧩 Quizzes</span>
-                  <span className={styles.finalRowVal}><strong>{found.quizScore}</strong> pts</span>
+                  <span className={styles.finalRowVal}><strong>{safeNum(found.quizScore)}</strong> pts</span>
                 </div>
 
                 <div className={styles.finalRow}>
                   <span className={styles.finalRowLabel}>📋 Assignments</span>
-                  <span className={styles.finalRowVal}><strong>{found.assignmentScore}</strong> pts</span>
+                  <span className={styles.finalRowVal}><strong>{safeNum(found.assignmentScore)}</strong> pts</span>
                 </div>
 
                 <div className={styles.finalRow} style={{ alignItems: "center" }}>
@@ -958,7 +982,7 @@ function FinalGradeSection({ courseId, color, initialQuery = null }) {
                 <div className={styles.finalRow} style={{ fontWeight: 700 }}>
                   <span className={styles.finalRowLabel} style={{ color }}>Total Coursework</span>
                   <span className={styles.finalRowVal} style={{ color, fontSize: "1rem" }}>
-                    <strong>{Math.round((editing || !found.submitted ? cwPreview : found.courseworkTotal) * 10) / 10}</strong>/40
+                    <strong>{Math.round(cwPreview * 10) / 10}</strong>/40
                   </span>
                 </div>
               </div>
@@ -981,9 +1005,12 @@ function FinalGradeSection({ courseId, color, initialQuery = null }) {
                       {letterPreview}
                     </span>
                     <span className={styles.circMax} style={{ fontSize: ".75rem" }}>
-                      {draft ? `${Math.round(totalPreview)}/100` : "—"}
+                      {showCircleTotal ? `${Math.round(totalPreview)}/100` : "—"}
                     </span>
                   </div>
+                </div>
+                <div className={styles.finalLetterLabel} style={{ color: lcColor }}>
+                  Course Grade · {letterPreview}
                 </div>
 
                 <div className={styles.entryLabel} style={{ marginTop: 12 }}>
@@ -994,20 +1021,21 @@ function FinalGradeSection({ courseId, color, initialQuery = null }) {
                 {/* Read-only view — saved final score with Edit button */}
                 {found.submitted && !editing && (
                   <>
-                    <div className={styles.readOnlyGrade} style={{ borderColor: `${color}35`, color, marginBottom: 6 }}>
-                      <strong>{found.finalScore}</strong>
+                    <div className={styles.readOnlyGrade} style={{ borderColor: `${lcColor}45`, color: lcColor, marginBottom: 6 }}>
+                      <strong>{savedFinalScore}</strong>
                       <span className={styles.readOnlyOf}>/ 60</span>
                     </div>
+                    <div className={styles.finalSavedMeta}>
+                      <span>Saved final: {savedFinalScore}/60</span>
+                      <span>Total: {Math.round(totalPreview)}/100</span>
+                    </div>
                     <motion.button className={styles.saveBtn}
-                      style={{ background: color, marginTop: 6, width: "100%" }}
+                      style={{ background: color, marginTop: 10, width: "100%" }}
                       onClick={startEdit}
                       whileHover={{ scale: 1.03, filter: "brightness(1.08)" }}
                       whileTap={{ scale: .97 }}>
                       ✎ Edit Grade
                     </motion.button>
-                    <div style={{ marginTop: 10, textAlign: "center", fontSize: ".8rem", color: "var(--text-muted)" }}>
-                      Saved: {found.finalScore}/60 · Total {found.total}/100
-                    </div>
                   </>
                 )}
 
@@ -1165,7 +1193,7 @@ export default function GradesMgmtPage() {
         <div className={styles.heroContent}>
           <div>
             <h1 className={styles.heroTitle}>Grade Management</h1>
-            <p className={styles.heroSub}>Manage assignments & midterm grades for your courses</p>
+            <p className={styles.heroSub}>Manage assignments, midterm and final grades for your courses</p>
           </div>
         </div>
       </motion.div>
@@ -1205,7 +1233,7 @@ export default function GradesMgmtPage() {
         <motion.div className={styles.idleWrap} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className={styles.idleIcon} style={{ background: "rgba(129,140,248,.12)", color: "#818cf8" }}>📊</div>
           <h3 className={styles.idleTitle}>Select a course above</h3>
-          <p className={styles.idleSub}>Choose a course to manage its assignments and midterm grades</p>
+          <p className={styles.idleSub}>Choose a course to manage its assignments, midterm and final grades</p>
         </motion.div>
       )}
 

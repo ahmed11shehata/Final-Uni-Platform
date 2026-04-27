@@ -822,12 +822,15 @@ namespace Services.Implementatios
                 ? await _unitOfWork.Departments.GetByIdAsync(user.DepartmentId.Value)
                 : null;
 
-            var standing = ComputeStanding(user.TotalGPA ?? 0);
+            // Get registrations first so the new-student check can see history
+            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(user.Id);
+            var settingsForStanding = await _unitOfWork.RegistrationSettings.GetCurrentAsync();
+            bool isNewStudent = IsInitialNewStudent(user, registrations, settingsForStanding);
+
+            var standing = ComputeStanding(user.TotalGPA ?? 0, isNewStudent);
+            // Admin override of AllowedCredits wins over the computed cap (intentional override).
             if (user.AllowedCredits.HasValue && user.AllowedCredits.Value > 0)
                 standing.MaxCredits = user.AllowedCredits.Value;
-
-            // Get registrations
-            var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(user.Id);
             var registeredCourses = new List<AdminStudentCourseDto>();
             var completedCourses = new List<AdminStudentCourseDto>();
 
@@ -845,7 +848,8 @@ namespace Services.Implementatios
                     Grade = GradeEnumToLetter(reg.Grade)
                 };
 
-                if (reg.IsPassed || reg.Progress == CourseProgress.Completed)
+                // Archived rows belong to history only — never to "current registered"
+                if (reg.IsPassed || reg.Progress == CourseProgress.Completed || reg.IsArchived)
                     completedCourses.Add(courseDto);
                 else
                     registeredCourses.Add(courseDto);
@@ -1055,7 +1059,9 @@ namespace Services.Implementatios
                 .Where(r => r.IsPassed)
                 .Sum(r => allCourses.FirstOrDefault(c => c.Id == r.CourseId)?.Credits ?? 0);
 
-            var standing = ComputeStanding(user.TotalGPA ?? 0);
+            var settingsForStanding = await _unitOfWork.RegistrationSettings.GetCurrentAsync();
+            bool isNewStudent = IsInitialNewStudent(user, allRegs, settingsForStanding);
+            var standing = ComputeStanding(user.TotalGPA ?? 0, isNewStudent);
 
             // Build year/semester structure
             // Include ALL catalog courses: mapped via CourseOffering or fallback to Year 1 / Sem 1
@@ -1180,9 +1186,11 @@ namespace Services.Implementatios
 
             var allRegs = await _unitOfWork.Registrations.GetByUserIdAsync(user.Id);
 
-            // Only include courses with a real admin-entered numeric grade
+            // Include both equivalency credits and archived (post-reset) rows that
+            // carry a numeric grade. Passed AND failed archived rows show in history.
             var gradedRegs = allRegs
-                .Where(r => r.IsEquivalency && r.IsPassed && r.NumericTotal.HasValue)
+                .Where(r => r.NumericTotal.HasValue &&
+                            (r.IsEquivalency || r.IsArchived))
                 .ToList();
 
             int totalCreditsEarned = gradedRegs
@@ -1218,6 +1226,9 @@ namespace Services.Implementatios
                 .OrderBy(e => e.Year).ThenBy(e => e.Semester).ThenBy(e => e.CourseCode)
                 .ToList();
 
+            var settingsForTranscript = await _unitOfWork.RegistrationSettings.GetCurrentAsync();
+            bool isNewStudentTr = IsInitialNewStudent(user, allRegs, settingsForTranscript);
+
             return new StudentTranscriptResponseDto
             {
                 Student = new AcademicSetupStudentDto
@@ -1228,7 +1239,7 @@ namespace Services.Implementatios
                     CurrentYear        = LevelToYearNum(user.Level),
                     Gpa                = user.TotalGPA ?? 0,
                     TotalCreditsEarned = totalCreditsEarned,
-                    Standing           = ComputeStanding(user.TotalGPA ?? 0)
+                    Standing           = ComputeStanding(user.TotalGPA ?? 0, isNewStudentTr)
                 },
                 CompletedCourses = completedCourses
             };
@@ -1293,6 +1304,7 @@ namespace Services.Implementatios
             var allUserRegs = await _unitOfWork.Registrations.GetByUserIdAsync(user.Id);
             var activeNonEquivCourseIds = allUserRegs
                 .Where(r => !r.IsEquivalency &&
+                            !r.IsArchived &&
                             (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending))
                 .Select(r => r.CourseId)
                 .ToHashSet();
@@ -1405,8 +1417,11 @@ namespace Services.Implementatios
 
             user.TotalGPA = newGpa;
 
-            // 9. Update standing-based allowed credits
-            var standing = ComputeStanding(newGpa);
+            // 9. Update standing-based allowed credits — re-evaluate new-student status
+            //    after the setup save (admin may have added history rows just now).
+            var settingsForSave = await _unitOfWork.RegistrationSettings.GetCurrentAsync();
+            bool isNewStudentSave = IsInitialNewStudent(user, allRegs, settingsForSave);
+            var standing = ComputeStanding(newGpa, isNewStudentSave);
             user.AllowedCredits = standing.MaxCredits;
 
             // 10. Persist user changes
@@ -1451,8 +1466,23 @@ namespace Services.Implementatios
         // Helpers
         // ═══════════════════════════════════════════════════════════
 
-        private static AcademicStandingDto ComputeStanding(decimal gpa)
+        // GPA-based standing per spec:
+        //   >= 3.0          → 21 credits
+        //   2.0  – 2.99     → 18 credits
+        //   1.0  – 1.99     → 12 credits
+        //   <  1.0          → 9 credits
+        // New students (First Year/Sem 1, or any year with no academic history) → 21 credits, no probation/retake flags.
+        private static AcademicStandingDto ComputeStanding(decimal gpa, bool isNewStudent = false)
         {
+            if (isNewStudent)
+            {
+                return new AcademicStandingDto
+                {
+                    StandingId = "newStudent", Gpa = gpa, MaxCredits = 21,
+                    MustRetakeFirst = false, CanOnlyRetake = false, IsNewStudent = true
+                };
+            }
+
             return gpa switch
             {
                 >= 3.5m => new AcademicStandingDto
@@ -1462,7 +1492,7 @@ namespace Services.Implementatios
                 },
                 >= 3.0m => new AcademicStandingDto
                 {
-                    StandingId = "vgood", Gpa = gpa, MaxCredits = 18,
+                    StandingId = "vgood", Gpa = gpa, MaxCredits = 21,
                     MustRetakeFirst = false, CanOnlyRetake = false
                 },
                 >= 2.5m => new AcademicStandingDto
@@ -1472,10 +1502,10 @@ namespace Services.Implementatios
                 },
                 >= 2.0m => new AcademicStandingDto
                 {
-                    StandingId = "pass", Gpa = gpa, MaxCredits = 15,
+                    StandingId = "pass", Gpa = gpa, MaxCredits = 18,
                     MustRetakeFirst = false, CanOnlyRetake = false
                 },
-                >= 1.5m => new AcademicStandingDto
+                >= 1.0m => new AcademicStandingDto
                 {
                     StandingId = "warning", Gpa = gpa, MaxCredits = 12,
                     MustRetakeFirst = true, CanOnlyRetake = false
@@ -1486,6 +1516,44 @@ namespace Services.Implementatios
                     MustRetakeFirst = true, CanOnlyRetake = true
                 }
             };
+        }
+
+        // ───────────────────────────────────────────────────────────────
+        // New-student detection — central helper, used by ComputeStanding callers.
+        //   A student is "new" (gets 21 credits, no probation/retake flags) when:
+        //     1) They are in First Year AND the global registration semester is the first semester, OR
+        //     2) They have no academic history yet (no passed/completed/graded registrations)
+        //        regardless of which year they were placed in (transfer students before
+        //        admin sets up history).
+        // ───────────────────────────────────────────────────────────────
+        internal static bool IsInitialNewStudent(
+            User user,
+            IEnumerable<Registration> registrations,
+            RegistrationSettings? settings)
+        {
+            int year = LevelToYearNum(user.Level);
+            bool isFirstSem = IsFirstSemesterTerm(settings);
+
+            // Rule A: First Year / Semester 1 — always new student (regardless of GPA)
+            if (year == 1 && isFirstSem) return true;
+
+            // Rule B.4: Any year with no academic history yet → temporary new student
+            bool hasHistory = registrations.Any(r =>
+                r.IsPassed
+                || r.Progress == CourseProgress.Completed
+                || r.Grade.HasValue);
+            if (!hasHistory) return true;
+
+            return false;
+        }
+
+        // Whether the current global registration term is the first semester.
+        // Defaults to true when no settings exist (safe default for brand-new students).
+        internal static bool IsFirstSemesterTerm(RegistrationSettings? settings)
+        {
+            if (settings == null || string.IsNullOrWhiteSpace(settings.Semester)) return true;
+            var sem = settings.Semester.Trim().ToLowerInvariant().Replace("_", " ");
+            return sem.Contains("first") || sem == "1" || sem.Contains("semester 1") || sem.Contains("sem 1");
         }
 
         private static string? GradeEnumToLetter(Grads? grade) => grade switch

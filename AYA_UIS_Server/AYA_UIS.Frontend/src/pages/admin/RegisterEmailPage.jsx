@@ -1,8 +1,14 @@
 // src/pages/admin/RegisterEmailPage.jsx — Full redesign: Split Panel Layout
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import styles from "./RegisterEmailPage.module.css";
-import { getEmails, createEmailAccount, toggleActive, resetPassword, deleteAccount, updateAccount } from "../../services/api/adminApi";
+import {
+  getEmails, createEmailAccount, toggleActive, resetPassword, deleteAccount, updateAccount,
+  studentDeletePreview, studentDeleteExecute,
+} from "../../services/api/adminApi";
+
+const STUDENT_DELETE_PWD = "StudentDelete@123#";
 
 const DOMAIN = "@akhbaracademy.edu.eg";
 
@@ -136,10 +142,11 @@ function EnvelopeScene({ roleColor }) {
    MAIN PAGE
 ═══════════════════════════════════════ */
 export default function RegisterEmailPage() {
+  const navigate = useNavigate();
   const [db,         setDb]         = useState([]);
   const [search,     setSearch]     = useState("");
   const [result,     setResult]     = useState(null);
-  const [mode,       setMode]       = useState("home"); // home|found|notfound|changepwd|confirmdelete|create
+  const [mode,       setMode]       = useState("home"); // home|found|notfound|changepwd|confirmdelete|create|success
   const [activeTab,  setActiveTab]  = useState("overview"); // overview|password|danger
   const [activeRole, setActiveRole] = useState(null); // sidebar filter
   const [createStep, setCreateStep] = useState(1);
@@ -152,12 +159,24 @@ export default function RegisterEmailPage() {
   const [copied,     setCopied]     = useState(null);
   const [toast,      setToast]      = useState(null);
   const [emailAnim,  setEmailAnim]  = useState(false);
+  const [createdAccount, setCreatedAccount] = useState(null);
   const [sideSearch, setSideSearch] = useState("");
   const [editForm,   setEditForm]   = useState({firstName:"",lastName:"",subEmail:"",phone:"",gender:"",dob:"",governorate:"",location:""});
   const [editBusy,   setEditBusy]   = useState(false);
   const [editGovSearch,  setEditGovSearch]  = useState("");
   const [editGovOpen,    setEditGovOpen]    = useState(false);
   const [editAttempted,  setEditAttempted]  = useState(false);
+  // ── Permanent student delete (Danger Zone) ──
+  const [dzPreview,      setDzPreview]      = useState(null);
+  const [dzPreviewBusy,  setDzPreviewBusy]  = useState(false);
+  const [dzPreviewErr,   setDzPreviewErr]   = useState(null);
+  const [dzCodeInput,    setDzCodeInput]    = useState("");
+  const [dzPwdInput,     setDzPwdInput]     = useState("");
+  const [dzAck,          setDzAck]          = useState(false);
+  const [dzShowFinal,    setDzShowFinal]    = useState(false);
+  const [dzBusy,         setDzBusy]         = useState(false);
+  const [dzResult,       setDzResult]       = useState(null);
+  const [dzExecError,    setDzExecError]    = useState(null);
   const inputRef = useRef(null);
   const govWrapRef = useRef(null);
   const editGovWrapRef = useRef(null);
@@ -252,6 +271,66 @@ export default function RegisterEmailPage() {
     setEditGovOpen(false);
   },[result?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Reset Danger Zone state whenever the loaded account changes or the active tab leaves Danger.
+  useEffect(()=>{
+    setDzPreview(null);
+    setDzPreviewErr(null);
+    setDzCodeInput("");
+    setDzPwdInput("");
+    setDzAck(false);
+    setDzShowFinal(false);
+    setDzResult(null);
+    setDzExecError(null);
+  },[result?.id, activeTab]);
+
+  // Auto-fetch the student preview when the admin opens the Danger tab on a student account.
+  useEffect(()=>{
+    if (activeTab !== "danger") return;
+    if (!result || result.role !== "student") return;
+    if (!result.code) return;
+    setDzPreviewBusy(true); setDzPreviewErr(null);
+    studentDeletePreview(result.code)
+      .then(setDzPreview)
+      .catch(e => setDzPreviewErr(e?.response?.data?.error?.message || "Failed to load student preview"))
+      .finally(() => setDzPreviewBusy(false));
+  },[activeTab, result?.id, result?.role, result?.code]);
+
+  const dzCanDelete = !!dzPreview
+    && dzCodeInput === (result?.code || "")
+    && dzPwdInput === STUDENT_DELETE_PWD
+    && dzAck
+    && !dzBusy;
+
+  const dzExecute = async () => {
+    if (!dzCanDelete) return;
+    setDzBusy(true);
+    setDzExecError(null);
+    try {
+      const data = await studentDeleteExecute({
+        academicCode: result.code,
+        confirmAcademicCode: dzCodeInput,
+        password: dzPwdInput,
+      });
+      setDzResult(data);
+      setDzShowFinal(false);
+      // Refresh the accounts list — the deleted account vanishes.
+      loadAccounts();
+      showToast("Student permanently deleted ✓");
+    } catch (e) {
+      setDzExecError(e?.response?.data?.error?.message || "Permanent delete failed");
+    } finally {
+      setDzBusy(false);
+    }
+  };
+
+  const dzReturnHome = () => {
+    setDzResult(null);
+    setResult(null);
+    setMode("home");
+    setSearch("");
+    setActiveRole(null);
+  };
+
   const saveEdit=async()=>{
     setEditAttempted(true);
     const errs = getEditErrors(editForm);
@@ -296,16 +375,26 @@ export default function RegisterEmailPage() {
       if(address) payload.address=address;
       const created=await createEmailAccount(payload);
       loadAccounts();
+      const resolvedCode = created?.code || code.trim();
       setTimeout(()=>{
         clearTimeout(safetyTimer);
         setEmailAnim(false);
-        setResult({...created,password:"••••••••••••••"});
-        setMode("found"); setSearch(created.code||code.trim());
-        setActiveTab("overview");
+        setCreatedAccount({
+          id:        created?.id        || "",
+          code:      resolvedCode,
+          email:     created?.email     || "",
+          role:      createRole,
+          active:    true,
+          createdAt: created?.createdAt || new Date().toISOString().slice(0,10),
+          password:  created?.password  || "",
+          firstName: firstName.trim(),
+          lastName:  lastName.trim(),
+          subEmail:  subEmail.trim(),
+        });
         setForm({code:"",firstName:"",lastName:"",password:"",subEmail:"",phone:"",address:"",gender:"",dob:""});
         setGovSearch(""); setGovOpen(false);
         setCreateStep(1); setActiveRole(null);
-        showToast("Account created successfully ✓");
+        setMode("success");
       }, 2000);
     } catch(err) {
       clearTimeout(safetyTimer);
@@ -798,19 +887,225 @@ export default function RegisterEmailPage() {
                             </div>
                           </div>
 
-                          <div className={styles.dangerCard}>
-                            <div className={styles.dangerCardLeft}>
-                              <div className={styles.dangerCardTitle}>Delete Account</div>
-                              <div className={styles.dangerCardSub}>
-                                Permanently delete <strong>{buildEmail(result.role,result.code,result.firstName,result.lastName)}</strong> and all associated data.
+                          {/* ── Non-student accounts: keep the original simple delete ── */}
+                          {result.role !== "student" && (
+                            <div className={styles.dangerCard}>
+                              <div className={styles.dangerCardLeft}>
+                                <div className={styles.dangerCardTitle}>Delete Account</div>
+                                <div className={styles.dangerCardSub}>
+                                  Permanently delete <strong>{buildEmail(result.role,result.code,result.firstName,result.lastName)}</strong> and all associated data.
+                                </div>
+                              </div>
+                              <motion.button className={styles.dangerDeleteBtn}
+                                onClick={del} whileHover={{scale:1.04}} whileTap={{scale:.96}}>
+                                {I.trash} Delete Account
+                              </motion.button>
+                            </div>
+                          )}
+
+                          {/* ── Student accounts: strong-confirmation permanent delete ── */}
+                          {result.role === "student" && !dzResult && (
+                            <div className={styles.dangerCard} style={{flexDirection:"column",alignItems:"stretch",gap:14}}>
+                              <div>
+                                <div className={styles.dangerCardTitle}>Permanent Student Delete</div>
+                                <div className={styles.dangerCardSub} style={{lineHeight:1.55}}>
+                                  This will permanently remove the student account and every row tied to them
+                                  (registrations, grades, submissions, quiz attempts, notifications, audit
+                                  snapshots, profile data) plus their submission files from storage. Shared
+                                  course/material rows (assignments, quizzes, lectures, courses) are kept.
+                                </div>
+                              </div>
+
+                              {/* Student preview from backend */}
+                              {dzPreviewBusy && (
+                                <div style={{padding:14,fontSize:13,color:"var(--text-muted)"}}>Loading student preview…</div>
+                              )}
+                              {dzPreviewErr && (
+                                <div style={{padding:"10px 12px",borderRadius:10,background:"rgba(239,68,68,.08)",
+                                             border:"1px solid rgba(239,68,68,.30)",color:"#ef4444",fontSize:13,fontWeight:700}}>
+                                  ⚠ {dzPreviewErr}
+                                </div>
+                              )}
+                              {dzPreview && (
+                                <div style={{
+                                  padding:"12px 14px",borderRadius:12,
+                                  background:"rgba(239,68,68,.05)",
+                                  border:"1px solid rgba(239,68,68,.22)",
+                                  display:"grid",gap:8,
+                                }}>
+                                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                    <div className={styles.idStripAvatar} style={{
+                                      width:40,height:40,fontSize:".95rem",
+                                      background:"linear-gradient(135deg,#991b1b,#ef4444)",
+                                    }}>
+                                      {(dzPreview.name||"S").split(" ").map(s=>s[0]).join("").slice(0,2)}
+                                    </div>
+                                    <div style={{flex:1,minWidth:0}}>
+                                      <div style={{fontWeight:900,fontSize:".98rem"}}>{dzPreview.name}</div>
+                                      <div style={{fontSize:".78rem",color:"var(--text-secondary)",fontFamily:"monospace"}}>#{dzPreview.academicCode}</div>
+                                    </div>
+                                  </div>
+                                  <div style={{
+                                    display:"grid",gap:6,
+                                    gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))",
+                                    fontSize:11.5,color:"var(--text-secondary)",
+                                  }}>
+                                    {dzPreview.email && <div><strong>Email:</strong> {dzPreview.email}</div>}
+                                    {dzPreview.year && <div><strong>Year:</strong> {dzPreview.year}</div>}
+                                    {dzPreview.semester && <div><strong>Term:</strong> {dzPreview.semester}</div>}
+                                    <div><strong>Active courses:</strong> {dzPreview.registeredCoursesCount}</div>
+                                    <div><strong>Submissions:</strong> {dzPreview.submissionsCount}</div>
+                                    <div><strong>Quiz attempts:</strong> {dzPreview.quizAttemptsCount}</div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Warning list */}
+                              <div style={{
+                                padding:"10px 14px",borderRadius:10,
+                                background:"rgba(239,68,68,.06)",
+                                border:"1px solid rgba(239,68,68,.22)",
+                                fontSize:12.5,lineHeight:1.6,color:"var(--text-secondary)",
+                              }}>
+                                <div style={{fontWeight:800,color:"#ef4444",marginBottom:4}}>The following will be deleted:</div>
+                                Student account · all registrations · final &amp; midterm grades · final-grade reviews ·
+                                assignment submissions and submission files · quiz attempts &amp; answers ·
+                                course results · semester GPAs · user-study-year rows · course exceptions ·
+                                admin per-student locks · academic-year reset snapshots · OTPs · notifications.
+                                <div style={{marginTop:6,fontWeight:700,color:"#22c55e"}}>Kept:</div>
+                                Courses, instructor-created assignments/quizzes/lectures, instructor assignments to courses, departments.
+                              </div>
+
+                              {/* Confirmation fields */}
+                              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                                <div>
+                                  <label className={styles.formLabel}>Re-type academic code <span className={styles.req}>*</span></label>
+                                  <input className={styles.formInput} placeholder={result.code}
+                                    value={dzCodeInput} onChange={e=>setDzCodeInput(e.target.value)}
+                                    autoComplete="off" spellCheck={false}
+                                    style={dzCodeInput && dzCodeInput===result.code ? {borderColor:"#22c55e60"} : {}}/>
+                                </div>
+                                <div>
+                                  <label className={styles.formLabel}>Reset password <span className={styles.req}>*</span></label>
+                                  <input className={styles.formInput} type="password"
+                                    placeholder="StudentDelete@123#"
+                                    value={dzPwdInput} onChange={e=>setDzPwdInput(e.target.value)}
+                                    autoComplete="off"
+                                    style={dzPwdInput && dzPwdInput===STUDENT_DELETE_PWD ? {borderColor:"#22c55e60"} : {}}/>
+                                </div>
+                                <label style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:13,fontWeight:600,color:"var(--text-secondary)",cursor:"pointer"}}>
+                                  <input type="checkbox" checked={dzAck} onChange={e=>setDzAck(e.target.checked)}
+                                    style={{marginTop:3,width:14,height:14}}/>
+                                  <span>I understand this permanently deletes this student and cannot be undone.</span>
+                                </label>
+                              </div>
+
+                              {dzExecError && (
+                                <div style={{padding:"10px 12px",borderRadius:10,background:"rgba(239,68,68,.08)",
+                                             border:"1px solid rgba(239,68,68,.30)",color:"#ef4444",fontSize:13,fontWeight:700}}>
+                                  ⚠ {dzExecError}
+                                </div>
+                              )}
+
+                              <div style={{display:"flex",justifyContent:"flex-end",gap:10}}>
+                                <motion.button className={styles.dangerDeleteBtn}
+                                  onClick={()=>setDzShowFinal(true)}
+                                  disabled={!dzCanDelete}
+                                  style={{opacity:dzCanDelete?1:0.45}}
+                                  whileHover={dzCanDelete?{scale:1.03}:{}}
+                                  whileTap={dzCanDelete?{scale:.96}:{}}>
+                                  {I.trash} Delete student permanently
+                                </motion.button>
                               </div>
                             </div>
-                            <motion.button className={styles.dangerDeleteBtn}
-                              onClick={del} whileHover={{scale:1.04}} whileTap={{scale:.96}}>
-                              {I.trash} Delete Account
-                            </motion.button>
-                          </div>
+                          )}
+
+                          {/* Success state after deletion */}
+                          {result.role === "student" && dzResult && (
+                            <div className={styles.dangerCard} style={{
+                              flexDirection:"column",alignItems:"stretch",gap:12,
+                              borderColor:"rgba(34,197,94,0.4)",
+                              background:"rgba(34,197,94,0.06)",
+                            }}>
+                              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                <div style={{width:36,height:36,borderRadius:11,
+                                  background:"linear-gradient(135deg,#15803d,#22c55e)",color:"#fff",
+                                  display:"flex",alignItems:"center",justifyContent:"center",
+                                  fontSize:".95rem",fontWeight:900}}>✓</div>
+                                <div>
+                                  <div style={{fontSize:".95rem",fontWeight:900,color:"#22c55e"}}>
+                                    Student permanently deleted
+                                  </div>
+                                  <div style={{fontSize:11.5,color:"var(--text-secondary)"}}>
+                                    Audit batch #{dzResult.auditId} · code <strong>#{dzResult.deletedStudentCode}</strong> · {dzResult.deletedStudentName}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{
+                                display:"grid",gap:6,
+                                gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))",
+                                fontSize:12,color:"var(--text-secondary)",
+                              }}>
+                                <div>Registrations: <strong>{dzResult.counts.registrationsRemoved}</strong></div>
+                                <div>Final grades: <strong>{dzResult.counts.finalGradesRemoved}</strong></div>
+                                <div>Midterm grades: <strong>{dzResult.counts.midtermGradesRemoved}</strong></div>
+                                <div>Submissions: <strong>{dzResult.counts.assignmentSubmissionsRemoved}</strong></div>
+                                <div>Submission files: <strong>{dzResult.counts.submissionFilesRemoved}</strong></div>
+                                <div>Quiz attempts: <strong>{dzResult.counts.quizAttemptsRemoved}</strong></div>
+                                <div>Quiz answers: <strong>{dzResult.counts.quizAnswersRemoved}</strong></div>
+                                <div>Notifications: <strong>{dzResult.counts.notificationsRemoved}</strong></div>
+                                <div>Course results: <strong>{dzResult.counts.courseResultsRemoved}</strong></div>
+                                <div>Semester GPAs: <strong>{dzResult.counts.semesterGpasRemoved}</strong></div>
+                                <div>Reset snapshots: <strong>{dzResult.counts.resetSnapshotsRemoved}</strong></div>
+                              </div>
+                              <div style={{display:"flex",justifyContent:"flex-end"}}>
+                                <button className={styles.btnGhost} onClick={dzReturnHome}>Done</button>
+                              </div>
+                            </div>
+                          )}
                         </div>
+
+                        {/* Final confirmation modal */}
+                        <AnimatePresence>
+                          {dzShowFinal && (
+                            <motion.div
+                              onClick={()=>!dzBusy && setDzShowFinal(false)}
+                              initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+                              style={{
+                                position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",backdropFilter:"blur(8px)",
+                                display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:16,
+                              }}>
+                              <motion.div
+                                onClick={e=>e.stopPropagation()}
+                                initial={{scale:0.9,y:18}} animate={{scale:1,y:0}} exit={{scale:0.95}}
+                                transition={sp}
+                                style={{
+                                  width:"min(440px, 100%)",background:"var(--card-bg)",
+                                  borderRadius:18,overflow:"hidden",
+                                  border:"1px solid var(--border)",boxShadow:"0 24px 60px rgba(0,0,0,0.32)",
+                                }}>
+                                <div style={{height:4,background:"linear-gradient(135deg,#b91c1c,#ef4444)"}}/>
+                                <div style={{padding:22}}>
+                                  <h3 style={{margin:"0 0 8px",fontSize:"1.1rem",fontWeight:800}}>
+                                    Final confirmation
+                                  </h3>
+                                  <p style={{margin:0,fontSize:13.5,color:"var(--text-secondary)",lineHeight:1.55}}>
+                                    Permanently delete student <strong>#{result.code}</strong> — {result.firstName} {result.lastName}?
+                                    This action cannot be undone.
+                                  </p>
+                                  <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:18}}>
+                                    <button onClick={()=>setDzShowFinal(false)} disabled={dzBusy}
+                                      className={styles.btnGhost}>Cancel</button>
+                                    <button onClick={dzExecute} disabled={dzBusy}
+                                      className={styles.dangerDeleteBtn}>
+                                      {dzBusy ? "Deleting…" : "Yes, delete permanently"}
+                                    </button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -1071,6 +1366,120 @@ export default function RegisterEmailPage() {
                         )}
                       </AnimatePresence>
                     </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {mode==="success"&&createdAccount&&(
+                <motion.div key="success" className={styles.successPane}
+                  initial={{opacity:0,scale:.96,y:20}} animate={{opacity:1,scale:1,y:0}}
+                  exit={{opacity:0,y:-14}} transition={{type:"spring",stiffness:360,damping:28}}>
+
+                  <div className={styles.successHeader}>
+                    <motion.div className={styles.successCheckBadge}
+                      initial={{scale:0}} animate={{scale:1}}
+                      transition={{delay:.08,type:"spring",stiffness:520,damping:22}}>
+                      {I.check}
+                    </motion.div>
+                    <div>
+                      <h2 className={styles.successTitle}>Account Created Successfully</h2>
+                      <p className={styles.successSub}>The new {(ROLES.find(r=>r.key===createdAccount.role)||ROLES[0]).label.toLowerCase()} account is ready.</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.successCard}>
+                    <div className={styles.successStrip} style={{background:(ROLES.find(r=>r.key===createdAccount.role)||ROLES[0]).bg}}>
+                      <div className={styles.successAvatar}>
+                        {createdAccount.firstName[0]}{createdAccount.lastName[0]}
+                      </div>
+                      <div className={styles.successNameBlock}>
+                        <span className={styles.successName}>{createdAccount.firstName} {createdAccount.lastName}</span>
+                        <span className={styles.successRoleBadge}>
+                          {(ROLES.find(r=>r.key===createdAccount.role)||ROLES[0]).icon} {(ROLES.find(r=>r.key===createdAccount.role)||ROLES[0]).label}
+                        </span>
+                      </div>
+                      <div className={styles.successActiveDot}><span/>Active</div>
+                    </div>
+
+                    <div className={styles.successFields}>
+                      <div className={styles.successCodeRow}>
+                        <span className={styles.successFieldLabel}>Academic Code</span>
+                        <div className={styles.successCodeValue}>
+                          <code className={styles.successCode}>{createdAccount.code}</code>
+                          <motion.button
+                            className={`${styles.successCopyBtn} ${copied==="sc_code"?styles.successCopyDone:""}`}
+                            onClick={()=>copyText(createdAccount.code,"sc_code")}
+                            whileHover={{scale:1.08}} whileTap={{scale:.92}}>
+                            <AnimatePresence mode="wait">
+                              {copied==="sc_code"
+                                ?<motion.span key="y" initial={{scale:0}} animate={{scale:1}} exit={{scale:0}}>{I.check}</motion.span>
+                                :<motion.span key="n" initial={{scale:0}} animate={{scale:1}} exit={{scale:0}}>{I.copy}</motion.span>}
+                            </AnimatePresence>
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      <div className={styles.successFieldRow}>
+                        <span className={styles.successFieldLabel}>University Email</span>
+                        <div className={styles.successFieldRight}>
+                          <span className={styles.successFieldMono}>{createdAccount.email}</span>
+                          <motion.button
+                            className={`${styles.successCopyBtn} ${copied==="sc_email"?styles.successCopyDone:""}`}
+                            onClick={()=>copyText(createdAccount.email,"sc_email")}
+                            whileHover={{scale:1.08}} whileTap={{scale:.92}}>
+                            <AnimatePresence mode="wait">
+                              {copied==="sc_email"
+                                ?<motion.span key="y" initial={{scale:0}} animate={{scale:1}} exit={{scale:0}}>{I.check}</motion.span>
+                                :<motion.span key="n" initial={{scale:0}} animate={{scale:1}} exit={{scale:0}}>{I.copy}</motion.span>}
+                            </AnimatePresence>
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      {createdAccount.password&&(
+                        <div className={styles.successFieldRow}>
+                          <span className={styles.successFieldLabel}>
+                            Password <span className={styles.successOnce}>(shown once)</span>
+                          </span>
+                          <div className={styles.successFieldRight}>
+                            <code className={styles.successFieldMono}>{createdAccount.password}</code>
+                            <motion.button
+                              className={`${styles.successCopyBtn} ${copied==="sc_pwd"?styles.successCopyDone:""}`}
+                              onClick={()=>copyText(createdAccount.password,"sc_pwd")}
+                              whileHover={{scale:1.08}} whileTap={{scale:.92}}>
+                              <AnimatePresence mode="wait">
+                                {copied==="sc_pwd"
+                                  ?<motion.span key="y" initial={{scale:0}} animate={{scale:1}} exit={{scale:0}}>{I.check}</motion.span>
+                                  :<motion.span key="n" initial={{scale:0}} animate={{scale:1}} exit={{scale:0}}>{I.copy}</motion.span>}
+                              </AnimatePresence>
+                            </motion.button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className={styles.successFieldRow}>
+                        <span className={styles.successFieldLabel}>Recovery Email</span>
+                        <span className={styles.successFieldVal}>{createdAccount.subEmail}</span>
+                      </div>
+
+                      <div className={styles.successFieldRow}>
+                        <span className={styles.successFieldLabel}>Created</span>
+                        <span className={styles.successFieldVal}>{createdAccount.createdAt}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.successActions}>
+                    <motion.button className={styles.btnCreate}
+                      style={{background:(ROLES.find(r=>r.key===createdAccount.role)||ROLES[0]).bg}}
+                      onClick={()=>{setCreatedAccount(null);setMode("create");setCreateStep(1);setCreateRole("student");}}
+                      whileHover={{scale:1.02,y:-2}} whileTap={{scale:.97}}>
+                      {I.plus} Create Another Account
+                    </motion.button>
+                    <button className={styles.btnGhost}
+                      onClick={()=>navigate('/admin/manage-users',{state:{autoSearchCode:createdAccount.code}})}>
+                      Open in Manage Users →
+                    </button>
                   </div>
                 </motion.div>
               )}

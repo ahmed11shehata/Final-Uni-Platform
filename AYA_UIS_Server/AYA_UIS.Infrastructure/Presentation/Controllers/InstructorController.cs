@@ -297,10 +297,17 @@ namespace Presentation.Controllers
         }
 
         // ══════════════════════════════════════════════════════════
-        //  PUT /api/instructor/assignments/{assignmentId}
+        //  PUT /api/instructor/assignments/{assignmentId}  (multipart/form-data)
+        //  Supports replacing the attachment file and explicit clearing.
+        //  Blocks Points changes once any submission has been graded.
         // ══════════════════════════════════════════════════════════
         [HttpPut("assignments/{assignmentId:int}")]
-        public async Task<IActionResult> UpdateAssignment(int assignmentId, [FromBody] CreateInstructorAssignmentDto dto)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateAssignment(
+            int assignmentId,
+            [FromForm] UpdateInstructorAssignmentDto dto,
+            IFormFile? attachmentFile,
+            [FromServices] ILocalFileService fileService)
         {
             if (dto == null) return BadRequest();
 
@@ -310,34 +317,77 @@ namespace Presentation.Controllers
             if (!await InstructorOwnsCourse(assignment.CourseId))
                 return Forbid();
 
+            bool hasGraded = await _unitOfWork.Assignments.HasGradedSubmissionAsync(assignmentId);
+
+            // Block changes that would invalidate already-issued grades.
+            if (hasGraded && dto.MaxGrade > 0 && dto.MaxGrade != assignment.Points)
+                return BadRequest(new
+                {
+                    success = false,
+                    error = new
+                    {
+                        code    = "POINTS_LOCKED",
+                        message = "This assignment already has graded submissions, so the maximum points cannot be changed. Other fields can still be updated."
+                    }
+                });
+
             if (!string.IsNullOrWhiteSpace(dto.Title))        assignment.Title       = dto.Title;
-            if (!string.IsNullOrWhiteSpace(dto.Description))  assignment.Description = dto.Description;
-            if (dto.MaxGrade > 0)                              assignment.Points      = dto.MaxGrade;
-            if (DateTime.TryParse(dto.Deadline, out var dl))  assignment.Deadline    = dl;
+            if (dto.Description != null)                       assignment.Description = dto.Description;
+            if (!hasGraded && dto.MaxGrade > 0)                assignment.Points      = dto.MaxGrade;
+            if (DateTime.TryParse(dto.Deadline, out var dl))   assignment.Deadline    = dl;
             if (!string.IsNullOrWhiteSpace(dto.ReleaseDate) && DateTime.TryParse(dto.ReleaseDate, out var rdu))
                 assignment.ReleaseDate = rdu.ToUniversalTime();
-            else if (dto.ReleaseDate == null)
-                assignment.ReleaseDate = null; // explicit clear → publish now
+            else if (dto.ClearReleaseDate)
+                assignment.ReleaseDate = null;
 
+            // ── Attachment handling ──
+            // 1) New file provided → delete old file (if any) then upload new
+            // 2) RemoveAttachment=true (no new file) → delete old file
+            // 3) Otherwise leave as-is
+            if (attachmentFile is not null)
+            {
+                if (!string.IsNullOrWhiteSpace(assignment.FileUrl))
+                    await fileService.DeleteFileByUrlAsync(assignment.FileUrl);
+
+                var fileId = Guid.NewGuid().ToString();
+                var newUrl = await fileService.UploadAssignmentFileAsync(
+                    attachmentFile, fileId, assignment.CourseId, HttpContext.RequestAborted);
+                assignment.FileUrl = newUrl ?? string.Empty;
+            }
+            else if (dto.RemoveAttachment)
+            {
+                if (!string.IsNullOrWhiteSpace(assignment.FileUrl))
+                    await fileService.DeleteFileByUrlAsync(assignment.FileUrl);
+                assignment.FileUrl = string.Empty;
+            }
+
+            await _unitOfWork.Assignments.UpdateAsync(assignment);
             await _unitOfWork.SaveChangesAsync();
 
             return Ok(new { success = true, data = new InstructorAssignmentDto
             {
-                Id          = assignment.Id.ToString(),
-                Title       = assignment.Title,
-                CourseId    = assignment.CourseId.ToString(),
-                Deadline    = assignment.Deadline.ToString("yyyy-MM-dd HH:mm"),
-                ReleaseDate = assignment.ReleaseDate?.ToString("yyyy-MM-dd HH:mm"),
-                MaxGrade    = assignment.Points,
-                Description = assignment.Description ?? "",
+                Id            = assignment.Id.ToString(),
+                Title         = assignment.Title,
+                CourseId      = assignment.CourseId.ToString(),
+                CourseCode    = assignment.Course?.Code ?? "",
+                CourseName    = assignment.Course?.Name ?? "",
+                Deadline      = assignment.Deadline.ToString("yyyy-MM-dd HH:mm"),
+                ReleaseDate   = assignment.ReleaseDate?.ToString("yyyy-MM-dd HH:mm"),
+                MaxGrade      = assignment.Points,
+                Description   = assignment.Description ?? "",
+                AttachmentUrl = string.IsNullOrWhiteSpace(assignment.FileUrl) ? null : assignment.FileUrl,
             }});
         }
 
         // ══════════════════════════════════════════════════════════
         //  DELETE /api/instructor/assignments/{assignmentId}
+        //  Hard-deletes the assignment, all submissions, and their files.
+        //  Coursework totals re-aggregate naturally on the next read.
         // ══════════════════════════════════════════════════════════
         [HttpDelete("assignments/{assignmentId:int}")]
-        public async Task<IActionResult> DeleteAssignment(int assignmentId)
+        public async Task<IActionResult> DeleteAssignment(
+            int assignmentId,
+            [FromServices] ILocalFileService fileService)
         {
             var assignment = await _unitOfWork.Assignments.GetByIdAsync(assignmentId);
             if (assignment == null) return NotFound();
@@ -345,9 +395,23 @@ namespace Presentation.Controllers
             if (!await InstructorOwnsCourse(assignment.CourseId))
                 return Forbid();
 
-            // IAssignmentRepository has no Delete — return informational response.
-            // To enable hard-delete, add DeleteAsync to IAssignmentRepository.
-            return Ok(new { success = true, message = "Assignment removed." });
+            // Load every submission (incl. "Cleared") so files on disk are also removed.
+            var allSubs = (assignment.Submissions ?? new List<AssignmentSubmission>()).ToList();
+            foreach (var sub in allSubs)
+            {
+                if (!string.IsNullOrWhiteSpace(sub.FileUrl))
+                    await fileService.DeleteFileByUrlAsync(sub.FileUrl);
+                await _unitOfWork.Assignments.DeleteSubmissionAsync(sub.Id);
+            }
+
+            // Remove instructor attachment file
+            if (!string.IsNullOrWhiteSpace(assignment.FileUrl))
+                await fileService.DeleteFileByUrlAsync(assignment.FileUrl);
+
+            await _unitOfWork.Assignments.DeleteAsync(assignment);
+            await _unitOfWork.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Assignment deleted.", data = new { id = assignmentId, removedSubmissions = allSubs.Count } });
         }
 
         // ══════════════════════════════════════════════════════════
@@ -502,6 +566,7 @@ namespace Presentation.Controllers
             if (!await InstructorOwnsCourse(courseId))
                 return Forbid();
 
+            var course  = await _unitOfWork.Courses.GetByIdAsync(courseId);
             var quizzes = await _unitOfWork.Quizzes.GetQuizzesByCourseId(courseId);
             var now = DateTime.UtcNow;
 
@@ -522,20 +587,144 @@ namespace Presentation.Controllers
 
                 result.Add(new InstructorQuizDto
                 {
-                    Id         = q.Id.ToString(),
-                    CourseId   = courseId.ToString(),
-                    Title      = q.Title,
-                    Duration   = (int)(q.EndTime - q.StartTime).TotalMinutes,
-                    Questions  = qCount,
-                    Status     = status,
-                    StartTime  = q.StartTime.ToString("yyyy-MM-dd HH:mm"),
-                    EndTime    = q.EndTime.ToString("yyyy-MM-dd HH:mm"),
+                    Id          = q.Id.ToString(),
+                    CourseId    = courseId.ToString(),
+                    CourseCode  = course?.Code ?? "",
+                    CourseName  = course?.Name ?? "",
+                    Title       = q.Title,
+                    Duration    = (int)(q.EndTime - q.StartTime).TotalMinutes,
+                    Questions   = qCount,
+                    Status      = status,
+                    StartTime   = q.StartTime.ToString("yyyy-MM-dd HH:mm"),
+                    EndTime     = q.EndTime.ToString("yyyy-MM-dd HH:mm"),
                     Submissions = attList.Count,
-                    AvgScore   = avg,
+                    AvgScore    = avg,
+                    HasAttempts = attList.Count > 0,
+                    // Attempt scores are stored as raw point counts (1 pt per question, by default),
+                    // so total points roughly equal the question count.
+                    TotalPoints = qCount,
                 });
             }
 
             return Ok(new { success = true, data = result });
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  PUT /api/instructor/courses/{courseId}/quizzes/{quizId}
+        //  When attempts exist → only Title/StartTime/EndTime are mutable; questions are frozen.
+        // ══════════════════════════════════════════════════════════
+        [HttpPut("courses/{courseId:int}/quizzes/{quizId:int}")]
+        public async Task<IActionResult> UpdateQuiz(
+            int courseId, int quizId, [FromBody] UpdateInstructorQuizDto dto)
+        {
+            if (!await InstructorOwnsCourse(courseId))
+                return Forbid();
+
+            var quiz = await _unitOfWork.Quizzes.GetQuizWithQuestionsAsync(quizId);
+            if (quiz == null || quiz.CourseId != courseId)
+                return NotFound(new { success = false, error = new { code = "QUIZ_NOT_FOUND", message = "Quiz not found." } });
+
+            if (dto == null) return BadRequest();
+
+            bool hasAttempts = await _unitOfWork.Quizzes.HasAttemptsAsync(quizId);
+
+            if (dto.Questions != null && dto.Questions.Count > 0 && hasAttempts)
+                return BadRequest(new
+                {
+                    success = false,
+                    error = new
+                    {
+                        code = "QUESTIONS_LOCKED",
+                        message = "Students have already attempted this quiz, so the question structure cannot be changed. Title and times can still be updated."
+                    }
+                });
+
+            // ── Metadata ──
+            if (!string.IsNullOrWhiteSpace(dto.Title)) quiz.Title = dto.Title;
+            if (dto.StartTime.HasValue) quiz.StartTime = dto.StartTime.Value.ToUniversalTime();
+            if (dto.EndTime.HasValue)   quiz.EndTime   = dto.EndTime.Value.ToUniversalTime();
+            if (quiz.EndTime <= quiz.StartTime)
+                return BadRequest(new { success = false, error = new { message = "EndTime must be after StartTime." } });
+
+            // ── Question structure replacement (only when no attempts) ──
+            // Wipe existing questions/options first so child rows are removed cleanly,
+            // then attach the new question set.
+            if (dto.Questions != null && dto.Questions.Count > 0 && !hasAttempts)
+            {
+                foreach (var oq in quiz.Questions.ToList())
+                {
+                    foreach (var opt in oq.Options.ToList())
+                        oq.Options.Remove(opt);
+                    quiz.Questions.Remove(oq);
+                }
+
+                foreach (var qDto in dto.Questions)
+                {
+                    if (string.IsNullOrWhiteSpace(qDto.Text)) continue;
+                    var question = new QuizQuestion
+                    {
+                        QuestionText = qDto.Text,
+                        Type         = AYA_UIS.Core.Domain.Enums.QuestionType.MCQ,
+                        Options      = new List<QuizOption>(),
+                    };
+                    for (int i = 0; i < qDto.Answers.Count; i++)
+                    {
+                        question.Options.Add(new QuizOption
+                        {
+                            Text      = qDto.Answers[i].Text,
+                            IsCorrect = i == qDto.Correct,
+                        });
+                    }
+                    quiz.Questions.Add(question);
+                }
+            }
+
+            await _unitOfWork.Quizzes.UpdateAsync(quiz);
+            await _unitOfWork.SaveChangesAsync();
+
+            var attempts = await _unitOfWork.Quizzes.GetAttemptsByQuizIdAsync(quizId);
+            var attList = attempts?.ToList() ?? new List<StudentQuizAttempt>();
+            var now = DateTime.UtcNow;
+
+            return Ok(new
+            {
+                success = true,
+                data = new InstructorQuizDto
+                {
+                    Id          = quiz.Id.ToString(),
+                    CourseId    = courseId.ToString(),
+                    Title       = quiz.Title,
+                    Duration    = (int)(quiz.EndTime - quiz.StartTime).TotalMinutes,
+                    Questions   = quiz.Questions?.Count ?? 0,
+                    Status      = now < quiz.StartTime ? "upcoming" : now <= quiz.EndTime ? "active" : "ended",
+                    StartTime   = quiz.StartTime.ToString("yyyy-MM-dd HH:mm"),
+                    EndTime     = quiz.EndTime.ToString("yyyy-MM-dd HH:mm"),
+                    Submissions = attList.Count,
+                    HasAttempts = attList.Count > 0,
+                    TotalPoints = quiz.Questions?.Count ?? 0,
+                }
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  DELETE /api/instructor/courses/{courseId}/quizzes/{quizId}
+        //  Hard-deletes quiz, questions, options, attempts, and answers.
+        //  Coursework totals re-aggregate on next read.
+        // ══════════════════════════════════════════════════════════
+        [HttpDelete("courses/{courseId:int}/quizzes/{quizId:int}")]
+        public async Task<IActionResult> DeleteQuiz(int courseId, int quizId)
+        {
+            if (!await InstructorOwnsCourse(courseId))
+                return Forbid();
+
+            var quiz = await _unitOfWork.Quizzes.GetQuizAsync(quizId);
+            if (quiz == null || quiz.CourseId != courseId)
+                return NotFound(new { success = false, error = new { code = "QUIZ_NOT_FOUND", message = "Quiz not found." } });
+
+            await _unitOfWork.Quizzes.DeleteAsync(quiz);
+            await _unitOfWork.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Quiz deleted.", data = new { id = quizId } });
         }
 
         // ══════════════════════════════════════════════════════════
@@ -778,6 +967,7 @@ namespace Presentation.Controllers
             if (!await InstructorOwnsCourse(courseId))
                 return Forbid();
 
+            var course  = await _unitOfWork.Courses.GetByIdAsync(courseId);
             var uploads = await _unitOfWork.CourseUploads.GetByCourseIdAsync(courseId);
             var dtos = uploads
                 .OrderByDescending(u => u.UploadedAt)
@@ -785,6 +975,7 @@ namespace Presentation.Controllers
                 {
                     Id          = u.Id.ToString(),
                     Title       = u.Title,
+                    Description = u.Description ?? "",
                     Type        = u.Type.ToString().ToLower(),
                     Url         = u.Url,
                     Date        = u.UploadedAt.ToString("MMM d, yyyy"),
@@ -792,10 +983,113 @@ namespace Presentation.Controllers
                     ReleaseDate = u.ReleaseDate.HasValue
                                     ? u.ReleaseDate.Value.ToString("yyyy-MM-dd")
                                     : null,
+                    Week        = u.Week,
+                    CourseCode  = course?.Code ?? "",
+                    CourseName  = course?.Name ?? "",
+                    FileName    = string.IsNullOrWhiteSpace(u.Url) ? null : Path.GetFileName(u.Url),
                 })
                 .ToList();
 
             return Ok(new { success = true, data = dtos });
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  PUT /api/instructor/courses/{courseId}/materials/{id}  (multipart)
+        //  Replacing the file deletes the old physical file.
+        // ══════════════════════════════════════════════════════════
+        [HttpPut("courses/{courseId:int}/materials/{materialId:int}")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateMaterial(
+            int courseId,
+            int materialId,
+            [FromForm] UpdateMaterialDto dto,
+            IFormFile? file,
+            [FromForm] string? releaseDate,
+            [FromForm] int? week,
+            [FromServices] ILocalFileService fileService)
+        {
+            if (!await InstructorOwnsCourse(courseId))
+                return Forbid();
+
+            var upload = await _unitOfWork.CourseUploads.GetByIdAsync(materialId);
+            if (upload == null || upload.CourseId != courseId)
+                return NotFound(new { success = false, error = new { code = "MATERIAL_NOT_FOUND", message = "Material not found." } });
+
+            var course = await _unitOfWork.Courses.GetByIdAsync(courseId);
+            if (course is null)
+                return NotFound(new { success = false, error = new { code = "COURSE_NOT_FOUND", message = "Course not found." } });
+
+            if (!string.IsNullOrWhiteSpace(dto?.Title))       upload.Title       = dto!.Title!;
+            if (dto?.Description != null)                      upload.Description = dto.Description;
+            if (!string.IsNullOrWhiteSpace(dto?.Type) &&
+                Enum.TryParse<UploadType>(dto!.Type, true, out var t)) upload.Type = t;
+            if (week.HasValue)                                 upload.Week        = week.Value;
+
+            if (!string.IsNullOrWhiteSpace(releaseDate) && DateTime.TryParse(releaseDate, out var rdParsed))
+                upload.ReleaseDate = rdParsed.ToUniversalTime();
+
+            // ── Replace file: delete old, upload new ──
+            if (file is not null)
+            {
+                if (!string.IsNullOrWhiteSpace(upload.Url))
+                    await fileService.DeleteFileByUrlAsync(upload.Url);
+
+                var fileId  = Guid.NewGuid().ToString();
+                var newUrl  = await fileService.UploadCourseFileAsync(file, fileId, course.Name, upload.Type, CancellationToken.None);
+                upload.FileId = fileId;
+                upload.Url    = newUrl ?? string.Empty;
+            }
+
+            await _unitOfWork.CourseUploads.Update(upload);
+            await _unitOfWork.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                data = new InstructorMaterialDto
+                {
+                    Id          = upload.Id.ToString(),
+                    Title       = upload.Title,
+                    Description = upload.Description ?? "",
+                    Type        = upload.Type.ToString().ToLower(),
+                    Url         = upload.Url,
+                    Date        = upload.UploadedAt.ToString("MMM d, yyyy"),
+                    Downloads   = 0,
+                    ReleaseDate = upload.ReleaseDate.HasValue
+                                    ? upload.ReleaseDate.Value.ToString("yyyy-MM-dd")
+                                    : null,
+                    Week        = upload.Week,
+                    CourseCode  = course.Code,
+                    CourseName  = course.Name,
+                    FileName    = string.IsNullOrWhiteSpace(upload.Url) ? null : Path.GetFileName(upload.Url),
+                }
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  DELETE /api/instructor/courses/{courseId}/materials/{id}
+        //  Hard-deletes the upload and removes the physical file.
+        // ══════════════════════════════════════════════════════════
+        [HttpDelete("courses/{courseId:int}/materials/{materialId:int}")]
+        public async Task<IActionResult> DeleteMaterial(
+            int courseId,
+            int materialId,
+            [FromServices] ILocalFileService fileService)
+        {
+            if (!await InstructorOwnsCourse(courseId))
+                return Forbid();
+
+            var upload = await _unitOfWork.CourseUploads.GetByIdAsync(materialId);
+            if (upload == null || upload.CourseId != courseId)
+                return NotFound(new { success = false, error = new { code = "MATERIAL_NOT_FOUND", message = "Material not found." } });
+
+            if (!string.IsNullOrWhiteSpace(upload.Url))
+                await fileService.DeleteFileByUrlAsync(upload.Url);
+
+            await _unitOfWork.CourseUploads.Delete(upload);
+            await _unitOfWork.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Material deleted.", data = new { id = materialId } });
         }
 
         [HttpPost("courses/{courseId:int}/materials")]

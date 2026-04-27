@@ -29,5 +29,10 @@ namespace Abstraction.Contracts
          int assignmentId,
          CancellationToken cancellationToken);
 
+        /// <summary>
+        /// Deletes a physical file previously returned as a public URL by one of the upload methods above.
+        /// Returns silently when the URL is null/empty, points outside wwwroot, or the file is already gone.
+        /// </summary>
+        Task DeleteFileByUrlAsync(string? publicUrl);
     }
 }

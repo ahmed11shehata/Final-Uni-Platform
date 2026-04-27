@@ -207,6 +207,77 @@ export const adminPublishAllFinalGrades = async () => {
   return res.data.data;
 };
 
+// ── Academic Year Reset ──────────────────────────────────────
+
+/**
+ * POST /api/admin/academic-reset/preview
+ * Read-only impact preview for the selected students.
+ * @param {{ studentIds?: string[], selectAll?: boolean }} dto
+ */
+export const academicResetPreview = async (dto) => {
+  const res = await api.post("/admin/academic-reset/preview", dto);
+  return res.data.data;
+};
+
+/**
+ * POST /api/admin/academic-reset/execute
+ * Mutates state. Backend validates confirmationText + resetPassword.
+ * @param {{
+ *   studentIds?: string[],
+ *   selectAll?: boolean,
+ *   confirmationText: string,
+ *   resetPassword: string,
+ *   forceReset?: boolean
+ * }} dto
+ */
+export const academicResetExecute = async (dto) => {
+  const res = await api.post("/admin/academic-reset/execute", dto);
+  return res.data.data;
+};
+
+// ── Permanent Student Delete (Email Manager → Danger Zone) ───
+
+/**
+ * GET /api/admin/student-delete/preview/{academicCode}
+ * Read-only — returns student preview info before deletion.
+ */
+export const studentDeletePreview = async (academicCode) => {
+  const res = await api.get(`/admin/student-delete/preview/${encodeURIComponent(academicCode)}`);
+  return res.data.data;
+};
+
+/**
+ * POST /api/admin/student-delete/execute
+ * Permanently deletes a student account and all rows tied to them.
+ * dto: { academicCode, confirmAcademicCode, password }
+ * Backend rejects unless password === "StudentDelete@123#".
+ */
+export const studentDeleteExecute = async (dto) => {
+  const res = await api.post("/admin/student-delete/execute", dto);
+  return res.data.data;
+};
+
+// ── Reset Material ───────────────────────────────────────────
+
+/**
+ * POST /api/admin/material-reset/preview
+ * @param {{ courseIds?: number[], selectAll?: boolean }} dto
+ */
+export const materialResetPreview = async (dto) => {
+  const res = await api.post("/admin/material-reset/preview", dto);
+  return res.data.data;
+};
+
+/**
+ * POST /api/admin/material-reset/execute
+ * dto must include: { courseIds?: number[], selectAll?: boolean, password: string }
+ * Backend rejects unless password === "Material@123#".
+ */
+export const materialResetExecute = async (dto) => {
+  const res = await api.post("/admin/material-reset/execute", dto);
+  return res.data.data;
+};
+
 // ── Instructor Control ────────────────────────────────────────
 
 /** GET /api/admin/instructor-control */

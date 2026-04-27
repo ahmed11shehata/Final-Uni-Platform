@@ -1,5 +1,6 @@
 // src/pages/admin/ManageUsers.jsx
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   getAdminStudent,
@@ -19,12 +20,13 @@ const YEAR_LABELS = ["", "1st Year", "2nd Year", "3rd Year", "4th Year"];
 const YEAR_COLORS = ["", "#818cf8", "#22c55e", "#f59e0b", "#ef4444"];
 
 const STANDING_META = {
-  excellent: { label: "Excellent", color: "#22c55e", bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.25)", maxCredits: 21 },
-  vgood:     { label: "Very Good", color: "#818cf8", bg: "rgba(129,140,248,0.08)", border: "rgba(129,140,248,0.25)", maxCredits: 18 },
-  good:      { label: "Good",      color: "#3b82f6", bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.25)", maxCredits: 18 },
-  pass:      { label: "Pass",      color: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.25)", maxCredits: 15 },
-  warning:   { label: "Warning",   color: "#f97316", bg: "rgba(249,115,22,0.08)", border: "rgba(249,115,22,0.25)", maxCredits: 12 },
-  probation: { label: "Probation", color: "#ef4444", bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.25)", maxCredits: 9  },
+  newStudent:{ label: "New Student", color: "#818cf8", bg: "rgba(129,140,248,0.10)", border: "rgba(129,140,248,0.30)", maxCredits: 21 },
+  excellent: { label: "Excellent",   color: "#22c55e", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.25)",  maxCredits: 21 },
+  vgood:     { label: "Very Good",   color: "#818cf8", bg: "rgba(129,140,248,0.08)",border: "rgba(129,140,248,0.25)", maxCredits: 21 },
+  good:      { label: "Good",        color: "#3b82f6", bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.25)", maxCredits: 18 },
+  pass:      { label: "Pass",        color: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.25)", maxCredits: 18 },
+  warning:   { label: "Warning",     color: "#f97316", bg: "rgba(249,115,22,0.08)", border: "rgba(249,115,22,0.25)", maxCredits: 12 },
+  probation: { label: "Probation",   color: "#ef4444", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.25)",  maxCredits: 9  },
 };
 
 const GRADE_MAP = {
@@ -87,6 +89,7 @@ const fadeUp = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0, transi
 
 // ── Root Component ───────────────────────────────────────────
 export default function ManageUsers() {
+  const location = useLocation();
   const [searchCode, setSearchCode] = useState("");
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -111,16 +114,15 @@ export default function ManageUsers() {
     }
   }, [showToast]);
 
-  // search accepts academic code entered by the admin
-  const handleSearch = async () => {
-    const code = searchCode.trim();
-    if (!code) return;
+  // core search logic — accepts explicit code so it can be called from effects
+  const searchByCode = useCallback(async (code) => {
+    if (!code?.trim()) return;
     setLoading(true);
     setNotFound(false);
     setStudentData(null);
     setView(null);
     try {
-      const data = await getAdminStudent(code); // backend accepts academic code or GUID
+      const data = await getAdminStudent(code.trim()); // backend accepts academic code or GUID
       setStudentData(data);
     } catch (e) {
       if (e.response?.status === 404 || e.message?.toLowerCase().includes("not found")) {
@@ -131,7 +133,18 @@ export default function ManageUsers() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
+
+  const handleSearch = () => searchByCode(searchCode);
+
+  // auto-search when navigated here from account creation (Email Manager)
+  useEffect(() => {
+    const code = location.state?.autoSearchCode;
+    if (code) {
+      setSearchCode(code);
+      searchByCode(code);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const studentId = studentData?.student?.id;
 
@@ -1016,14 +1029,22 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
           </div>
 
           <div className={styles.standingAlerts}>
-            {standing?.mustRetakeFirst && (
-              <div className={styles.standingAlertWarn}>Must retake failed courses first</div>
-            )}
-            {standing?.canOnlyRetake && (
-              <div className={styles.standingAlertDanger}>Can only register retake courses</div>
-            )}
-            {!standing?.mustRetakeFirst && !standing?.canOnlyRetake && (
-              <div className={styles.standingAlertInfo}>Registration rules look normal for this student.</div>
+            {standing?.isNewStudent ? (
+              <div className={styles.standingAlertInfo}>
+                New student — full 21-credit allowance, no GPA-based limits or retake rules apply yet.
+              </div>
+            ) : (
+              <>
+                {standing?.mustRetakeFirst && (
+                  <div className={styles.standingAlertWarn}>Must retake failed courses first</div>
+                )}
+                {standing?.canOnlyRetake && (
+                  <div className={styles.standingAlertDanger}>Can only register retake courses</div>
+                )}
+                {!standing?.mustRetakeFirst && !standing?.canOnlyRetake && (
+                  <div className={styles.standingAlertInfo}>Registration rules look normal for this student.</div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -1,8 +1,14 @@
 // src/pages/instructor/QuizBuilderPage.jsx
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import styles from "./QuizBuilderPage.module.css";
-import { getInstructorCourses, createQuiz } from "../../services/api/instructorApi";
+import {
+  createQuiz,
+  deleteQuiz,
+  getInstructorCourses,
+  getInstructorQuizzes,
+  updateQuiz,
+} from "../../services/api/instructorApi";
 
 const LETTERS = ["A", "B", "C", "D", "E", "F"];
 const spring = { type: "spring", stiffness: 320, damping: 28 };
@@ -557,6 +563,329 @@ function StepQuestions({ questions, setQuestions, color }) {
   );
 }
 
+/* ── Quiz cards / edit / delete ─────────────────────────────── */
+function QuizCard({ q, color, onEdit, onDelete }) {
+  const statusColor = q.status === "active" ? "#22c55e" : q.status === "upcoming" ? "#818cf8" : "#94a3b8";
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      style={{
+        position: "relative",
+        background: "var(--card-bg)",
+        border: "1px solid var(--border)",
+        borderRadius: 18,
+        padding: 18,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+      }}
+    >
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 3,
+        background: color, borderRadius: "18px 18px 0 0",
+      }} />
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{
+          padding: "3px 9px", borderRadius: 99, background: `${statusColor}18`, color: statusColor,
+          fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em",
+        }}>{q.status}</span>
+        {q.hasAttempts && (
+          <span style={{
+            padding: "3px 9px", borderRadius: 99, background: "rgba(245,158,11,0.12)", color: "#f59e0b",
+            fontSize: 11, fontWeight: 800,
+          }}>🔒 questions locked</span>
+        )}
+      </div>
+
+      <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary)" }}>
+        {q.title}
+      </h4>
+      {q.courseCode && (
+        <span style={{ fontSize: 12, fontWeight: 700, color }}>
+          {q.courseCode}{q.courseName ? ` · ${q.courseName}` : ""}
+        </span>
+      )}
+
+      <div style={{
+        display: "grid", gap: 6, gridTemplateColumns: "1fr 1fr",
+        background: "var(--hover-bg)", padding: "10px 12px", borderRadius: 12,
+      }}>
+        <div>
+          <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase",
+            letterSpacing: ".08em", color: "var(--text-muted)" }}>Start</span>
+          <div style={{ fontSize: 12.5, fontWeight: 700 }}>{q.startTime || "—"}</div>
+        </div>
+        <div>
+          <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase",
+            letterSpacing: ".08em", color: "var(--text-muted)" }}>End</span>
+          <div style={{ fontSize: 12.5, fontWeight: 700 }}>{q.endTime || "—"}</div>
+        </div>
+        <div>
+          <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase",
+            letterSpacing: ".08em", color: "var(--text-muted)" }}>Questions</span>
+          <div style={{ fontSize: 12.5, fontWeight: 700 }}>{q.questions ?? 0}</div>
+        </div>
+        <div>
+          <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase",
+            letterSpacing: ".08em", color: "var(--text-muted)" }}>Total pts</span>
+          <div style={{ fontSize: 12.5, fontWeight: 700 }}>{q.totalPoints ?? q.questions ?? "—"}</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 8 }}>
+        <button type="button" onClick={() => onEdit(q)}
+          style={{
+            padding: "8px 14px", borderRadius: 10, cursor: "pointer",
+            border: "1px solid var(--border)", background: "var(--hover-bg)",
+            color: "var(--text-primary)", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+          }}>
+          ✎ Update
+        </button>
+        <button type="button" onClick={() => onDelete(q)}
+          style={{
+            padding: "8px 14px", borderRadius: 10, cursor: "pointer",
+            border: "1.5px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)",
+            color: "#ef4444", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+          }}>
+          🗑 Delete
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function ConfirmModal({ title, body, onConfirm, onClose, busy }) {
+  return (
+    <motion.div
+      onClick={onClose}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16,
+      }}
+    >
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.92, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
+        transition={spring}
+        style={{
+          width: "min(440px, 100%)", background: "var(--card-bg)",
+          borderRadius: 18, overflow: "hidden",
+          border: "1px solid var(--border)", boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
+        }}>
+        <div style={{ height: 4, background: "linear-gradient(135deg,#b91c1c,#ef4444)" }} />
+        <div style={{ padding: 22 }}>
+          <h3 style={{ margin: "0 0 8px", fontSize: "1.1rem", fontWeight: 800 }}>{title}</h3>
+          <p style={{ margin: 0, fontSize: 13.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
+            {body}
+          </p>
+          <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "flex-end" }}>
+            <button type="button" onClick={onClose} disabled={busy}
+              style={{
+                padding: "10px 16px", borderRadius: 11, cursor: "pointer",
+                border: "1px solid var(--border)", background: "var(--hover-bg)",
+                color: "var(--text-primary)", fontFamily: "inherit", fontSize: 13, fontWeight: 700,
+              }}>Cancel</button>
+            <button type="button" onClick={onConfirm} disabled={busy}
+              style={{
+                padding: "10px 16px", borderRadius: 11, cursor: "pointer", border: "none",
+                background: "linear-gradient(135deg,#b91c1c,#ef4444)", color: "#fff",
+                fontFamily: "inherit", fontSize: 13, fontWeight: 800,
+              }}>{busy ? "Deleting…" : "🗑 Delete"}</button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function EditQuizModal({ quiz, courseId, color, onClose, onSaved }) {
+  const [title, setTitle]   = useState(quiz?.title ?? "");
+  const [startStr, setStart] = useState(() => (quiz?.startTime ? quiz.startTime.replace(" ", "T") : ""));
+  const [endStr, setEnd]   = useState(() => (quiz?.endTime ? quiz.endTime.replace(" ", "T") : ""));
+  const [busy, setBusy]    = useState(false);
+
+  const locked = !!quiz?.hasAttempts;
+
+  const submit = async () => {
+    if (!title.trim() || !startStr || !endStr) return;
+    setBusy(true);
+    try {
+      await updateQuiz(courseId, quiz.id, {
+        title,
+        startTime: new Date(startStr).toISOString(),
+        endTime: new Date(endStr).toISOString(),
+        // questions intentionally omitted — keep existing structure
+      });
+      onSaved?.();
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || "Update failed");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <motion.div
+      onClick={onClose}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16, overflowY: "auto",
+      }}>
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.94, y: 18 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96 }}
+        transition={spring}
+        style={{
+          width: "min(560px, 100%)", background: "var(--card-bg)",
+          borderRadius: 20, overflow: "hidden",
+          border: "1px solid var(--border)", boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
+        }}>
+        <div style={{ height: 4, background: color }} />
+        <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
+          <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800 }}>Edit quiz</h3>
+
+          {locked && (
+            <div style={{
+              padding: "10px 13px", borderRadius: 12,
+              background: "rgba(245,158,11,0.10)",
+              border: "1px solid rgba(245,158,11,0.32)",
+              color: "#b45309", fontSize: 12.5, fontWeight: 700, lineHeight: 1.5,
+            }}>
+              Students have already attempted this quiz, so the question structure is frozen. You can still update the
+              title and start/end times.
+            </div>
+          )}
+
+          <div>
+            <label className={styles.fieldLabel}>Title</label>
+            <input className={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label className={styles.fieldLabel}>Start (ISO)</label>
+              <input type="datetime-local" className={styles.input}
+                     value={startStr} onChange={(e) => setStart(e.target.value)} />
+            </div>
+            <div>
+              <label className={styles.fieldLabel}>End (ISO)</label>
+              <input type="datetime-local" className={styles.input}
+                     value={endStr} onChange={(e) => setEnd(e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", paddingTop: 4 }}>
+            <button type="button" onClick={onClose} disabled={busy}
+              style={{
+                padding: "10px 16px", borderRadius: 11, cursor: "pointer",
+                border: "1px solid var(--border)", background: "var(--hover-bg)",
+                color: "var(--text-primary)", fontFamily: "inherit", fontSize: 13, fontWeight: 700,
+              }}>Cancel</button>
+            <button type="button" onClick={submit} disabled={busy || !title.trim() || !startStr || !endStr}
+              style={{
+                padding: "10px 18px", borderRadius: 11, cursor: "pointer", border: "none",
+                background: color, color: "#fff", fontFamily: "inherit", fontSize: 13, fontWeight: 800,
+                opacity: title.trim() && startStr && endStr ? 1 : 0.5,
+              }}>{busy ? "Saving…" : "Save changes"}</button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function QuizList({ courseId, color, refreshKey, onChanged }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const reload = useCallback(async () => {
+    if (!courseId) return;
+    setLoading(true);
+    try {
+      const list = await getInstructorQuizzes(courseId);
+      setItems(Array.isArray(list) ? list : []);
+    } catch { setItems([]); }
+    finally { setLoading(false); }
+  }, [courseId]);
+
+  useEffect(() => { reload(); }, [reload, refreshKey]);
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setBusy(true);
+    try {
+      await deleteQuiz(courseId, deleting.id);
+      setItems((prev) => prev.filter((q) => q.id !== deleting.id));
+      setDeleting(null);
+      onChanged?.();
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || "Delete failed");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <section className={styles.panel}>
+      <div className={styles.sectionHead}>
+        <div>
+          <span className={styles.sectionKicker}>Library</span>
+          <h2 className={styles.sectionTitle}>Existing quizzes</h2>
+          <p className={styles.sectionText}>
+            All quizzes you have published in this course. Update title/time, or delete the quiz entirely.
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>
+      ) : items.length === 0 ? (
+        <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13.5 }}>
+          No quizzes yet. Use the builder above to publish your first one.
+        </div>
+      ) : (
+        <div style={{
+          display: "grid", gap: 14,
+          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        }}>
+          <AnimatePresence>
+            {items.map((q) => (
+              <QuizCard key={q.id} q={q} color={color}
+                        onEdit={setEditing} onDelete={setDeleting} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {editing && (
+          <EditQuizModal
+            quiz={editing}
+            courseId={courseId}
+            color={color}
+            onClose={() => setEditing(null)}
+            onSaved={() => { setEditing(null); reload(); onChanged?.(); }}
+          />
+        )}
+        {deleting && (
+          <ConfirmModal
+            title="Delete quiz?"
+            body={`"${deleting.title}" will be permanently removed. All questions, options, and student attempts will be deleted and coursework totals recalculated.`}
+            onClose={() => setDeleting(null)}
+            onConfirm={handleDelete}
+            busy={busy}
+          />
+        )}
+      </AnimatePresence>
+    </section>
+  );
+}
+
 export default function QuizBuilderPage() {
   const [courses, setCourses] = useState([]);
   const [courseId, setCourseId] = useState(null);
@@ -575,6 +904,7 @@ export default function QuizBuilderPage() {
     shuffleA: false,
   });
   const [questions, setQuestions] = useState([makeQ()]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     getInstructorCourses()
@@ -613,6 +943,7 @@ export default function QuizBuilderPage() {
       };
       await createQuiz(courseId, dto);
       setDone(true);
+      setRefreshKey((k) => k + 1);
     } catch (e) {
       alert(e?.response?.data?.error?.message || "Failed to publish quiz");
     } finally {
@@ -762,6 +1093,13 @@ export default function QuizBuilderPage() {
                 )}
               </AnimatePresence>
             </div>
+
+            <QuizList
+              courseId={courseId}
+              color={currentCourse.color}
+              refreshKey={refreshKey}
+              onChanged={() => setRefreshKey((k) => k + 1)}
+            />
 
             <div className={styles.footerBar}>
               <div className={styles.footerInfo}>

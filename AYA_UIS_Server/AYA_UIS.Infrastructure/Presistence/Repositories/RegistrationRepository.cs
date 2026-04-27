@@ -24,8 +24,11 @@ namespace Presistence.Repositories
 
         public async Task<IEnumerable<Registration>> GetByCourseIdAsync(int courseId)
         {
+            // Excludes archived rows so instructor / admin "current course roster"
+            // views never surface registrations that were archived by an Academic
+            // Year Reset. Historical lookups should use GetByUserIdAsync instead.
             return await _dbContext.Registrations
-                .Where(r => r.CourseId == courseId)
+                .Where(r => r.CourseId == courseId && !r.IsArchived)
                 .AsNoTracking()
                 .ToListAsync();
         }

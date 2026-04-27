@@ -1581,3 +1581,250 @@
 .pill, .assignmentChip, .maxEdit, .mCancel {
   background: linear-gradient(180deg, color-mix(in srgb, var(--hover-bg) 90%, white 2%), color-mix(in srgb, var(--card-bg) 97%, black 1%));
 }
+
+
+/* ───────────────────────────────────────────────────────────
+   Instructor grading polish: compact tabs + stable final grade
+   ─────────────────────────────────────────────────────────── */
+.tabRow {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tab {
+  min-height: 86px;
+  border-radius: 18px;
+}
+
+.tabInner {
+  min-height: 86px;
+  padding: 14px 15px;
+  gap: 10px;
+}
+
+.tabIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  font-size: 1.12rem;
+}
+
+.tabTitle {
+  margin-bottom: 4px;
+  font-size: 0.88rem;
+}
+
+.tabSub {
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.tabStats {
+  gap: 6px;
+}
+
+.tabStat {
+  min-width: 46px;
+  padding: 7px 6px;
+  border-radius: 12px;
+}
+
+.tabStatVal {
+  font-size: 0.82rem;
+}
+
+.tabStatLabel {
+  font-size: 0.5rem;
+}
+
+.finalBody {
+  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+  gap: 16px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, #a855f7 8%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, var(--card-bg) 98%, transparent), color-mix(in srgb, var(--hover-bg) 72%, transparent));
+}
+
+.finalLeft,
+.finalRight {
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
+}
+
+.finalLeft {
+  padding: 18px;
+  border-right: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+.finalRight {
+  padding: 20px 18px;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: center;
+}
+
+.finalSectionTitle {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #a855f7 10%, var(--card-bg));
+  color: color-mix(in srgb, #a855f7 78%, var(--text-primary));
+  font-size: 0.66rem;
+  letter-spacing: 0.09em;
+  margin-bottom: 8px;
+}
+
+.finalRow {
+  min-height: 38px;
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--hover-bg) 58%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+}
+
+.finalRow + .finalRow {
+  margin-top: 7px;
+}
+
+.finalRowLabel,
+.finalRowVal {
+  font-size: 0.8rem;
+}
+
+.finalRowVal strong {
+  font-size: 0.95rem;
+}
+
+.finalDivider {
+  margin: 10px 2px;
+  background: color-mix(in srgb, #a855f7 22%, var(--border));
+}
+
+.finalCircleWrap {
+  width: 126px;
+  height: 126px;
+  margin: 0 auto 10px;
+}
+
+.finalLetterLabel {
+  width: fit-content;
+  margin: 0 auto 12px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 10%, var(--card-bg));
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.finalRight .entryLabel {
+  justify-content: center;
+  letter-spacing: 0.08em;
+}
+
+.finalRight .entryRow {
+  justify-content: center;
+  gap: 10px;
+}
+
+.finalRight .gradeIn {
+  width: 120px;
+  min-height: 64px;
+  border-radius: 16px;
+  font-size: 1.75rem;
+}
+
+.readOnlyGrade {
+  width: min(100%, 190px);
+  min-height: 64px;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 20% 20%, color-mix(in srgb, currentColor 13%, transparent), transparent 34%),
+    color-mix(in srgb, var(--card-bg) 94%, transparent);
+}
+
+.readOnlyGrade strong {
+  font-size: 1.78rem;
+}
+
+.finalSavedMeta {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 2px 0 4px;
+}
+
+.finalSavedMeta span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hover-bg) 74%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.bonusToggle {
+  background: color-mix(in srgb, #a855f7 10%, var(--card-bg));
+  border: 1px solid color-mix(in srgb, #a855f7 18%, transparent);
+  font-weight: 800;
+}
+
+.bonusIn {
+  width: 64px;
+  min-height: 34px;
+  border-radius: 10px;
+  font-weight: 900;
+}
+
+.bonusHint {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #f97316 9%, var(--card-bg));
+  border: 1px solid rgba(249, 115, 22, 0.18);
+}
+
+@media (max-width: 1080px) {
+  .tabRow {
+    grid-template-columns: repeat(3, minmax(190px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+}
+
+@media (max-width: 760px) {
+  .tabRow {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .tab {
+    min-width: 220px;
+  }
+
+  .finalBody {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .finalLeft {
+    border-right: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+    padding: 15px;
+  }
+
+  .finalRight {
+    padding: 16px 14px;
+  }
+}

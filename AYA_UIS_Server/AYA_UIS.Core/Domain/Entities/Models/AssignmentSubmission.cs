@@ -31,5 +31,11 @@ namespace AYA_UIS.Core.Domain.Entities.Models
         /// Max = 4.
         /// </summary>
         public int AttemptCount { get; set; } = 1;
+
+        // ── Reset Material file purge marker ──────────────────────
+        // When set, the physical submission file has been removed from storage
+        // (FileUrl is also set empty). Status/Grade/Feedback are preserved
+        // so historical grade integrity is intact.
+        public DateTime? FilePurgedAt { get; set; }
     }
 }

@@ -257,6 +257,9 @@ namespace AYA_UIS.API
             builder.Services.AddScoped<IAdminService, AdminService>();
             builder.Services.AddScoped<IStudentRegistrationService, StudentRegistrationService>();
             builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddScoped<IAcademicYearResetService, AcademicYearResetService>();
+            builder.Services.AddScoped<IMaterialResetService, MaterialResetService>();
+            builder.Services.AddScoped<IStudentDeletionService, StudentDeletionService>();
             builder.Services.AddHostedService<NotificationCleanupService>();
 
             // Token blocklist for logout support (singleton — shared state across requests)
@@ -423,6 +426,77 @@ namespace AYA_UIS.API
                     END
                 ");
 
+                // ── Academic Year Reset: archive flags on Registrations ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Registrations', 'IsArchived') IS NULL
+                        ALTER TABLE dbo.Registrations ADD IsArchived BIT NOT NULL CONSTRAINT DF_Registrations_IsArchived DEFAULT 0;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Registrations', 'ArchivedAt') IS NULL
+                        ALTER TABLE dbo.Registrations ADD ArchivedAt DATETIME2 NULL;
+                ");
+
+                // ── AcademicYearResets (audit log) ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.TABLES
+                        WHERE TABLE_NAME = 'AcademicYearResets')
+                    BEGIN
+                        CREATE TABLE [AcademicYearResets] (
+                            [Id]                    INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [AdminId]               NVARCHAR(450)     NOT NULL,
+                            [ExecutedAt]            DATETIME2         NOT NULL,
+                            [StudentsCount]         INT               NOT NULL DEFAULT 0,
+                            [ForceReset]            BIT               NOT NULL DEFAULT 0,
+                            [SelectAll]             BIT               NOT NULL DEFAULT 0,
+                            [SourceStudyYearId]     INT               NULL,
+                            [SourceSemesterId]      INT               NULL,
+                            [TargetStudyYearId]     INT               NULL,
+                            [TargetSemesterId]      INT               NULL,
+                            [SourceTerm]            NVARCHAR(MAX)     NULL,
+                            [TargetTerm]            NVARCHAR(MAX)     NULL,
+                            [ArchivedRegistrations] INT               NOT NULL DEFAULT 0,
+                            [PassedCount]           INT               NOT NULL DEFAULT 0,
+                            [FailedCount]           INT               NOT NULL DEFAULT 0,
+                            [UnassignedFailedCount] INT               NOT NULL DEFAULT 0,
+                            [FinalGradesPurged]     INT               NOT NULL DEFAULT 0,
+                            [QuizAttemptsPurged]    INT               NOT NULL DEFAULT 0,
+                            [SubmissionsPurged]     INT               NOT NULL DEFAULT 0,
+                            [MidtermsPurged]        INT               NOT NULL DEFAULT 0,
+                            [NotificationsSent]     INT               NOT NULL DEFAULT 0,
+                            [SummaryJson]           NVARCHAR(MAX)     NULL
+                        );
+                    END
+                ");
+
+                // ── AcademicYearResetSnapshots (per-student JSON backup) ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.TABLES
+                        WHERE TABLE_NAME = 'AcademicYearResetSnapshots')
+                    BEGIN
+                        CREATE TABLE [AcademicYearResetSnapshots] (
+                            [Id]                 INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [ResetId]            INT               NOT NULL,
+                            [StudentId]          NVARCHAR(450)     NOT NULL,
+                            [CapturedAt]         DATETIME2         NOT NULL,
+                            [SourceLevel]        NVARCHAR(MAX)     NULL,
+                            [SourceSemester]     NVARCHAR(MAX)     NULL,
+                            [TargetLevel]        NVARCHAR(MAX)     NULL,
+                            [TargetSemester]     NVARCHAR(MAX)     NULL,
+                            [RegistrationsCount] INT               NOT NULL DEFAULT 0,
+                            [FinalGradesCount]   INT               NOT NULL DEFAULT 0,
+                            [SubmissionsCount]   INT               NOT NULL DEFAULT 0,
+                            [QuizAttemptsCount]  INT               NOT NULL DEFAULT 0,
+                            [PayloadJson]        NVARCHAR(MAX)     NOT NULL DEFAULT '{{}}'
+                        );
+                        CREATE INDEX [IX_AcademicYearResetSnapshots_ResetId]
+                            ON [AcademicYearResetSnapshots] ([ResetId]);
+                        CREATE INDEX [IX_AcademicYearResetSnapshots_StudentId]
+                            ON [AcademicYearResetSnapshots] ([StudentId]);
+                    END
+                ");
+
                 // ── FinalGradeReviews table (admin classification Progress / NotCompleted / Completed) ──
                 await db.Database.ExecuteSqlRawAsync(@"
                     IF NOT EXISTS (
@@ -439,6 +513,118 @@ namespace AYA_UIS.API
                         );
                         CREATE UNIQUE INDEX [IX_FinalGradeReviews_Student_Term]
                             ON [FinalGradeReviews] ([StudentId], [StudyYearId], [SemesterId]);
+                    END
+                ");
+
+                // ── Reset Material soft-delete columns on Assignments ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Assignments', 'IsArchived') IS NULL
+                        ALTER TABLE dbo.Assignments ADD IsArchived BIT NOT NULL CONSTRAINT DF_Assignments_IsArchived DEFAULT 0;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Assignments', 'DeletedAt') IS NULL
+                        ALTER TABLE dbo.Assignments ADD DeletedAt DATETIME2 NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Assignments', 'DeletedById') IS NULL
+                        ALTER TABLE dbo.Assignments ADD DeletedById NVARCHAR(450) NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Assignments', 'ResetBatchId') IS NULL
+                        ALTER TABLE dbo.Assignments ADD ResetBatchId INT NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Assignments', 'FilePurgedAt') IS NULL
+                        ALTER TABLE dbo.Assignments ADD FilePurgedAt DATETIME2 NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Assignments', 'ContentPurgedAt') IS NULL
+                        ALTER TABLE dbo.Assignments ADD ContentPurgedAt DATETIME2 NULL;
+                ");
+
+                // ── AssignmentSubmissions: only file-purge marker (rows + grades preserved) ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.AssignmentSubmissions', 'FilePurgedAt') IS NULL
+                        ALTER TABLE dbo.AssignmentSubmissions ADD FilePurgedAt DATETIME2 NULL;
+                ");
+
+                // ── Reset Material soft-delete columns on Quizzes ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Quizzes', 'IsArchived') IS NULL
+                        ALTER TABLE dbo.Quizzes ADD IsArchived BIT NOT NULL CONSTRAINT DF_Quizzes_IsArchived DEFAULT 0;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Quizzes', 'DeletedAt') IS NULL
+                        ALTER TABLE dbo.Quizzes ADD DeletedAt DATETIME2 NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Quizzes', 'DeletedById') IS NULL
+                        ALTER TABLE dbo.Quizzes ADD DeletedById NVARCHAR(450) NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Quizzes', 'ResetBatchId') IS NULL
+                        ALTER TABLE dbo.Quizzes ADD ResetBatchId INT NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Quizzes', 'FilePurgedAt') IS NULL
+                        ALTER TABLE dbo.Quizzes ADD FilePurgedAt DATETIME2 NULL;
+                ");
+
+                // ── MaterialResets (audit log for the Admin Reset Material feature) ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.TABLES
+                        WHERE TABLE_NAME = 'MaterialResets')
+                    BEGIN
+                        CREATE TABLE [MaterialResets] (
+                            [Id]                       INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [CreatedById]              NVARCHAR(450)     NOT NULL,
+                            [CreatedAt]                DATETIME2         NOT NULL,
+                            [SelectedCourseCount]      INT               NOT NULL DEFAULT 0,
+                            [AssignmentCount]          INT               NOT NULL DEFAULT 0,
+                            [QuizCount]                INT               NOT NULL DEFAULT 0,
+                            [LectureCount]             INT               NOT NULL DEFAULT 0,
+                            [SubmissionFilePurgedCount]INT               NOT NULL DEFAULT 0,
+                            [InstructorsNotified]      INT               NOT NULL DEFAULT 0,
+                            [Status]                   NVARCHAR(50)      NOT NULL DEFAULT 'completed',
+                            [ErrorMessage]             NVARCHAR(MAX)     NULL,
+                            [SummaryJson]              NVARCHAR(MAX)     NULL
+                        );
+                    END
+                ");
+
+                // ── StudentDeletionAudits (audit log for permanent student delete) ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.TABLES
+                        WHERE TABLE_NAME = 'StudentDeletionAudits')
+                    BEGIN
+                        CREATE TABLE [StudentDeletionAudits] (
+                            [Id]                            INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [DeletedAt]                     DATETIME2         NOT NULL,
+                            [DeletedByAdminId]              NVARCHAR(450)     NOT NULL,
+                            [DeletedStudentCode]            NVARCHAR(64)      NOT NULL,
+                            [DeletedStudentName]            NVARCHAR(256)     NOT NULL,
+                            [DeletedStudentEmail]           NVARCHAR(256)     NULL,
+                            [RegistrationsRemoved]          INT NOT NULL DEFAULT 0,
+                            [FinalGradesRemoved]            INT NOT NULL DEFAULT 0,
+                            [MidtermGradesRemoved]          INT NOT NULL DEFAULT 0,
+                            [FinalGradeReviewsRemoved]      INT NOT NULL DEFAULT 0,
+                            [AssignmentSubmissionsRemoved]  INT NOT NULL DEFAULT 0,
+                            [SubmissionFilesRemoved]        INT NOT NULL DEFAULT 0,
+                            [QuizAttemptsRemoved]           INT NOT NULL DEFAULT 0,
+                            [QuizAnswersRemoved]            INT NOT NULL DEFAULT 0,
+                            [NotificationsRemoved]          INT NOT NULL DEFAULT 0,
+                            [CourseResultsRemoved]          INT NOT NULL DEFAULT 0,
+                            [SemesterGpasRemoved]           INT NOT NULL DEFAULT 0,
+                            [UserStudyYearsRemoved]         INT NOT NULL DEFAULT 0,
+                            [CourseExceptionsRemoved]       INT NOT NULL DEFAULT 0,
+                            [AdminCourseLocksRemoved]       INT NOT NULL DEFAULT 0,
+                            [ResetSnapshotsRemoved]         INT NOT NULL DEFAULT 0,
+                            [OtpRowsRemoved]                INT NOT NULL DEFAULT 0,
+                            [Status]                        NVARCHAR(50)  NOT NULL DEFAULT 'completed',
+                            [ErrorMessage]                  NVARCHAR(MAX) NULL
+                        );
                     END
                 ");
             }

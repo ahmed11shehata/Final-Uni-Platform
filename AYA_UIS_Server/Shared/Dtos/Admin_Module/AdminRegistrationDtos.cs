@@ -166,6 +166,9 @@ namespace Shared.Dtos.Admin_Module
 
         [JsonPropertyName("canOnlyRetake")]
         public bool CanOnlyRetake { get; set; }
+
+        [JsonPropertyName("isNewStudent")]
+        public bool IsNewStudent { get; set; }
     }
 
     public class AdminStudentCourseDto

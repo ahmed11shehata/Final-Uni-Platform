@@ -51,5 +51,9 @@ namespace Presistence
         public DbSet<MidtermGrade>                   MidtermGrades                   { get; set; }
         public DbSet<FinalGrade>                     FinalGrades                     { get; set; }
         public DbSet<FinalGradeReview>               FinalGradeReviews               { get; set; }
+        public DbSet<AcademicYearReset>              AcademicYearResets              { get; set; }
+        public DbSet<AcademicYearResetSnapshot>      AcademicYearResetSnapshots      { get; set; }
+        public DbSet<MaterialReset>                  MaterialResets                  { get; set; }
+        public DbSet<StudentDeletionAudit>           StudentDeletionAudits           { get; set; }
     }
 }

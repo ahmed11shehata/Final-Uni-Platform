@@ -19,6 +19,12 @@ namespace AYA_UIS.Core.Domain.Entities.Models
         public Course? Course { get; set; }
 
         public ICollection<QuizQuestion> Questions { get; set; } = new List<QuizQuestion>();
-           
+
+        // ── Reset Material soft-delete fields ─────────────────────
+        public bool      IsArchived   { get; set; }
+        public DateTime? DeletedAt    { get; set; }
+        public string?   DeletedById  { get; set; }
+        public int?      ResetBatchId { get; set; }
+        public DateTime? FilePurgedAt { get; set; }
     }
 }

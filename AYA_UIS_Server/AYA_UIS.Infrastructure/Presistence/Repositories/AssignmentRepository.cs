@@ -27,7 +27,7 @@ namespace Presistence.Repositories
                 .Include(a => a.Course)
                 .Include(a => a.CreatedBy)
                 .Include(a => a.Submissions)
-                .Where(a => a.CourseId == courseId)
+                .Where(a => a.CourseId == courseId && !a.IsArchived)
                 .AsNoTracking()
                 .ToListAsync();
 
@@ -54,7 +54,7 @@ namespace Presistence.Repositories
             => await _context.Assignments
                 .Include(a => a.Submissions)
                     .ThenInclude(s => s.Student)
-                .Where(a => a.CourseId == courseId)
+                .Where(a => a.CourseId == courseId && !a.IsArchived)
                 .AsNoTracking()
                 .ToListAsync();
 
@@ -73,5 +73,23 @@ namespace Presistence.Repositories
             var sub = await _context.AssignmentSubmissions.FindAsync(submissionId);
             if (sub != null) _context.AssignmentSubmissions.Remove(sub);
         }
+
+        public Task UpdateAsync(Assignment assignment)
+        {
+            _context.Assignments.Update(assignment);
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(Assignment assignment)
+        {
+            _context.Assignments.Remove(assignment);
+            return Task.CompletedTask;
+        }
+
+        public async Task<bool> HasGradedSubmissionAsync(int assignmentId)
+            => await _context.AssignmentSubmissions
+                .AnyAsync(s => s.AssignmentId == assignmentId &&
+                               s.Status != "Cleared" &&
+                               s.Grade != null);
     }
 }

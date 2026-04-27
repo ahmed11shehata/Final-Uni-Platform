@@ -14,5 +14,11 @@ namespace Domain.Contracts
         Task AddAttemptAsync(StudentQuizAttempt attempt);
         Task<IEnumerable<StudentQuizAttempt>> GetAttemptsByQuizIdAsync(int quizId);
         Task<StudentQuizAttempt?> GetStudentAttemptAsync(int quizId, string studentId);
+
+        Task UpdateAsync(Quiz quiz);
+        /// <summary>Hard-deletes the quiz with all questions/options/attempts/answers.</summary>
+        Task DeleteAsync(Quiz quiz);
+        /// <summary>True if at least one student has submitted an attempt for this quiz.</summary>
+        Task<bool> HasAttemptsAsync(int quizId);
     }
 }

@@ -27,12 +27,18 @@ function isDeadlinePassed(deadline) {
   return new Date(deadline) < new Date();
 }
 
+/** Backend returns `submissionsCount` (plural). Older shapes are accepted for safety. */
+function getSubCount(a) {
+  return Number(
+    a?.submissionsCount ?? a?.submissionCount ?? a?.totalSubmissions ?? a?.pendingCount ?? 0
+  ) || 0;
+}
+
 function getStatusInfo(a) {
   if (isDeadlinePassed(a.deadline)) {
     return { label: "Closed", color: "#ef4444", bg: "rgba(239,68,68,.12)" };
   }
-  // TODO: confirm field name — backend may use submissionCount, totalSubmissions, or pendingCount
-  const count = a.submissionCount ?? a.totalSubmissions ?? 0;
+  const count = getSubCount(a);
   if (count > 0) {
     return { label: "Active", color: "#22c55e", bg: "rgba(34,197,94,.12)" };
   }
@@ -49,8 +55,15 @@ function AssignmentForm({ courseCode, color, onDone, onCancel, editMode = false,
   const [maxPts,     setMaxPts]     = useState(String(initial?.maxGrade ?? "20"));
   const [allowFmt,   setAllowFmt]   = useState(initial?.allowedFormats ?? ["pdf"]);
   const [attachFile, setAttachFile] = useState(null);
+  const [removeAttachment, setRemoveAttachment] = useState(false);
   const [loading,    setLoading]    = useState(false);
   const fileRef = useRef();
+
+  // Backend blocks point edits once any submission has been graded; we mirror that
+  // here so the field is disabled with a clear explanation.
+  const subCount    = editMode ? getSubCount(initial) : 0;
+  const pointsLocked = editMode && subCount > 0;
+  const existingAttachUrl = initial?.attachmentUrl || null;
 
   const toggleFmt = (f) =>
     setAllowFmt((p) => (p.includes(f) ? p.filter((x) => x !== f) : [...p, f]));
@@ -61,17 +74,25 @@ function AssignmentForm({ courseCode, color, onDone, onCancel, editMode = false,
     if (!valid) return;
     setLoading(true);
     try {
-      const dto = {
-        title,
-        description: desc,
-        courseCode,
-        deadline: new Date(deadline + "T23:59:00").toISOString(),
-        maxGrade: Number(maxPts),
-        allowedFormats: allowFmt,
-      };
       if (editMode && initial?.id) {
-        await updateAssignment(initial.id, dto);
+        const dto = {
+          title,
+          description: desc,
+          deadline: new Date(deadline + "T23:59:00").toISOString(),
+          // Only send maxGrade when not locked → backend won't reject.
+          maxGrade: pointsLocked ? undefined : Number(maxPts),
+          removeAttachment: removeAttachment && !attachFile,
+        };
+        await updateAssignment(initial.id, dto, attachFile || null);
       } else {
+        const dto = {
+          title,
+          description: desc,
+          courseCode,
+          deadline: new Date(deadline + "T23:59:00").toISOString(),
+          maxGrade: Number(maxPts),
+          allowedFormats: allowFmt,
+        };
         await createAssignment(dto, attachFile || null);
       }
       onDone?.();
@@ -128,18 +149,33 @@ function AssignmentForm({ courseCode, color, onDone, onCancel, editMode = false,
           />
         </div>
         <div className={styles.field}>
-          <label className={styles.label}>Max Grade (pts)</label>
+          <label className={styles.label}>
+            Max Grade (pts){pointsLocked && <span className={styles.opt}> — locked</span>}
+          </label>
           <div className={styles.starRow}>
             {[5, 10, 20, 50, 100].map((n) => (
               <button
                 key={n}
                 className={`${styles.starBtn} ${Number(maxPts) === n ? styles.starBtnOn : ""}`}
-                style={Number(maxPts) === n ? { background: color, borderColor: color, color: "#fff" } : {}}
-                onClick={() => setMaxPts(String(n))}>
+                style={
+                  Number(maxPts) === n
+                    ? { background: color, borderColor: color, color: "#fff", opacity: pointsLocked ? 0.7 : 1 }
+                    : pointsLocked
+                    ? { opacity: 0.5, cursor: "not-allowed" }
+                    : {}
+                }
+                disabled={pointsLocked}
+                onClick={() => !pointsLocked && setMaxPts(String(n))}>
                 {n}
               </button>
             ))}
           </div>
+          {pointsLocked && (
+            <span style={{ fontSize: 11.5, color: "#f59e0b", marginTop: 6, display: "block" }}>
+              ⚠ {subCount} submission{subCount !== 1 ? "s" : ""} already received. Maximum points are
+              locked to keep existing grades fair. Other fields can still be updated.
+            </span>
+          )}
         </div>
       </div>
 
@@ -161,51 +197,104 @@ function AssignmentForm({ courseCode, color, onDone, onCancel, editMode = false,
         </div>
       </div>
 
-      {/* Attachment file — only available during creation */}
-      {!editMode && (
-        <div className={styles.field}>
-          <label className={styles.label}>
-            Starter File <span className={styles.opt}>(optional)</span>
-          </label>
-          <input
-            ref={fileRef}
-            type="file"
-            style={{ display: "none" }}
-            onChange={(e) => setAttachFile(e.target.files[0] || null)}
-          />
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* Attachment file — available in both create and edit modes */}
+      <div className={styles.field}>
+        <label className={styles.label}>
+          {editMode ? "Replace Attachment" : "Starter File"}{" "}
+          <span className={styles.opt}>(optional)</span>
+        </label>
+
+        {/* In edit mode: show existing attachment if not slated for removal and no replacement chosen */}
+        {editMode && existingAttachUrl && !attachFile && !removeAttachment && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+            border: `1.5px solid ${color}40`, borderRadius: 10, background: `${color}08`,
+            marginBottom: 8,
+          }}>
+            <span style={{ flex: 1, fontSize: 13, color: "var(--text-secondary)" }}>
+              📎 Current file: <a href={existingAttachUrl} target="_blank" rel="noreferrer" style={{ color }}>open</a>
+            </span>
             <button
               type="button"
-              className={styles.inp}
+              onClick={() => setRemoveAttachment(true)}
               style={{
-                cursor: "pointer", textAlign: "left", flex: 1,
-                color: attachFile ? "var(--text-primary)" : "var(--text-muted)",
-                borderColor: attachFile ? `${color}60` : undefined,
-              }}
-              onClick={() => fileRef.current?.click()}>
-              {attachFile ? `📎 ${attachFile.name}` : "📎 Click to attach a file…"}
+                padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+                border: "1.5px solid rgba(239,68,68,0.3)",
+                background: "rgba(239,68,68,0.07)",
+                color: "#ef4444", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700,
+              }}>
+              Remove
             </button>
-            {attachFile && (
-              <button
-                type="button"
-                onClick={() => { setAttachFile(null); if (fileRef.current) fileRef.current.value = ""; }}
-                style={{
-                  padding: "6px 10px", borderRadius: 8, cursor: "pointer",
-                  border: "1.5px solid rgba(239,68,68,0.3)",
-                  background: "rgba(239,68,68,0.07)",
-                  color: "#ef4444", fontFamily: "inherit", fontSize: 12, fontWeight: 700,
-                }}>
-                ✕
-              </button>
-            )}
           </div>
-          {attachFile && (
-            <span style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>
-              {(attachFile.size / 1048576).toFixed(1)} MB — will be downloadable by students
+        )}
+
+        {editMode && removeAttachment && !attachFile && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+            border: "1.5px solid rgba(239,68,68,0.25)", borderRadius: 10,
+            background: "rgba(239,68,68,0.06)", marginBottom: 8,
+          }}>
+            <span style={{ flex: 1, fontSize: 12.5, color: "#ef4444" }}>
+              The current attachment will be deleted on save.
             </span>
+            <button
+              type="button"
+              onClick={() => setRemoveAttachment(false)}
+              style={{
+                padding: "4px 10px", borderRadius: 8, cursor: "pointer",
+                border: "1px solid var(--border)", background: "transparent",
+                color: "var(--text-secondary)", fontFamily: "inherit", fontSize: 11, fontWeight: 700,
+              }}>
+              Undo
+            </button>
+          </div>
+        )}
+
+        <input
+          ref={fileRef}
+          type="file"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            setAttachFile(e.target.files[0] || null);
+            setRemoveAttachment(false);
+          }}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            type="button"
+            className={styles.inp}
+            style={{
+              cursor: "pointer", textAlign: "left", flex: 1,
+              color: attachFile ? "var(--text-primary)" : "var(--text-muted)",
+              borderColor: attachFile ? `${color}60` : undefined,
+            }}
+            onClick={() => fileRef.current?.click()}>
+            {attachFile
+              ? `📎 ${attachFile.name}`
+              : editMode
+              ? (existingAttachUrl && !removeAttachment ? "📎 Click to replace the current file…" : "📎 Click to attach a file…")
+              : "📎 Click to attach a file…"}
+          </button>
+          {attachFile && (
+            <button
+              type="button"
+              onClick={() => { setAttachFile(null); if (fileRef.current) fileRef.current.value = ""; }}
+              style={{
+                padding: "6px 10px", borderRadius: 8, cursor: "pointer",
+                border: "1.5px solid rgba(239,68,68,0.3)",
+                background: "rgba(239,68,68,0.07)",
+                color: "#ef4444", fontFamily: "inherit", fontSize: 12, fontWeight: 700,
+              }}>
+              ✕
+            </button>
           )}
         </div>
-      )}
+        {attachFile && (
+          <span style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>
+            {(attachFile.size / 1048576).toFixed(1)} MB — will be downloadable by students
+          </span>
+        )}
+      </div>
 
       {/* Actions */}
       <div className={styles.formActions}>
@@ -241,14 +330,13 @@ function AssignmentForm({ courseCode, color, onDone, onCancel, editMode = false,
 function AsnCard({ a, color, index, onEdit, onDelete, onRepublish }) {
   const statusInfo = getStatusInfo(a);
   const deadlinePassed = isDeadlinePassed(a.deadline);
-  // TODO: confirm field name with backend — may be submissionCount, totalSubmissions, or pendingCount
-  const subCount = a.submissionCount ?? a.totalSubmissions ?? a.pendingCount ?? 0;
+  const subCount = getSubCount(a);
   const hasSubmissions = subCount > 0;
-  const canEdit = !deadlinePassed && !hasSubmissions;
-  const editDisabledReason = deadlinePassed
-    ? "Deadline has passed"
-    : hasSubmissions
-    ? `${subCount} submission(s) already received`
+  // Editing remains possible while there are submissions — backend locks point changes only.
+  const canEdit = !deadlinePassed;
+  const editDisabledReason = deadlinePassed ? "Deadline has passed" : null;
+  const editHint = !deadlinePassed && hasSubmissions
+    ? `${subCount} submission${subCount !== 1 ? "s" : ""} — points locked`
     : null;
 
   return (
@@ -316,6 +404,9 @@ function AsnCard({ a, color, index, onEdit, onDelete, onRepublish }) {
           </motion.button>
           {!canEdit && editDisabledReason && (
             <span className={styles.editHint}>{editDisabledReason}</span>
+          )}
+          {canEdit && editHint && (
+            <span className={styles.editHint} style={{ color: "#f59e0b" }}>{editHint}</span>
           )}
         </div>
 

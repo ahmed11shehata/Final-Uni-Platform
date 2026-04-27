@@ -28,5 +28,11 @@ namespace AYA_UIS.Core.Domain.Contracts
         Task<AssignmentSubmission?> GetStudentSubmissionAsync(int assignmentId, string studentId);
         Task UpdateSubmissionAsync(AssignmentSubmission submission);
         Task DeleteSubmissionAsync(int submissionId);
+
+        Task UpdateAsync(Assignment assignment);
+        /// <summary>Hard-deletes the assignment (call after submissions/files have been removed).</summary>
+        Task DeleteAsync(Assignment assignment);
+        /// <summary>True if any submission for this assignment has Status = Accepted (i.e. graded/finalized).</summary>
+        Task<bool> HasGradedSubmissionAsync(int assignmentId);
     }
 }

@@ -6,269 +6,372 @@ import { useAuth } from "../../hooks/useAuth";
 import { getInstructorDashboard } from "../../services/api/instructorApi";
 import styles from "./InstructorDashboard.module.css";
 
-const sp = { type:"spring", stiffness:400, damping:28 };
+const spring = { type: "spring", stiffness: 360, damping: 30 };
 
-/* grade box colors — solid vivid */
-const GRADE_COLORS = ["#f59e0b","#22c55e","#ef4444","#818cf8"];
-const GRADE_BG     = ["#b45309","#15803d","#b91c1c","#4f46e5"];
+const COURSE_PALETTE = ["#7c3aed", "#0891b2", "#059669", "#f59e0b", "#e11d48", "#2563eb"];
+const GRADE_TONES = ["#f59e0b", "#10b981", "#f43f5e", "#8b5cf6"];
 
 export default function InstructorDashboard() {
-  const { user }  = useAuth?.() || {};
-  const navigate  = useNavigate();
-  const [time,         setTime]         = useState(new Date());
-  const [course,       setCourse]       = useState(null);
-  const [courses,      setCourses]      = useState([]);
+  const { user } = useAuth?.() || {};
+  const navigate = useNavigate();
+
+  const [time, setTime] = useState(new Date());
+  const [course, setCourse] = useState(null);
+  const [courses, setCourses] = useState([]);
   const [gradeSummary, setGradeSummary] = useState({});
-  const [activity,     setActivity]     = useState([]);
-  const [upcoming,     setUpcoming]     = useState([]);
+  const [activity, setActivity] = useState([]);
+  const [upcoming, setUpcoming] = useState([]);
 
-  useEffect(()=>{ const t=setInterval(()=>setTime(new Date()),30000); return()=>clearInterval(t); },[]);
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
-  useEffect(()=>{
+  useEffect(() => {
     getInstructorDashboard()
-      .then(d=>{
-        setCourses(d.courses);
-        setGradeSummary(d.gradeSummary);
-        setActivity(d.recentActivity);
-        setUpcoming(d.upcoming);
-        if(d.courses.length>0 && !course) setCourse(d.courses[0].id);
+      .then((data) => {
+        const nextCourses = Array.isArray(data?.courses) ? data.courses : [];
+        setCourses(nextCourses);
+        setGradeSummary(data?.gradeSummary || {});
+        setActivity(Array.isArray(data?.recentActivity) ? data.recentActivity : []);
+        setUpcoming(Array.isArray(data?.upcoming) ? data.upcoming : []);
+        if (nextCourses.length > 0 && !course) setCourse(nextCourses[0].id);
       })
-      .catch(()=>{});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[]);
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const hr    = time.getHours();
-  const greet = hr<12?"Good morning ☀️":hr<17?"Good afternoon 🌤":"Good evening 🌙";
-  const c     = courses.find(x=>x.id===course)||courses[0]||{color:"#818cf8",code:"—",name:"—",icon:"📚",students:0,progress:0};
-  const gs    = gradeSummary?.[course] || { pending:0, approved:0, rejected:0, avg:"—" };
-  const totalPending = courses.reduce((s,x)=>s+(gradeSummary?.[x.id]?.pending||0),0);
+  const selectedCourse = courses.find((item) => item.id === course) || courses[0] || {
+    color: "#8b5cf6",
+    code: "—",
+    name: "No course selected",
+    icon: "🎓",
+    students: 0,
+    progress: 0,
+  };
+  const selectedTone = selectedCourse.color || "#8b5cf6";
+  const currentGrades = gradeSummary?.[course] || { pending: 0, approved: 0, rejected: 0, avg: "—" };
+  const totalStudents = courses.reduce((sum, item) => sum + (item.students || 0), 0);
+  const totalPending = courses.reduce((sum, item) => sum + (gradeSummary?.[item.id]?.pending || 0), 0);
+  const courseCodes = courses.map((item) => item.code).filter(Boolean).join(" • ") || "Courses will appear here once assigned";
+
+  const statCards = [
+    { label: "Total Students", value: totalStudents, icon: "👥", tone: "#22c55e" },
+    { label: "Pending Grades", value: totalPending, icon: "📝", tone: "#f59e0b" },
+    { label: "Active Courses", value: courses.length, icon: "📚", tone: "#38bdf8" },
+  ];
+
+  const quickActions = [
+    { label: "Upload Material", path: "/instructor/material", icon: "📤", tone: "#7c3aed", sub: "Lectures & files" },
+    { label: "Quiz Builder", path: "/instructor/quiz-builder", icon: "✏️", tone: "#0891b2", sub: "Create assessments" },
+    { label: "Grade Submissions", path: "/instructor/grades", icon: "📊", tone: "#059669", sub: "Review results" },
+    { label: "My Schedule", path: "/instructor/schedule", icon: "📅", tone: "#f59e0b", sub: "Today & exams" },
+  ];
+
+  const gradeCards = [
+    { value: currentGrades.pending, label: "Pending", icon: "⏳" },
+    { value: currentGrades.approved, label: "Approved", icon: "✅" },
+    { value: currentGrades.rejected, label: "Rejected", icon: "⚠️" },
+    { value: currentGrades.avg, label: "Avg Grade", icon: "⭐" },
+  ];
 
   return (
-    <div className={styles.page}>
+    <main className={styles.page}>
+      <motion.section
+        className={styles.hero}
+        initial={{ opacity: 0, y: -18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className={styles.heroAuraOne} />
+        <div className={styles.heroAuraTwo} />
+        <div className={styles.heroGrid} />
 
-      {/* ══ HERO ══ */}
-      <motion.div className={styles.hero}
-        initial={{opacity:0,y:-18}} animate={{opacity:1,y:0}}
-        transition={{duration:.44,ease:[.22,1,.36,1]}}>
-        <div className={styles.heroBg}/>
-        <div className={styles.heroMesh}/>
-
-        <div className={styles.heroContent}>
-          <div className={styles.heroLeft}>
-            <div className={styles.heroGreeting}>{greet}</div>
-            <h1 className={styles.heroName}>Dr. {user?.name||"Mohamed Farouk"}</h1>
-            <p className={styles.heroRole}>{courses.map(x=>x.code).filter(Boolean).join(" & ")||"—"}</p>
-            <div className={styles.heroStats}>
-              {[
-                {val:courses.reduce((s,x)=>s+(x.students||0),0), label:"Total Students", c:"#6ee7b7"},
-                {val:totalPending,                                  label:"Pending Grades", c:"#fcd34d"},
-                {val:courses.length,                                label:"Courses",        c:"#a5b4fc"},
-              ].map((s,i)=>(
-                <motion.div key={i} className={styles.heroStat}
-                  initial={{opacity:0,y:12}} animate={{opacity:1,y:0}}
-                  transition={{delay:.12+i*.07,...sp}}>
-                  <span className={styles.heroStatVal} style={{color:s.c}}>{s.val}</span>
-                  <span className={styles.heroStatLabel}>{s.label}</span>
-                </motion.div>
+        <div className={styles.heroTop}>
+          <div className={styles.heroIntro}>
+            <span className={styles.eyebrow}>Instructor Workspace</span>
+            <h1 className={styles.heroName}>Dr. {user?.name || "Mohamed Farouk"}</h1>
+            <p className={styles.heroText}>{courseCodes}</p>
+            <div className={styles.courseRibbon}>
+              {courses.slice(0, 5).map((item, index) => (
+                <span key={item.id || item.code || index} style={{ "--tone": item.color || COURSE_PALETTE[index % COURSE_PALETTE.length] }}>
+                  {item.code || "COURSE"}
+                </span>
               ))}
+              {courses.length === 0 && <span style={{ "--tone": "#8b5cf6" }}>No assigned courses</span>}
             </div>
           </div>
 
-          <div className={styles.heroClock}>
-            <div className={styles.heroTime}>{time.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
-            <div className={styles.heroDate}>{time.toLocaleDateString([],{weekday:"long",month:"short",day:"numeric"})}</div>
-          </div>
+          <motion.div className={styles.clockCard} whileHover={{ y: -4 }} transition={spring}>
+            <span className={styles.clockLabel}>Live Clock</span>
+            <strong>{time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</strong>
+            <p>{time.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}</p>
+          </motion.div>
+        </div>
+
+        <div className={styles.statDeck}>
+          {statCards.map((stat, index) => (
+            <motion.div
+              key={stat.label}
+              className={styles.statCard}
+              style={{ "--tone": stat.tone }}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + index * 0.06, ...spring }}
+            >
+              <span className={styles.statIcon}>{stat.icon}</span>
+              <div>
+                <strong>{stat.value}</strong>
+                <span>{stat.label}</span>
+              </div>
+            </motion.div>
+          ))}
         </div>
 
         <div className={styles.quickActions}>
-          {[
-            {label:"Upload Material",   path:"/instructor/material",    icon:"📤",c:"#818cf8"},
-            {label:"Quiz Builder",       path:"/instructor/quiz-builder", icon:"✏️",c:"#38bdf8"},
-            {label:"Grade Submissions",  path:"/instructor/grades",       icon:"📊",c:"#34d399"},
-            {label:"My Schedule",        path:"/instructor/schedule",     icon:"📅",c:"#fbbf24"},
-          ].map((a,i)=>(
-            <motion.button key={a.label} className={styles.qaBtn}
-              style={{"--qa":a.c}}
-              onClick={()=>navigate(a.path)}
-              initial={{opacity:0,y:10}} animate={{opacity:1,y:0}}
-              transition={{delay:.2+i*.06,...sp}}
-              whileHover={{y:-3}} whileTap={{scale:.96}}>
-              <span className={styles.qaIcon} style={{background:`${a.c}28`,color:a.c}}>{a.icon}</span>
-              {a.label}
+          {quickActions.map((action, index) => (
+            <motion.button
+              key={action.label}
+              className={styles.quickAction}
+              style={{ "--tone": action.tone }}
+              onClick={() => navigate(action.path)}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18 + index * 0.05, ...spring }}
+              whileHover={{ y: -3 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <span>{action.icon}</span>
+              <div>
+                <strong>{action.label}</strong>
+                <small>{action.sub}</small>
+              </div>
             </motion.button>
           ))}
         </div>
-      </motion.div>
+      </motion.section>
 
-      {/* ══ MAIN GRID ══ */}
-      <div className={styles.mainGrid}>
-
-        {/* ── LEFT ── */}
+      <section className={styles.mainGrid}>
         <div className={styles.leftCol}>
-
-          {/* My Courses */}
-          <div className={styles.sec}>
-            <h2 className={styles.secTitle}>
-              <span className={styles.secTitleDot} style={{background:"#818cf8"}}/>
-              My Courses
-            </h2>
-            <div className={styles.courseCards}>
-              {courses.length===0&&<p style={{color:"var(--text-muted)",fontSize:".83rem"}}>No courses assigned yet.</p>}
-              {courses.map((cr,i)=>(
-                <motion.button key={cr.id}
-                  className={`${styles.courseCard} ${course===cr.id?styles.courseCardOn:""}`}
-                  style={{"--cc":cr.color, background: course===cr.id ? `color-mix(in srgb,${cr.color} 8%,var(--card-bg))` : ""}}
-                  onClick={()=>setCourse(cr.id)}
-                  initial={{opacity:0,x:-20}} animate={{opacity:1,x:0}}
-                  transition={{delay:i*.07,...sp}} whileHover={{x:5}}>
-                  <div className={styles.ccStripe} style={{background:cr.color}}/>
-                  <div className={styles.ccBody}>
-                    <div className={styles.ccTop}>
-                      <span className={styles.ccIcon}>{cr.icon}</span>
-                      <span className={styles.ccCode} style={{color:cr.color}}>{cr.code}</span>
-                    </div>
-                    <div className={styles.ccName}>{cr.name}</div>
-                    <div className={styles.ccMeta}>
-                      <span>👥 {cr.students} students</span>
-                      <span>•</span>
-                      <span>{cr.progress}% complete</span>
-                    </div>
-                    <div className={styles.ccBar}>
-                      <motion.div className={styles.ccFill} style={{background:cr.color}}
-                        initial={{width:0}} animate={{width:`${cr.progress}%`}}
-                        transition={{delay:.3+i*.1,duration:.85,ease:"easeOut"}}/>
-                    </div>
-                  </div>
-                  {(gradeSummary?.[cr.id]?.pending||0)>0&&(
-                    <span className={styles.ccBadge} style={{background:cr.color}}>
-                      {gradeSummary[cr.id].pending}
-                    </span>
-                  )}
-                </motion.button>
-              ))}
+          <section className={styles.panel}>
+            <div className={styles.sectionHead}>
+              <div>
+                <span className={styles.sectionKicker}>Teaching Load</span>
+                <h2>My Courses</h2>
+              </div>
+              <span className={styles.sectionBadge}>{courses.length} courses</span>
             </div>
-          </div>
 
-          {/* Grade Overview — SOLID colored boxes */}
+            <div className={styles.courseCards}>
+              {courses.length === 0 && (
+                <div className={styles.emptyState}>
+                  <span>📚</span>
+                  <strong>No courses assigned yet.</strong>
+                  <p>Your assigned courses will be listed here automatically.</p>
+                </div>
+              )}
+
+              {courses.map((item, index) => {
+                const tone = item.color || COURSE_PALETTE[index % COURSE_PALETTE.length];
+                const isActive = course === item.id;
+                const pending = gradeSummary?.[item.id]?.pending || 0;
+
+                return (
+                  <motion.button
+                    key={item.id}
+                    className={`${styles.courseCard} ${isActive ? styles.courseCardActive : ""}`}
+                    style={{ "--cc": tone }}
+                    onClick={() => setCourse(item.id)}
+                    initial={{ opacity: 0, x: -18 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.055, ...spring }}
+                    whileHover={{ x: 5 }}
+                    whileTap={{ scale: 0.99 }}
+                  >
+                    <div className={styles.courseIcon}>{item.icon || "🎓"}</div>
+                    <div className={styles.courseBody}>
+                      <div className={styles.courseTopLine}>
+                        <span>{item.code || "COURSE"}</span>
+                        <small>{item.students || 0} students</small>
+                      </div>
+                      <strong>{item.name || "Untitled Course"}</strong>
+                      <div className={styles.progressTrack}>
+                        <motion.div
+                          className={styles.progressFill}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${item.progress || 0}%` }}
+                          transition={{ delay: 0.25 + index * 0.06, duration: 0.8, ease: "easeOut" }}
+                        />
+                      </div>
+                    </div>
+                    <div className={styles.courseSide}>
+                      <span>{item.progress || 0}%</span>
+                      {pending > 0 && <em>{pending}</em>}
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </section>
+
           <AnimatePresence mode="wait">
-            <motion.div key={course} className={styles.sec}
-              initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0}}>
-              <h2 className={styles.secTitle}>
-                <span className={styles.secTitleDot} style={{background:"#22c55e"}}/>
-                Grade Overview — {c.code}
-              </h2>
+            <motion.section
+              key={course || "empty-course"}
+              className={styles.panel}
+              style={{ "--panelTone": selectedTone }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+            >
+              <div className={styles.sectionHead}>
+                <div>
+                  <span className={styles.sectionKicker}>Selected Course</span>
+                  <h2>Grade Overview</h2>
+                  <p className={styles.sectionHint}>{selectedCourse.code} — {selectedCourse.name}</p>
+                </div>
+                <span className={styles.activeCoursePill}>{selectedCourse.icon || "🎓"} {selectedCourse.code}</span>
+              </div>
+
               <div className={styles.gradeGrid}>
-                {[
-                  {val:gs.pending,  label:"Pending"},
-                  {val:gs.approved, label:"Approved"},
-                  {val:gs.rejected, label:"Rejected"},
-                  {val:gs.avg,      label:"Avg Grade"},
-                ].map((g,i)=>(
-                  <motion.div key={g.label} className={styles.gradeBox}
-                    style={{background:`linear-gradient(135deg,${GRADE_COLORS[i]},${GRADE_BG[i]})`}}
-                    initial={{opacity:0,scale:.88}} animate={{opacity:1,scale:1}}
-                    transition={{delay:i*.05,...sp}}
-                    whileHover={{scale:1.04,y:-2}}>
-                    <div className={styles.gradeBoxVal}>{g.val}</div>
-                    <div className={styles.gradeBoxLabel}>{g.label}</div>
+                {gradeCards.map((item, index) => (
+                  <motion.div
+                    key={item.label}
+                    className={styles.gradeBox}
+                    style={{ "--tone": GRADE_TONES[index] }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05, ...spring }}
+                    whileHover={{ y: -3 }}
+                  >
+                    <span>{item.icon}</span>
+                    <strong>{item.value}</strong>
+                    <small>{item.label}</small>
                   </motion.div>
                 ))}
               </div>
-            </motion.div>
+            </motion.section>
           </AnimatePresence>
 
-          {/* Activity */}
-          <div className={styles.sec}>
-            <h2 className={styles.secTitle}>
-              <span className={styles.secTitleDot} style={{background:"#0ea5e9"}}/>
-              Recent Activity
-            </h2>
-            <div className={styles.feed}>
-              {activity.length===0&&(
-                <p style={{color:"var(--text-muted)",fontSize:".83rem",padding:"12px 0"}}>No recent activity.</p>
-              )}
-              {activity.map((a,i)=>(
-                <motion.div key={a.id||i} className={styles.feedItem}
-                  initial={{opacity:0,x:-14}} animate={{opacity:1,x:0}}
-                  transition={{delay:.05+i*.05,...sp}}>
-                  <div className={styles.feedStripe} style={{background:a.color||"#818cf8"}}/>
-                  <div className={styles.feedIcon} style={{background:a.color||"#818cf8",color:"#fff"}}>{a.icon||"📎"}</div>
-                  <div className={styles.feedBody}>
-                    <div className={styles.feedName}>{a.student||a.studentName||"—"}</div>
-                    <div className={styles.feedDetail}>{a.detail||a.description||"—"}</div>
-                  </div>
-                  <div className={styles.feedMeta}>
-                    <span className={styles.feedCourse} style={{color:a.color||"#818cf8"}}>{a.course||a.courseCode||""}</span>
-                    <span className={styles.feedTime}>{a.time||""}</span>
-                  </div>
-                </motion.div>
-              ))}
+          <section className={styles.panel}>
+            <div className={styles.sectionHead}>
+              <div>
+                <span className={styles.sectionKicker}>Latest Updates</span>
+                <h2>Recent Activity</h2>
+              </div>
+              <span className={styles.sectionBadge}>{activity.length} updates</span>
             </div>
-          </div>
+
+            <div className={styles.feed}>
+              {activity.length === 0 && (
+                <div className={styles.emptyStateCompact}>
+                  <span>✨</span>
+                  <p>No recent activity.</p>
+                </div>
+              )}
+
+              {activity.map((item, index) => {
+                const tone = item.color || COURSE_PALETTE[index % COURSE_PALETTE.length];
+                return (
+                  <motion.div
+                    key={item.id || index}
+                    className={styles.feedItem}
+                    style={{ "--tone": tone }}
+                    initial={{ opacity: 0, x: -12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.04 + index * 0.04, ...spring }}
+                  >
+                    <div className={styles.feedIcon}>{item.icon || "📎"}</div>
+                    <div className={styles.feedBody}>
+                      <strong>{item.student || item.studentName || "Student"}</strong>
+                      <span>{item.detail || item.description || "New update"}</span>
+                    </div>
+                    <div className={styles.feedMeta}>
+                      <b>{item.course || item.courseCode || ""}</b>
+                      <small>{item.time || ""}</small>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
-        {/* ── RIGHT ── */}
         <div className={styles.rightCol}>
+          <section className={styles.panel}>
+            <div className={styles.sectionHead}>
+              <div>
+                <span className={styles.sectionKicker}>Planning</span>
+                <h2>Upcoming</h2>
+              </div>
+              <span className={styles.sectionBadge}>{upcoming.length} items</span>
+            </div>
 
-          {/* Upcoming */}
-          <div className={styles.sec}>
-            <h2 className={styles.secTitle}>
-              <span className={styles.secTitleDot} style={{background:"#ef4444"}}/>
-              Upcoming
-            </h2>
             <div className={styles.upList}>
-              {upcoming.length===0&&(
-                <p style={{color:"var(--text-muted)",fontSize:".83rem",padding:"12px 0"}}>No upcoming events.</p>
+              {upcoming.length === 0 && (
+                <div className={styles.emptyState}>
+                  <span>📅</span>
+                  <strong>No upcoming events.</strong>
+                  <p>Scheduled lectures, deadlines, and exams will appear here.</p>
+                </div>
               )}
-              {upcoming.map((u,i)=>{
-                const uc=u.color||"#818cf8";
+
+              {upcoming.map((item, index) => {
+                const tone = item.color || COURSE_PALETTE[index % COURSE_PALETTE.length];
                 return (
-                  <motion.div key={u.id||i} className={styles.upCard} style={{"--uc":uc}}
-                    initial={{opacity:0,y:12}} animate={{opacity:1,y:0}}
-                    transition={{delay:.08+i*.07,...sp}}>
-                    <div className={styles.upAccent} style={{background:uc}}/>
-                    <div className={styles.upIcon} style={{background:uc,color:"#fff"}}>{u.icon||"📅"}</div>
+                  <motion.div
+                    key={item.id || index}
+                    className={styles.upCard}
+                    style={{ "--tone": tone }}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.06 + index * 0.06, ...spring }}
+                    whileHover={{ x: 4 }}
+                  >
+                    <div className={styles.upIcon}>{item.icon || "📅"}</div>
                     <div className={styles.upBody}>
-                      <div className={styles.upTitle}>{u.title||"—"}</div>
-                      <div className={styles.upMeta}>
-                        <span>📅 {u.date||"—"}</span>
-                        <span>⏰ {u.time||"—"}</span>
-                        <span>🏛 {u.room||"—"}</span>
+                      <strong>{item.title || "Upcoming event"}</strong>
+                      <div>
+                        <span>📅 {item.date || "—"}</span>
+                        <span>⏰ {item.time || "—"}</span>
+                        <span>🏛 {item.room || "—"}</span>
                       </div>
                     </div>
                   </motion.div>
                 );
               })}
             </div>
-          </div>
+          </section>
 
-          {/* Quick Access — SOLID icon buttons */}
-          <div className={styles.sec}>
-            <h2 className={styles.secTitle}>
-              <span className={styles.secTitleDot} style={{background:"#f59e0b"}}/>
-              Quick Access
-            </h2>
+          <section className={`${styles.panel} ${styles.quickPanel}`}>
+            <div className={styles.sectionHead}>
+              <div>
+                <span className={styles.sectionKicker}>Shortcuts</span>
+                <h2>Quick Access</h2>
+              </div>
+            </div>
+
             <div className={styles.qnGrid}>
-              {[
-                {label:"Quiz Builder",    path:"/instructor/quiz-builder", icon:"✏️",  c:"#0ea5e9", sub:"Create & schedule quizzes"},
-                {label:"Grade Mgmt",      path:"/instructor/grades",       icon:"📊",  c:"#22c55e", sub:"Review submissions"},
-                {label:"Upload Material", path:"/instructor/material",     icon:"📤",  c:"#6366f1", sub:"Lectures & assignments"},
-                {label:"Schedule",        path:"/instructor/schedule",     icon:"📅",  c:"#f59e0b", sub:"View your timetable"},
-              ].map((n,i)=>(
-                <motion.button key={n.label} className={styles.qnBtn} style={{"--qn":n.c}}
-                  onClick={()=>navigate(n.path)}
-                  initial={{opacity:0,scale:.9}} animate={{opacity:1,scale:1}}
-                  transition={{delay:.16+i*.06,...sp}}
-                  whileHover={{y:-4}} whileTap={{scale:.96}}>
-                  <div className={styles.qnIcon} style={{background:n.c,color:"#fff"}}>{n.icon}</div>
-                  <div className={styles.qnLabel}>{n.label}</div>
-                  <div className={styles.qnSub}>{n.sub}</div>
+              {quickActions.map((item, index) => (
+                <motion.button
+                  key={item.label}
+                  className={styles.qnBtn}
+                  style={{ "--tone": item.tone }}
+                  onClick={() => navigate(item.path)}
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1 + index * 0.05, ...spring }}
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <span>{item.icon}</span>
+                  <strong>{item.label}</strong>
+                  <small>{item.sub}</small>
                 </motion.button>
               ))}
             </div>
-          </div>
+          </section>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

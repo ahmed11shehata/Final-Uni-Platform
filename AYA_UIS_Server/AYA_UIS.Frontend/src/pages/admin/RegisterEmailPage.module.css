@@ -1731,3 +1731,160 @@ select.formInput { appearance:none; -webkit-appearance:none; background-image:ur
 }
 /* ===== END FULL PAGE SCROLL FIX ===== */
 
+/* ── Success Panel ── */
+.successPane {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 0 24px;
+}
+
+.successHeader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.successCheckBadge {
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #15803d, #22c55e);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 8px 24px rgba(34,197,94,.38);
+}
+.successCheckBadge svg { width: 22px; height: 22px; }
+
+.successTitle {
+  font-size: 1.28rem;
+  font-weight: 900;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+  letter-spacing: -.02em;
+}
+.successSub {
+  font-size: .82rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.successCard {
+  border-radius: 20px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  background: var(--card-bg);
+  box-shadow: 0 8px 32px rgba(0,0,0,.08);
+}
+
+.successStrip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 22px;
+}
+
+.successAvatar {
+  width: 52px; height: 52px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.22);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.35rem; font-weight: 900; color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 6px 18px rgba(0,0,0,.22);
+}
+
+.successNameBlock { flex: 1; min-width: 0; }
+.successName {
+  display: block;
+  font-size: 1.08rem; font-weight: 900; color: #fff;
+  margin-bottom: 3px;
+}
+.successRoleBadge { font-size: .78rem; color: rgba(255,255,255,.75); }
+
+.successActiveDot {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: 99px;
+  border: 2px solid rgba(255,255,255,.3);
+  background: rgba(255,255,255,.14);
+  color: #fff; font-size: .78rem; font-weight: 800; flex-shrink: 0;
+}
+.successActiveDot span {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #86efac; box-shadow: 0 0 6px #86efac; display: inline-block;
+}
+
+.successFields { display: flex; flex-direction: column; padding: 4px 0; }
+
+.successCodeRow {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent, #818cf8) 4%, var(--hover-bg));
+}
+
+.successFieldLabel {
+  font-size: .62rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .09em;
+  color: var(--text-muted);
+  flex-shrink: 0; min-width: 110px;
+}
+
+.successCodeValue {
+  display: flex; align-items: center; gap: 10px;
+  flex: 1; justify-content: flex-end;
+}
+.successCode {
+  font-family: monospace;
+  font-size: 1.42rem; font-weight: 900;
+  color: var(--accent, #818cf8);
+  letter-spacing: .06em;
+}
+
+.successFieldRow {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.successFieldRow:last-child { border-bottom: none; }
+
+.successFieldRight {
+  display: flex; align-items: center; gap: 10px;
+  flex: 1; justify-content: flex-end; min-width: 0;
+}
+.successFieldMono {
+  font-family: monospace; font-size: .86rem; font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 340px;
+}
+.successFieldVal { font-size: .86rem; font-weight: 700; color: var(--text-secondary); }
+.successOnce { color: #f59e0b; font-size: .66rem; font-weight: 600; text-transform: none; letter-spacing: 0; }
+
+.successCopyBtn {
+  width: 32px; height: 32px; border-radius: 9px;
+  border: 1.5px solid var(--border);
+  background: var(--hover-bg); color: var(--text-muted);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all .15s;
+}
+.successCopyBtn svg { width: 14px; height: 14px; }
+.successCopyBtn:hover { border-color: #818cf8; color: #818cf8; background: rgba(129,140,248,.08); }
+.successCopyDone { border-color: #22c55e !important; color: #22c55e !important; background: rgba(34,197,94,.08) !important; }
+
+.successActions {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .successPane { gap: 16px; }
+  .successStrip { flex-wrap: wrap; }
+  .successActiveDot { margin-left: auto; }
+  .successCodeRow, .successFieldRow { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .successCodeValue, .successFieldRight { justify-content: flex-start; }
+  .successActions { flex-direction: column-reverse; }
+  .successActions .btnCreate, .successActions .btnGhost { width: 100%; }
+}
+

@@ -29,5 +29,12 @@ namespace AYA_UIS.Core.Domain.Entities.Models
         public bool IsEquivalency { get; set; } = false;
         public int? NumericTotal { get; set; } // Raw numeric score (0-100) for equivalency courses
         public int? TranscriptYear { get; set; } // Admin-selected academic year (1-4) for equivalency records; overrides catalog year
+
+        // Academic Year Reset / Archive
+        // True after an Academic Year Reset moves this row out of the student's
+        // current term. Archived rows must not appear in any "current" view but
+        // remain in the transcript history when NumericTotal / Grade are populated.
+        public bool IsArchived { get; set; } = false;
+        public DateTime? ArchivedAt { get; set; }
     }
 }

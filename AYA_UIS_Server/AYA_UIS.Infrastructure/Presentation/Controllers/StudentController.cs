@@ -526,7 +526,8 @@ namespace Presentation.Controllers
             var regs = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
             var active = (regs ?? Enumerable.Empty<Registration>())
                 .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending)
-                            && !r.IsEquivalency)
+                            && !r.IsEquivalency
+                            && !r.IsArchived)
                 .ToList();
 
             var result = new List<object>();

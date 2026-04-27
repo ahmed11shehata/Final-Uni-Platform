@@ -41,9 +41,9 @@ namespace Services.Implementatios
             var settings = await _unitOfWork.RegistrationSettings.GetCurrentAsync();
 
             int studentYear = LevelToYear(user?.Level);
-            int maxCredits = ResolveMaxCredits(user, settings);
-
             var registrations = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            int maxCredits = ResolveMaxCredits(user, settings, registrations);
+
             var allCourses = (await _unitOfWork.Courses.GetAllAsync()).ToDictionary(c => c.Id);
 
             int currentCredits = 0;
@@ -52,7 +52,8 @@ namespace Services.Implementatios
             var activeRegistrations = registrations
                 .Where(r => (r.Status == RegistrationStatus.Approved ||
                              r.Status == RegistrationStatus.Pending) &&
-                            !r.IsEquivalency)
+                            !r.IsEquivalency &&
+                            !r.IsArchived)
                 .ToList();
 
             foreach (var reg in activeRegistrations)
@@ -144,7 +145,10 @@ namespace Services.Implementatios
             // ── 3. Get student year from Level ──
             var user = await _userManager.FindByIdAsync(userId);
             int studentYear = LevelToYear(user?.Level);
-            int maxCredits = ResolveMaxCredits(user, settings);
+            // Pre-fetch registrations once so ResolveMaxCredits can see history
+            var allUserRegsForResolve = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            int maxCredits = ResolveMaxCredits(user, settings, allUserRegsForResolve);
+            bool skipPrereqs = ShouldSkipPrerequisites(user, settings);
             string studentYearKey = studentYear.ToString();
 
             // ── 4. Build opened codes for THIS student's bucket ONLY ──
@@ -170,7 +174,8 @@ namespace Services.Implementatios
             var activeUserRegs = allUserRegs
                 .Where(r => (r.Status == RegistrationStatus.Approved ||
                              r.Status == RegistrationStatus.Pending) &&
-                            !r.IsEquivalency)
+                            !r.IsEquivalency &&
+                            !r.IsArchived)
                 .ToList();
 
             // Build visible set: bucket opened codes + exception course codes
@@ -199,7 +204,8 @@ namespace Services.Implementatios
             var activeRegs = registrations
                 .Where(r => (r.Status == RegistrationStatus.Approved ||
                              r.Status == RegistrationStatus.Pending) &&
-                            !r.IsEquivalency)
+                            !r.IsEquivalency &&
+                            !r.IsArchived)
                 .ToList();
 
             var registeredCourseIds = activeRegs
@@ -244,6 +250,7 @@ namespace Services.Implementatios
                         .Where(r => (r.Status == RegistrationStatus.Approved ||
                                      r.Status == RegistrationStatus.Pending) &&
                                     !r.IsEquivalency &&
+                                    !r.IsArchived &&
                                     studentsByYear.Contains(r.UserId))
                         .Count();
                     enrollmentCounts[course.Id] = bucketCount;
@@ -308,11 +315,12 @@ namespace Services.Implementatios
                     isAdminLocked = true;
                 }
                 // d) Prerequisite not passed (PASS-ONLY)
+                //    Skipped entirely for First Year / Semester 1 students per spec.
                 else
                 {
-                    var unmetPrereqs = prereqs
-                        .Where(p => !passedCourseIds.Contains(p.Id))
-                        .ToList();
+                    var unmetPrereqs = skipPrereqs
+                        ? new List<Course>()
+                        : prereqs.Where(p => !passedCourseIds.Contains(p.Id)).ToList();
 
                     if (unmetPrereqs.Any())
                     {
@@ -468,20 +476,24 @@ namespace Services.Implementatios
             }
 
             // ── 7. Prerequisites met? (PASS-ONLY) ──
-            var prereqs = await _unitOfWork.Courses.GetCoursePrerequisitesAsync(course.Id);
-            if (prereqs.Any())
+            //    Skipped for First Year / Semester 1 students per spec.
+            if (!ShouldSkipPrerequisites(user, settings))
             {
-                var unmetPrereqs = prereqs
-                    .Where(p => !passedIds.Contains(p.Id))
-                    .ToList();
-
-                if (unmetPrereqs.Any())
+                var prereqs = await _unitOfWork.Courses.GetCoursePrerequisitesAsync(course.Id);
+                if (prereqs.Any())
                 {
-                    var names = unmetPrereqs.Select(p => p.Name).ToList();
-                    var msg = names.Count == 1
-                        ? $"You must pass {names[0]} first"
-                        : $"You must pass {string.Join(", ", names)} first";
-                    throw new AYA_UIS.Shared.Exceptions.UnprocessableEntityException(msg, "PREREQ_NOT_MET");
+                    var unmetPrereqs = prereqs
+                        .Where(p => !passedIds.Contains(p.Id))
+                        .ToList();
+
+                    if (unmetPrereqs.Any())
+                    {
+                        var names = unmetPrereqs.Select(p => p.Name).ToList();
+                        var msg = names.Count == 1
+                            ? $"You must pass {names[0]} first"
+                            : $"You must pass {string.Join(", ", names)} first";
+                        throw new AYA_UIS.Shared.Exceptions.UnprocessableEntityException(msg, "PREREQ_NOT_MET");
+                    }
                 }
             }
 
@@ -503,6 +515,7 @@ namespace Services.Implementatios
                     .Count(r => (r.Status == RegistrationStatus.Approved ||
                                  r.Status == RegistrationStatus.Pending) &&
                                 !r.IsEquivalency &&
+                                !r.IsArchived &&
                                 bucketStudentIds.Contains(r.UserId));
 
                 if (enrolled >= totalSeats)
@@ -511,12 +524,13 @@ namespace Services.Implementatios
             }
 
             // ── 9. Credit limit? ──
-            int maxCredits = ResolveMaxCredits(user, settings);
+            int maxCredits = ResolveMaxCredits(user, settings, registrations);
             var allCourses = (await _unitOfWork.Courses.GetAllAsync()).ToDictionary(c => c.Id);
             int currentCredits = registrations
                 .Where(r => (r.Status == RegistrationStatus.Approved ||
                              r.Status == RegistrationStatus.Pending) &&
-                            !r.IsEquivalency)
+                            !r.IsEquivalency &&
+                            !r.IsArchived)
                 .Sum(r => allCourses.TryGetValue(r.CourseId, out var c) ? c.Credits : 0);
 
             if (currentCredits + course.Credits > maxCredits)
@@ -635,6 +649,7 @@ namespace Services.Implementatios
             var matchedReg = registrations.FirstOrDefault(r =>
                 r.CourseId == course.Id &&
                 !r.IsEquivalency &&
+                !r.IsArchived &&
                 (r.Status == RegistrationStatus.Approved ||
                  r.Status == RegistrationStatus.Pending));
 
@@ -663,7 +678,8 @@ namespace Services.Implementatios
             var activeRegs = registrations
                 .Where(r => (r.Status == RegistrationStatus.Approved ||
                              r.Status == RegistrationStatus.Pending) &&
-                            !r.IsEquivalency)
+                            !r.IsEquivalency &&
+                            !r.IsArchived)
                 .ToList();
 
             // Batch-load all instructor assignments for enrolled courses in one query
@@ -729,6 +745,7 @@ namespace Services.Implementatios
             var reg = registrations.FirstOrDefault(r =>
                 r.CourseId == courseIdInt &&
                 !r.IsEquivalency &&
+                !r.IsArchived &&
                 (r.Status == RegistrationStatus.Approved ||
                  r.Status == RegistrationStatus.Pending));
 
@@ -1051,40 +1068,80 @@ namespace Services.Implementatios
 
         /// <summary>
         /// Resolve max credits for the student:
-        /// 1. Admin per-student override (AllowedCredits set explicitly by admin)
-        /// 2. First term = 21 by default
-        /// 3. GPA-based rules after that
+        /// 1. Admin per-student override (AllowedCredits set explicitly by admin) wins.
+        /// 2. New students (First Year/Sem 1, or any year with no academic history) → 21.
+        /// 3. GPA-based rules per spec:
+        ///    >= 3.0 → 21,  2.0–2.99 → 18,  1.0–1.99 → 12,  < 1.0 → 9.
         /// </summary>
-        private static int ResolveMaxCredits(User? user, RegistrationSettings? settings)
+        private static int ResolveMaxCredits(
+            User? user,
+            RegistrationSettings? settings,
+            IEnumerable<Registration>? registrations = null)
         {
-            // 1. Admin per-student override has highest priority
-            //    AllowedCredits is set by admin OverrideMaxCredits action
-            //    Default value is 21, so only treat as override if admin explicitly changed it
-            //    We use MaxCredits on settings to know the old global, but the real rule is GPA-based
+            // 1. Admin per-student override has highest priority.
+            //    AllowedCredits default value is 21, so only treat as override if admin
+            //    explicitly changed it to something other than 21.
             if (user?.AllowedCredits != null && user.AllowedCredits != 21)
                 return user.AllowedCredits.Value;
 
-            // 2. First term check
-            if (settings != null && IsFirstTerm(settings))
-            {
-                // All students get 21 in first term
+            // 2. New-student rule (First Year/Sem 1 OR any year with no history) → 21.
+            if (user != null && IsInitialNewStudent(user, registrations ?? Enumerable.Empty<Registration>(), settings))
                 return 21;
-            }
 
-            // 3. GPA-based rules
+            // 3. GPA-based rules per spec
             decimal gpa = user?.TotalGPA ?? 0m;
             if (gpa >= 3.0m) return 21;
             if (gpa >= 2.0m) return 18;
-            if (gpa >= 1.0m) return 15;
-            return 12;
+            if (gpa >= 1.0m) return 12;
+            return 9;
         }
 
-        /// <summary>Check if settings semester indicates first term.</summary>
-        private static bool IsFirstTerm(RegistrationSettings settings)
+        /// <summary>
+        /// New-student detection — kept consistent with AdminService.IsInitialNewStudent.
+        /// A student is "new" when:
+        ///   1) They are in First Year AND the global registration semester is the first semester, OR
+        ///   2) They have no academic history yet (no passed/completed/graded registrations).
+        /// </summary>
+        private static bool IsInitialNewStudent(
+            User user,
+            IEnumerable<Registration> registrations,
+            RegistrationSettings? settings)
         {
-            if (string.IsNullOrWhiteSpace(settings.Semester)) return false;
-            var sem = settings.Semester.Trim().ToLowerInvariant();
-            return sem is "first" or "1" or "first semester" or "semester 1";
+            int year = LevelToYear(user.Level);
+            bool isFirstSem = IsFirstSemesterTerm(settings);
+
+            if (year == 1 && isFirstSem) return true;
+
+            bool hasHistory = registrations.Any(r =>
+                r.IsPassed
+                || r.Progress == CourseProgress.Completed
+                || r.Grade.HasValue);
+            return !hasHistory;
         }
+
+        /// <summary>
+        /// True iff prerequisite enforcement should be SKIPPED for this student.
+        /// Per spec: First Year / Semester 1 students are not blocked by prereqs.
+        /// </summary>
+        private static bool ShouldSkipPrerequisites(User? user, RegistrationSettings? settings)
+        {
+            if (user == null) return false;
+            return LevelToYear(user.Level) == 1 && IsFirstSemesterTerm(settings);
+        }
+
+        /// <summary>
+        /// True if the global registration semester is the first semester.
+        /// Defaults to true when settings/semester is unset (safe for brand-new students).
+        /// Handles common stored forms: "First_Semester", "first", "Semester 1", "1", etc.
+        /// </summary>
+        private static bool IsFirstSemesterTerm(RegistrationSettings? settings)
+        {
+            if (settings == null || string.IsNullOrWhiteSpace(settings.Semester)) return true;
+            var sem = settings.Semester.Trim().ToLowerInvariant().Replace("_", " ");
+            return sem.Contains("first") || sem == "1" || sem.Contains("semester 1") || sem.Contains("sem 1");
+        }
+
+        /// <summary>Legacy alias — kept for backward compatibility with any older calls.</summary>
+        private static bool IsFirstTerm(RegistrationSettings settings) => IsFirstSemesterTerm(settings);
     }
 }

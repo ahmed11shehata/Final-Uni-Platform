@@ -4,6 +4,8 @@ namespace Shared.Dtos.Instructor_Module
     {
         public string Id { get; set; } = string.Empty;
         public string CourseId { get; set; } = string.Empty;
+        public string CourseCode { get; set; } = string.Empty;
+        public string CourseName { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
         public int Duration { get; set; }
         public int Questions { get; set; }
@@ -12,6 +14,24 @@ namespace Shared.Dtos.Instructor_Module
         public string EndTime { get; set; } = string.Empty;
         public int Submissions { get; set; }
         public decimal? AvgScore { get; set; }
+        /// <summary>True when at least one student has already attempted the quiz.</summary>
+        public bool HasAttempts { get; set; }
+        /// <summary>Total points if a per-question grade was supplied at create time. Null otherwise.</summary>
+        public int? TotalPoints { get; set; }
+    }
+
+    /// <summary>
+    /// Payload for PUT /api/instructor/courses/{courseId}/quizzes/{quizId}.
+    /// If <see cref="Questions"/> is null the question structure is left intact (always
+    /// the case when student attempts already exist). When supplied, all existing questions
+    /// + options are replaced with the new ones.
+    /// </summary>
+    public class UpdateInstructorQuizDto
+    {
+        public string? Title { get; set; }
+        public DateTime? StartTime { get; set; }
+        public DateTime? EndTime { get; set; }
+        public List<QuizQuestionInputDto>? Questions { get; set; }
     }
 
     public class CreateInstructorQuizDto

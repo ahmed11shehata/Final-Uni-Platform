@@ -117,4 +117,40 @@ public class LocalFileService : ILocalFileService
 
         return $"{baseUrl}/submissions/assignment_{assignmentId}/{fileName}";
     }
+
+    public Task DeleteFileByUrlAsync(string? publicUrl)
+    {
+        if (string.IsNullOrWhiteSpace(publicUrl)) return Task.CompletedTask;
+
+        // Resolve the relative path under wwwroot from the stored URL.
+        // We accept either a fully-qualified URL or a relative path.
+        string? relative = null;
+        try
+        {
+            if (Uri.TryCreate(publicUrl, UriKind.Absolute, out var abs))
+                relative = abs.AbsolutePath; // e.g. "/assignments/course_1/foo.pdf"
+            else
+                relative = publicUrl.StartsWith("/") ? publicUrl : "/" + publicUrl;
+        }
+        catch { return Task.CompletedTask; }
+
+        if (string.IsNullOrWhiteSpace(relative)) return Task.CompletedTask;
+
+        // Convert "/folder/file.ext" → physical path under wwwroot
+        var trimmed = relative.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.GetFullPath(Path.Combine(_env.WebRootPath, trimmed));
+
+        // Safety: resolved path must remain inside wwwroot
+        var rootFull = Path.GetFullPath(_env.WebRootPath);
+        if (!fullPath.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
+            return Task.CompletedTask;
+
+        try
+        {
+            if (File.Exists(fullPath)) File.Delete(fullPath);
+        }
+        catch { /* best-effort: never throw on cleanup */ }
+
+        return Task.CompletedTask;
+    }
 }

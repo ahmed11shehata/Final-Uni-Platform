@@ -52,9 +52,26 @@ export const createAssignment = async (dto, file = null) => {
   return res.data.data;
 };
 
-/** PUT /api/instructor/assignments/{id} */
-export const updateAssignment = async (id, dto) => {
-  const res = await api.put(`/instructor/assignments/${id}`, dto);
+/**
+ * PUT /api/instructor/assignments/{id}  (multipart/form-data)
+ * Supports replacing the attachment file. If `file` is omitted and
+ * `dto.removeAttachment === true`, the existing attachment is dropped.
+ *
+ * `dto` shape: { title?, description?, deadline? (ISO), releaseDate?,
+ *                clearReleaseDate?, maxGrade?, removeAttachment? }
+ */
+export const updateAssignment = async (id, dto, file = null) => {
+  const form = new FormData();
+  if (dto.title       != null) form.append("title",       dto.title);
+  if (dto.description != null) form.append("description", dto.description);
+  if (dto.deadline    != null) form.append("deadline",    dto.deadline);
+  if (dto.releaseDate)         form.append("releaseDate", dto.releaseDate);
+  if (dto.clearReleaseDate)    form.append("clearReleaseDate", "true");
+  if (dto.maxGrade    != null) form.append("maxGrade",    String(dto.maxGrade));
+  if (dto.removeAttachment)    form.append("removeAttachment", "true");
+  if (file)                    form.append("attachmentFile", file);
+
+  const res = await api.put(`/instructor/assignments/${id}`, form);
   return res.data.data;
 };
 
@@ -114,6 +131,22 @@ export const getQuizAttempts = async (courseId, quizId) => {
   return res.data.data;
 };
 
+/**
+ * PUT /api/instructor/courses/{courseId}/quizzes/{quizId}
+ * dto: { title?, startTime? (ISO), endTime? (ISO), questions?: [{ text, answers: [{text}], correct }] }
+ * If attempts already exist, omit `questions` (backend rejects question changes after attempts).
+ */
+export const updateQuiz = async (courseId, quizId, dto) => {
+  const res = await api.put(`/instructor/courses/${courseId}/quizzes/${quizId}`, dto);
+  return res.data.data;
+};
+
+/** DELETE /api/instructor/courses/{courseId}/quizzes/{quizId} */
+export const deleteQuiz = async (courseId, quizId) => {
+  const res = await api.delete(`/instructor/courses/${courseId}/quizzes/${quizId}`);
+  return res.data;
+};
+
 // ── Materials / Lectures ─────────────────────────────────────
 /** GET /api/instructor/courses/{courseId}/materials */
 export const getCourseMaterials = async (courseId) => {
@@ -138,6 +171,31 @@ export const uploadLecture = async (courseId, meta, file) => {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data.data;
+};
+
+/**
+ * PUT /api/instructor/courses/{courseId}/materials/{id}  (multipart)
+ * Replacing `file` deletes the old physical file from storage.
+ * meta: { title?, description?, type?, week?, releaseDate? }
+ */
+export const updateLecture = async (courseId, materialId, meta, file = null) => {
+  const form = new FormData();
+  if (meta.title       != null) form.append("title",       meta.title);
+  if (meta.description != null) form.append("description", meta.description);
+  if (meta.type        != null) form.append("type",        meta.type);
+  if (meta.week        != null) form.append("week",        String(meta.week));
+  if (meta.releaseDate)         form.append("releaseDate", meta.releaseDate);
+  if (file)                     form.append("file", file);
+  const res = await api.put(`/instructor/courses/${courseId}/materials/${materialId}`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data.data;
+};
+
+/** DELETE /api/instructor/courses/{courseId}/materials/{id} */
+export const deleteLecture = async (courseId, materialId) => {
+  const res = await api.delete(`/instructor/courses/${courseId}/materials/${materialId}`);
+  return res.data;
 };
 
 // ── Final Grade ──────────────────────────────────────────────

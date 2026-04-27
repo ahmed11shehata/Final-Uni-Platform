@@ -1,11 +1,14 @@
 // src/pages/instructor/UploadMaterialPage.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import styles from "./UploadMaterialPage.module.css";
 import {
   createAssignment,
+  getCourseMaterials,
   getInstructorCourses,
   uploadLecture,
+  updateLecture,
+  deleteLecture,
 } from "../../services/api/instructorApi";
 
 const WEEKS = Array.from({ length: 16 }, (_, i) => `Week ${i + 1}`);
@@ -259,7 +262,7 @@ function SuccessState({ icon, title, text, buttonText, color, onReset }) {
   );
 }
 
-function LectureForm({ courseId, color }) {
+function LectureForm({ courseId, color, onUploaded }) {
   const [title, setTitle] = useState("");
   const [week, setWeek] = useState("");
   const [desc, setDesc] = useState("");
@@ -268,6 +271,7 @@ function LectureForm({ courseId, color }) {
   const [relNow, setRelNow] = useState(true);
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [createdItem, setCreatedItem] = useState(null);
 
   const valid = title.trim() && file && (relNow || relDate);
 
@@ -279,6 +283,7 @@ function LectureForm({ courseId, color }) {
     setFile(null);
     setRelDate("");
     setRelNow(true);
+    setCreatedItem(null);
   };
 
   const submit = async () => {
@@ -286,7 +291,7 @@ function LectureForm({ courseId, color }) {
     setLoading(true);
     try {
       const weekNum = week ? parseInt(week.replace("Week ", ""), 10) : undefined;
-      await uploadLecture(
+      const created = await uploadLecture(
         courseId,
         {
           title,
@@ -296,7 +301,9 @@ function LectureForm({ courseId, color }) {
         },
         file,
       );
+      setCreatedItem(created);
       setDone(true);
+      onUploaded?.();
     } catch (e) {
       alert(e?.response?.data?.error?.message || "Upload failed. Please try again.");
     } finally {
@@ -635,10 +642,365 @@ function AssignmentForm({ courseCode, color }) {
   );
 }
 
+/* ── Lecture cards list ─────────────────────────────────────────── */
+function LectureCard({ item, color, onEdit, onDelete }) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ ...spring }}
+      style={{
+        position: "relative",
+        background: "var(--card-bg)",
+        border: "1px solid var(--border)",
+        borderRadius: 18,
+        padding: 18,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+      }}
+    >
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 3,
+        background: color, borderRadius: "18px 18px 0 0",
+      }} />
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{
+          padding: "3px 9px", borderRadius: 99, background: `${color}15`, color,
+          fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em",
+        }}>
+          {item.type || "lecture"}
+        </span>
+        {item.week != null && (
+          <span style={{
+            padding: "3px 9px", borderRadius: 99, background: "var(--hover-bg)",
+            fontSize: 11, fontWeight: 700, color: "var(--text-secondary)",
+          }}>
+            Week {item.week}
+          </span>
+        )}
+        {item.releaseDate && (
+          <span style={{
+            padding: "3px 9px", borderRadius: 99, background: "var(--hover-bg)",
+            fontSize: 11, fontWeight: 700, color: "var(--text-secondary)",
+          }}>
+            🗓 {item.releaseDate}
+          </span>
+        )}
+      </div>
+
+      <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary)" }}>
+        {item.title}
+      </h4>
+      {item.courseCode && (
+        <span style={{ fontSize: 12, fontWeight: 700, color }}>
+          {item.courseCode}{item.courseName ? ` · ${item.courseName}` : ""}
+        </span>
+      )}
+      {item.description && (
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: "var(--text-secondary)" }}>
+          {item.description}
+        </p>
+      )}
+      {item.url && (
+        <a href={item.url} target="_blank" rel="noreferrer"
+           style={{
+             fontSize: 12, fontWeight: 700, color, textDecoration: "none",
+             padding: "6px 10px", borderRadius: 8, background: `${color}10`,
+             border: `1px solid ${color}30`, alignSelf: "flex-start",
+           }}>
+          📎 {item.fileName || "Open file"}
+        </a>
+      )}
+      <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 8 }}>
+        <button
+          type="button"
+          onClick={() => onEdit(item)}
+          style={{
+            padding: "8px 14px", borderRadius: 10, cursor: "pointer",
+            border: "1px solid var(--border)", background: "var(--hover-bg)",
+            color: "var(--text-primary)", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+          }}
+        >
+          ✎ Update
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(item)}
+          style={{
+            padding: "8px 14px", borderRadius: 10, cursor: "pointer",
+            border: "1.5px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)",
+            color: "#ef4444", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+          }}
+        >
+          🗑 Delete
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function ConfirmDeleteModal({ title, body, onConfirm, onClose, busy }) {
+  return (
+    <motion.div
+      onClick={onClose}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16,
+      }}
+    >
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.92, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95 }}
+        transition={spring}
+        style={{
+          width: "min(440px, 100%)", background: "var(--card-bg)",
+          borderRadius: 18, overflow: "hidden",
+          border: "1px solid var(--border)", boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
+        }}
+      >
+        <div style={{ height: 4, background: "linear-gradient(135deg,#b91c1c,#ef4444)" }} />
+        <div style={{ padding: 22 }}>
+          <h3 style={{ margin: "0 0 8px", fontSize: "1.1rem", fontWeight: 800 }}>{title}</h3>
+          <p style={{ margin: 0, fontSize: 13.5, color: "var(--text-secondary)", lineHeight: 1.55 }}>
+            {body}
+          </p>
+          <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "flex-end" }}>
+            <button type="button" onClick={onClose} disabled={busy}
+              style={{
+                padding: "10px 16px", borderRadius: 11, cursor: "pointer",
+                border: "1px solid var(--border)", background: "var(--hover-bg)",
+                color: "var(--text-primary)", fontFamily: "inherit", fontSize: 13, fontWeight: 700,
+              }}>
+              Cancel
+            </button>
+            <button type="button" onClick={onConfirm} disabled={busy}
+              style={{
+                padding: "10px 16px", borderRadius: 11, cursor: "pointer", border: "none",
+                background: "linear-gradient(135deg,#b91c1c,#ef4444)", color: "#fff",
+                fontFamily: "inherit", fontSize: 13, fontWeight: 800,
+              }}>
+              {busy ? "Deleting…" : "🗑 Delete"}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function EditLectureModal({ item, courseId, color, onSaved, onClose }) {
+  const [title, setTitle] = useState(item?.title ?? "");
+  const [desc, setDesc] = useState(item?.description ?? "");
+  const [week, setWeek] = useState(item?.week != null ? `Week ${item.week}` : "");
+  const [relDate, setRelDate] = useState(item?.releaseDate ?? "");
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setBusy(true);
+    try {
+      const weekNum = week ? parseInt(week.replace("Week ", ""), 10) : undefined;
+      await updateLecture(courseId, item.id, {
+        title,
+        description: desc,
+        week: weekNum,
+        releaseDate: relDate || undefined,
+      }, file || null);
+      onSaved?.();
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <motion.div
+      onClick={onClose}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16, overflowY: "auto",
+      }}
+    >
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.94, y: 18 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96 }}
+        transition={spring}
+        style={{
+          width: "min(560px, 100%)", background: "var(--card-bg)",
+          borderRadius: 20, overflow: "hidden",
+          border: "1px solid var(--border)", boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
+        }}
+      >
+        <div style={{ height: 4, background: color }} />
+        <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
+          <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800 }}>Edit lecture</h3>
+
+          <div>
+            <label className={styles.fieldLabel}>Title</label>
+            <input className={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div>
+            <label className={styles.fieldLabel}>Description</label>
+            <textarea className={styles.textarea} rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label className={styles.fieldLabel}>Week</label>
+              <select className={styles.select} value={week} onChange={(e) => setWeek(e.target.value)}>
+                <option value="">No week</option>
+                {WEEKS.map((w) => <option key={w} value={w}>{w}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={styles.fieldLabel}>Release date</label>
+              <input type="date" className={styles.input} value={relDate} onChange={(e) => setRelDate(e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label className={styles.fieldLabel}>Replace file (optional)</label>
+            <input ref={fileRef} type="file" style={{ display: "none" }}
+                   onChange={(e) => setFile(e.target.files[0] || null)} />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              style={{
+                width: "100%", textAlign: "left", padding: "11px 14px", borderRadius: 12,
+                border: `1.5px solid ${file ? `${color}60` : "var(--border)"}`,
+                background: "var(--hover-bg)", cursor: "pointer", fontFamily: "inherit",
+                fontSize: 13, color: file ? "var(--text-primary)" : "var(--text-muted)",
+              }}>
+              {file ? `📎 ${file.name}` : item?.fileName ? `Keep current: ${item.fileName}` : "📎 Choose a new file…"}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", paddingTop: 4 }}>
+            <button type="button" onClick={onClose} disabled={busy}
+              style={{
+                padding: "10px 16px", borderRadius: 11, cursor: "pointer",
+                border: "1px solid var(--border)", background: "var(--hover-bg)",
+                color: "var(--text-primary)", fontFamily: "inherit", fontSize: 13, fontWeight: 700,
+              }}>
+              Cancel
+            </button>
+            <button type="button" onClick={submit} disabled={busy || !title.trim()}
+              style={{
+                padding: "10px 18px", borderRadius: 11, cursor: "pointer", border: "none",
+                background: color, color: "#fff", fontFamily: "inherit", fontSize: 13, fontWeight: 800,
+                opacity: title.trim() ? 1 : 0.5,
+              }}>
+              {busy ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function LectureList({ courseId, color, refreshKey, onChanged }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const reload = useCallback(async () => {
+    if (!courseId) return;
+    setLoading(true);
+    try {
+      const list = await getCourseMaterials(courseId);
+      setItems(Array.isArray(list) ? list : []);
+    } catch { setItems([]); }
+    finally { setLoading(false); }
+  }, [courseId]);
+
+  useEffect(() => { reload(); }, [reload, refreshKey]);
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setBusy(true);
+    try {
+      await deleteLecture(courseId, deleting.id);
+      setItems((prev) => prev.filter((m) => m.id !== deleting.id));
+      setDeleting(null);
+      onChanged?.();
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || "Delete failed");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <section className={styles.surface} style={{ "--accent": color }}>
+      <div className={styles.surfaceHead}>
+        <div>
+          <span className={styles.sectionEyebrow}>Library</span>
+          <h2 className={styles.sectionTitle}>Existing lectures</h2>
+          <p className={styles.sectionText}>
+            All lectures you have published in this course. Update or delete each item individually.
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>
+      ) : items.length === 0 ? (
+        <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13.5 }}>
+          No lectures yet. Use the form above to publish your first one.
+        </div>
+      ) : (
+        <div style={{
+          display: "grid", gap: 14,
+          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        }}>
+          <AnimatePresence>
+            {items.map((m) => (
+              <LectureCard key={m.id} item={m} color={color}
+                onEdit={setEditing} onDelete={setDeleting} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {editing && (
+          <EditLectureModal
+            item={editing}
+            courseId={courseId}
+            color={color}
+            onClose={() => setEditing(null)}
+            onSaved={() => { setEditing(null); reload(); onChanged?.(); }}
+          />
+        )}
+        {deleting && (
+          <ConfirmDeleteModal
+            title="Delete lecture?"
+            body={`"${deleting.title}" and its uploaded file will be permanently removed and cannot be recovered.`}
+            onClose={() => setDeleting(null)}
+            onConfirm={handleDelete}
+            busy={busy}
+          />
+        )}
+      </AnimatePresence>
+    </section>
+  );
+}
+
 export default function UploadMaterialPage() {
   const [courses, setCourses] = useState([]);
   const [course, setCourse] = useState(null);
   const [matType, setMatType] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     getInstructorCourses()
@@ -783,7 +1145,7 @@ export default function UploadMaterialPage() {
                   </div>
 
                   {matType === "lecture" ? (
-                    <LectureForm courseId={course} color="#5a67d8" />
+                    <LectureForm courseId={course} color="#5a67d8" onUploaded={() => setRefreshKey((k) => k + 1)} />
                   ) : (
                     <AssignmentForm courseCode={currentCourse.code} color={currentCourse.color || "#7c3aed"} />
                   )}
@@ -806,6 +1168,15 @@ export default function UploadMaterialPage() {
                 </motion.section>
               )}
             </AnimatePresence>
+
+            {matType === "lecture" && (
+              <LectureList
+                courseId={course}
+                color="#5a67d8"
+                refreshKey={refreshKey}
+                onChanged={() => setRefreshKey((k) => k + 1)}
+              />
+            )}
           </>
         )}
       </main>

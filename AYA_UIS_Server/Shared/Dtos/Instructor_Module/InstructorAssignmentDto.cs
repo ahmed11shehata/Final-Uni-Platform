@@ -29,4 +29,22 @@ namespace Shared.Dtos.Instructor_Module
         public int MaxGrade { get; set; }
         public List<string> AllowedFormats { get; set; } = new();
     }
+
+    /// <summary>
+    /// Multipart payload for PUT /api/instructor/assignments/{id}.
+    /// Course cannot change after creation; all other metadata fields are optional
+    /// and only applied when present.
+    /// </summary>
+    public class UpdateInstructorAssignmentDto
+    {
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public string? Deadline { get; set; }
+        public string? ReleaseDate { get; set; }
+        public int MaxGrade { get; set; }
+        /// <summary>If true and ReleaseDate is null/empty, clear the existing release date.</summary>
+        public bool ClearReleaseDate { get; set; }
+        /// <summary>If true and no new file is provided, drop the existing attachment.</summary>
+        public bool RemoveAttachment { get; set; }
+    }
 }
