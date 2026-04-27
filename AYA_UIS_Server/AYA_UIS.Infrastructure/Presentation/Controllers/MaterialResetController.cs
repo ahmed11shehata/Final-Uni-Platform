@@ -28,6 +28,18 @@ namespace Presentation.Controllers
         }
 
         // ══════════════════════════════════════════════════════════════════
+        // GET /api/admin/material-reset/courses
+        // Returns every course in the catalog (Courses table) — including ones
+        // with no material — so the admin can pick any of them.
+        // ══════════════════════════════════════════════════════════════════
+        [HttpGet("courses")]
+        public async Task<IActionResult> GetCatalog()
+        {
+            var data = await _service.GetCatalogAsync();
+            return Ok(new { success = true, data });
+        }
+
+        // ══════════════════════════════════════════════════════════════════
         // POST /api/admin/material-reset/preview
         // Read-only impact preview. Surfaces pending-submission blockers.
         // ══════════════════════════════════════════════════════════════════

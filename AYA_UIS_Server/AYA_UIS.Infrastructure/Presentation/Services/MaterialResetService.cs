@@ -53,6 +53,60 @@ namespace Presentation.Services
         }
 
         // ═════════════════════════════════════════════════════════════
+        // CATALOG — every course + per-course active material counts
+        // ═════════════════════════════════════════════════════════════
+        public async Task<List<MaterialResetCourseDto>> GetCatalogAsync()
+        {
+            // Base table is Courses (catalog source of truth). LEFT-style aggregations
+            // mean a course with zero material still appears with all counts = 0.
+            var courses = await _ctx.Courses.AsNoTracking()
+                .Include(c => c.Department)
+                .OrderBy(c => c.Code).ThenBy(c => c.Name)
+                .ToListAsync();
+
+            if (courses.Count == 0) return new List<MaterialResetCourseDto>();
+
+            var courseIds = courses.Select(c => c.Id).ToList();
+
+            var asnCounts = await _ctx.Assignments.AsNoTracking()
+                .Where(a => courseIds.Contains(a.CourseId) && !a.IsArchived)
+                .GroupBy(a => a.CourseId)
+                .Select(g => new { CourseId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.CourseId, x => x.Count);
+
+            var quizCounts = await _ctx.Quizzes.AsNoTracking()
+                .Where(q => courseIds.Contains(q.CourseId) && !q.IsArchived)
+                .GroupBy(q => q.CourseId)
+                .Select(g => new { CourseId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.CourseId, x => x.Count);
+
+            var lecCounts = await _ctx.CourseUploads.AsNoTracking()
+                .Where(u => courseIds.Contains(u.CourseId))
+                .GroupBy(u => u.CourseId)
+                .Select(g => new { CourseId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.CourseId, x => x.Count);
+
+            return courses.Select(c =>
+            {
+                int aCount = asnCounts.TryGetValue(c.Id, out var av) ? av : 0;
+                int qCount = quizCounts.TryGetValue(c.Id, out var qv) ? qv : 0;
+                int lCount = lecCounts.TryGetValue(c.Id, out var lv) ? lv : 0;
+                return new MaterialResetCourseDto
+                {
+                    Id              = c.Id,
+                    Code            = c.Code,
+                    Name            = c.Name,
+                    Credits         = c.Credits,
+                    Department      = c.Department?.Name,
+                    AssignmentCount = aCount,
+                    QuizCount       = qCount,
+                    LectureCount    = lCount,
+                    HasMaterial     = aCount + qCount + lCount > 0,
+                };
+            }).ToList();
+        }
+
+        // ═════════════════════════════════════════════════════════════
         // PREVIEW
         // ═════════════════════════════════════════════════════════════
         public async Task<MaterialResetPreviewResponseDto> PreviewAsync(

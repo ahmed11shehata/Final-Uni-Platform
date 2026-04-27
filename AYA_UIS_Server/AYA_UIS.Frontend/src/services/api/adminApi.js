@@ -260,6 +260,17 @@ export const studentDeleteExecute = async (dto) => {
 // ── Reset Material ───────────────────────────────────────────
 
 /**
+ * GET /api/admin/material-reset/courses
+ * Returns every course from the catalog, with per-course material counts.
+ * Each row: { id, code, name, credits, department, assignmentCount,
+ *             quizCount, lectureCount, hasMaterial }
+ */
+export const materialResetCourses = async () => {
+  const res = await api.get("/admin/material-reset/courses");
+  return Array.isArray(res.data?.data) ? res.data.data : [];
+};
+
+/**
  * POST /api/admin/material-reset/preview
  * @param {{ courseIds?: number[], selectAll?: boolean }} dto
  */

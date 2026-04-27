@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  getAdminCourses,
+  materialResetCourses,
   materialResetPreview,
   materialResetExecute,
 } from "../../services/api/adminApi";
@@ -78,6 +78,16 @@ const S = {
 };
 
 function CourseTile({ c, selected, onToggle, color }) {
+  const hasMaterial = !!c.hasMaterial;
+  const aCount = c.assignmentCount ?? 0;
+  const qCount = c.quizCount ?? 0;
+  const lCount = c.lectureCount ?? 0;
+  const badge = (label, n, bg, fg) => (
+    <span style={{
+      padding: "2px 7px", borderRadius: 99, fontSize: 10.5, fontWeight: 800,
+      background: bg, color: fg, lineHeight: 1.4,
+    }}>{label} {n}</span>
+  );
   return (
     <motion.button
       type="button"
@@ -92,13 +102,32 @@ function CourseTile({ c, selected, onToggle, color }) {
         border: selected ? `1.5px solid ${color}` : "1.5px solid var(--border)",
         background: selected ? `${color}10` : "var(--card-bg)",
         cursor: "pointer", fontFamily: "inherit",
-        display: "flex", flexDirection: "column", gap: 4,
+        display: "flex", flexDirection: "column", gap: 6,
       }}
     >
       <span style={{
         fontSize: 12, fontWeight: 800, color: selected ? color : "var(--text-secondary)",
       }}>{c.code}</span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{c.name}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.3 }}>
+        {c.name}
+      </span>
+
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+        {hasMaterial ? (
+          <>
+            {aCount > 0 && badge("asn",  aCount, "rgba(129,140,248,.10)", "#818cf8")}
+            {qCount > 0 && badge("quiz", qCount, "rgba(245,158,11,.12)",  "#f59e0b")}
+            {lCount > 0 && badge("lec",  lCount, "rgba(34,197,94,.12)",   "#22c55e")}
+          </>
+        ) : (
+          <span style={{
+            padding: "2px 7px", borderRadius: 99, fontSize: 10.5, fontWeight: 800,
+            background: "rgba(148,163,184,.10)", color: "var(--text-muted)",
+            border: "1px dashed var(--border)",
+          }}>No material yet</span>
+        )}
+      </div>
+
       {selected && (
         <span style={{
           position: "absolute", top: 8, right: 10,
@@ -181,14 +210,12 @@ export default function ResetMaterialPage() {
 
   useEffect(() => {
     setLoadingCourses(true);
-    getAdminCourses()
+    materialResetCourses()
       .then((rows) => {
-        const list = (rows || []).map((c) => ({
-          id: typeof c.id === "number" ? c.id : Number(c.id ?? c.courseId ?? 0),
-          code: c.code,
-          name: c.name,
-        })).filter((c) => c.id);
-        setCourses(list);
+        // Backend already returns id + per-course counts. Keep every row from the
+        // catalog — even courses with no material remain selectable (they no-op
+        // safely on execute).
+        setCourses(Array.isArray(rows) ? rows : []);
       })
       .catch(() => setCourses([]))
       .finally(() => setLoadingCourses(false));

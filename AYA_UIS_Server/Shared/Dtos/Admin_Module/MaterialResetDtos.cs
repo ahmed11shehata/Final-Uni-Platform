@@ -2,6 +2,37 @@ using System.Text.Json.Serialization;
 
 namespace Shared.Dtos.Admin_Module
 {
+    // ── Catalog (course list source for the Reset Material page) ──
+    public class MaterialResetCourseDto
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("code")]
+        public string Code { get; set; } = string.Empty;
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("credits")]
+        public int? Credits { get; set; }
+
+        [JsonPropertyName("department")]
+        public string? Department { get; set; }
+
+        [JsonPropertyName("assignmentCount")]
+        public int AssignmentCount { get; set; }
+
+        [JsonPropertyName("quizCount")]
+        public int QuizCount { get; set; }
+
+        [JsonPropertyName("lectureCount")]
+        public int LectureCount { get; set; }
+
+        [JsonPropertyName("hasMaterial")]
+        public bool HasMaterial { get; set; }
+    }
+
     // ── Preview ──────────────────────────────────────────────────
     public class MaterialResetPreviewRequestDto
     {

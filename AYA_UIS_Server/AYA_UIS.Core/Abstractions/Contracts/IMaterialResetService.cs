@@ -11,6 +11,13 @@ namespace Abstraction.Contracts
     /// </summary>
     public interface IMaterialResetService
     {
+        /// <summary>
+        /// Returns every course in the catalog (Courses table) with per-course
+        /// material counts (active, non-archived). Includes courses with zero
+        /// material so the admin can still pick them — they no-op safely on execute.
+        /// </summary>
+        Task<List<MaterialResetCourseDto>> GetCatalogAsync();
+
         Task<MaterialResetPreviewResponseDto> PreviewAsync(
             MaterialResetPreviewRequestDto request);
 
