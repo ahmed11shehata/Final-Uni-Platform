@@ -15,7 +15,7 @@ namespace Shared.Dtos.Info_Module.QuizDto
         public int      Duration      { get; set; }   // minutes — EndTime - StartTime
         public int      QuestionCount { get; set; }
         /// <summary>Quiz total points = QuestionCount × points-per-question (matches scoring).</summary>
-        public int      TotalPoints   { get; set; }
+        public decimal  TotalPoints   { get; set; }
 
         // Populated only in GetQuiz (detail endpoint)
         public List<FrontendQuizQuestionDto>? Questions { get; set; }
@@ -24,7 +24,7 @@ namespace Shared.Dtos.Info_Module.QuizDto
         public bool ReviewAvailable { get; set; }
 
         /// <summary>Student's own attempt score if already submitted (null if not attempted)</summary>
-        public int? MyScore { get; set; }
+        public decimal? MyScore { get; set; }
     }
 
     public class FrontendQuizQuestionDto

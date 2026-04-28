@@ -20,13 +20,13 @@ namespace Abstraction.Contracts
         Task<CourseworkBudgetValidation> ValidateAddAssignmentAsync(int courseId, int requestedPoints);
 
         /// <summary>True if adding a new quiz with this total point value (questions × points-per-question) fits ≤ 40.</summary>
-        Task<CourseworkBudgetValidation> ValidateAddQuizAsync(int courseId, int requestedTotalPoints);
+        Task<CourseworkBudgetValidation> ValidateAddQuizAsync(int courseId, decimal requestedTotalPoints);
 
         /// <summary>
         /// True if changing an existing quiz's total point value (questions × points-per-question) still fits ≤ 40.
         /// Pass the existing quiz's previous total points so it is subtracted before validating the new value.
         /// </summary>
-        Task<CourseworkBudgetValidation> ValidateUpdateQuizAsync(int courseId, int existingQuizTotalPoints, int newTotalPoints);
+        Task<CourseworkBudgetValidation> ValidateUpdateQuizAsync(int courseId, decimal existingQuizTotalPoints, decimal newTotalPoints);
 
         /// <summary>True if setting midterm Max to this value still fits ≤ 40.</summary>
         Task<CourseworkBudgetValidation> ValidateMidtermMaxAsync(int courseId, int requestedMidtermMax);
@@ -34,10 +34,10 @@ namespace Abstraction.Contracts
 
     public sealed class CourseworkBudgetValidation
     {
-        public bool   Ok        { get; init; }
-        public int    Used      { get; init; }
-        public int    Remaining { get; init; }
-        public int    Requested { get; init; }
-        public string Message   { get; init; } = string.Empty;
+        public bool    Ok        { get; init; }
+        public decimal Used      { get; init; }
+        public decimal Remaining { get; init; }
+        public decimal Requested { get; init; }
+        public string  Message   { get; init; } = string.Empty;
     }
 }

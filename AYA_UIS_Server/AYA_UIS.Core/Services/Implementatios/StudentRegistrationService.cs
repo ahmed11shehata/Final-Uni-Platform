@@ -838,7 +838,7 @@ namespace Services.Implementatios
                 var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(quiz.Id, userId);
 
                 string quizStatus;
-                int? score = null;
+                decimal? score = null;
 
                 if (attempt != null)
                 {
@@ -870,7 +870,7 @@ namespace Services.Implementatios
                     StartTime       = quiz.StartTime.ToString("h:mm tt"),
                     Duration        = $"{durationMins} min",
                     Questions       = qCount,
-                    Max             = qCount,          // 1 pt per question
+                    Max             = qCount * (quiz.GradePerQuestion <= 0m ? 1m : quiz.GradePerQuestion),
                     Score           = score,
                     Status          = quizStatus,
                     Deadline        = quiz.EndTime.ToString("MMM d, yyyy"),

@@ -12,7 +12,7 @@ using Shared.Respones;
 namespace AYA_UIS.Application.Handlers.Quiz
 {
     public class SubmitQuizCommandHandler
-            : IRequestHandler<SubmitQuizCommand, Response<int>>
+            : IRequestHandler<SubmitQuizCommand, Response<decimal>>
     {
         private readonly IUnitOfWork _unitOfWork;
 
@@ -21,7 +21,7 @@ namespace AYA_UIS.Application.Handlers.Quiz
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<Response<int>> Handle(
+        public async Task<Response<decimal>> Handle(
             SubmitQuizCommand request,
             CancellationToken cancellationToken)
         {
@@ -29,22 +29,22 @@ namespace AYA_UIS.Application.Handlers.Quiz
                 .GetQuizWithQuestionsAsync(request.Submission.QuizId);
 
             if (quiz == null)
-                return Response<int>.ErrorResponse("Quiz not found");
+                return Response<decimal>.ErrorResponse("Quiz not found");
 
             if (DateTime.UtcNow < quiz.StartTime)
-                return Response<int>.ErrorResponse("Quiz not started yet");
+                return Response<decimal>.ErrorResponse("Quiz not started yet");
 
             if (DateTime.UtcNow > quiz.EndTime)
-                return Response<int>.ErrorResponse("Quiz ended");
+                return Response<decimal>.ErrorResponse("Quiz ended");
 
             var attempted = await _unitOfWork.Quizzes
                 .AttemptExists(quiz.Id, request.StudentId);
 
             if (attempted)
-                return Response<int>.ErrorResponse("Quiz already submitted");
+                return Response<decimal>.ErrorResponse("Quiz already submitted");
 
-            int score = 0;
-            int gradePerQ = quiz.GradePerQuestion <= 0 ? 1 : quiz.GradePerQuestion;
+            decimal score = 0m;
+            decimal gradePerQ = quiz.GradePerQuestion <= 0m ? 1m : quiz.GradePerQuestion;
 
             var answers = new List<StudentAnswer>();
 
@@ -79,7 +79,7 @@ namespace AYA_UIS.Application.Handlers.Quiz
             await _unitOfWork.Quizzes.AddAttemptAsync(attempt);
             await _unitOfWork.SaveChangesAsync();
 
-            return Response<int>.SuccessResponse(score);
+            return Response<decimal>.SuccessResponse(score);
         }
     }
 }

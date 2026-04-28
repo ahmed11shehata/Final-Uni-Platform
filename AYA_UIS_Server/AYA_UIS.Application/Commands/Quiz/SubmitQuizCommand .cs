@@ -9,7 +9,7 @@ using Shared.Respones;
 
 namespace AYA_UIS.Application.Commands.Quiz
 {
-    public class SubmitQuizCommand : IRequest<Response<int>>
+    public class SubmitQuizCommand : IRequest<Response<decimal>>
     {
         public SubmitQuizDto Submission { get; set; }
 

@@ -27,7 +27,7 @@ namespace AYA_UIS.Application.Handlers.Quiz
             var now            = DateTime.UtcNow;
             var reviewAvailable = now > quiz.EndTime;
 
-            int? myScore = null;
+            decimal? myScore = null;
             if (!string.IsNullOrEmpty(request.StudentId))
             {
                 var attempt = await _unitOfWork.Quizzes

@@ -17,7 +17,7 @@ namespace Shared.Dtos.Instructor_Module
         /// <summary>True when at least one student has already attempted the quiz.</summary>
         public bool HasAttempts { get; set; }
         /// <summary>Total points if a per-question grade was supplied at create time. Null otherwise.</summary>
-        public int? TotalPoints { get; set; }
+        public decimal? TotalPoints { get; set; }
     }
 
     /// <summary>
@@ -33,7 +33,7 @@ namespace Shared.Dtos.Instructor_Module
         public DateTime? EndTime { get; set; }
         public List<QuizQuestionInputDto>? Questions { get; set; }
         /// <summary>Optional new points-per-question. Locked once any student has attempted the quiz.</summary>
-        public int? GradePerQ { get; set; }
+        public decimal? GradePerQ { get; set; }
     }
 
     public class CreateInstructorQuizDto
@@ -42,7 +42,7 @@ namespace Shared.Dtos.Instructor_Module
         public string Title { get; set; } = string.Empty;
         public int Duration { get; set; }
         public List<QuizQuestionInputDto> Questions { get; set; } = new();
-        public int GradePerQ { get; set; }
+        public decimal GradePerQ { get; set; }
         /// <summary>ISO 8601 — when quiz opens</summary>
         public DateTime StartTime { get; set; }
         /// <summary>ISO 8601 — when quiz closes</summary>
@@ -68,8 +68,8 @@ namespace Shared.Dtos.Instructor_Module
         public string StudentId { get; set; } = string.Empty;
         public string StudentName { get; set; } = string.Empty;
         public string SubmittedAt { get; set; } = string.Empty;
-        public int Score { get; set; }
-        public int Max { get; set; }
+        public decimal Score { get; set; }
+        public decimal Max { get; set; }
         public List<int> Answers { get; set; } = new();
     }
 }

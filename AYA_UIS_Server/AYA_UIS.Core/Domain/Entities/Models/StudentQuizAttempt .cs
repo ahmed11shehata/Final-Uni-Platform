@@ -17,7 +17,7 @@ namespace AYA_UIS.Core.Domain.Entities.Models
 
         public User? Student { get; set; }
 
-        public int Score { get; set; }
+        public decimal Score { get; set; }
 
         public DateTime SubmittedAt { get; set; }
 

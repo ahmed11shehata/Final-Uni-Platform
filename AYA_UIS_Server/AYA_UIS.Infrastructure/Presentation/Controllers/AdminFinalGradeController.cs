@@ -228,6 +228,50 @@ namespace Presentation.Controllers
             if (studyYearId == 0 || semesterId == 0)
                 return BadRequest(new { success = false, error = new { message = "No active current term." } });
 
+            // Block "completed" classification if any coursework deadline hasn't passed yet.
+            if (status == ST_COMPLETED)
+            {
+                var studentRegs = await _unitOfWork.Registrations.GetByUserIdAsync(studentId);
+                var activeRegs = (studentRegs ?? Enumerable.Empty<Registration>())
+                    .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending)
+                                && !r.IsEquivalency && !r.IsArchived)
+                    .ToList();
+                var nowClassify = DateTime.UtcNow;
+                int totalPendingQ = 0, totalPendingA = 0;
+                foreach (var activeReg in activeRegs)
+                {
+                    var quizzes = (await _unitOfWork.Quizzes.GetQuizzesByCourseId(activeReg.CourseId)).ToList();
+                    foreach (var q in quizzes)
+                    {
+                        if (nowClassify <= q.EndTime)
+                        {
+                            var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(q.Id, studentId);
+                            if (attempt == null) totalPendingQ++;
+                        }
+                    }
+                    var asns = (await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(activeReg.CourseId)).ToList();
+                    foreach (var a in asns)
+                    {
+                        if (nowClassify <= a.Deadline)
+                        {
+                            var sub = await _unitOfWork.Assignments.GetStudentSubmissionAsync(a.Id, studentId);
+                            if (sub == null || !string.Equals(sub.Status, "Accepted", StringComparison.OrdinalIgnoreCase))
+                                totalPendingA++;
+                        }
+                    }
+                }
+                if (totalPendingA > 0 || totalPendingQ > 0)
+                    return UnprocessableEntity(new
+                    {
+                        success = false,
+                        error = new
+                        {
+                            code    = "PENDING_COURSEWORK",
+                            message = $"Cannot mark this student as Completed yet. There are still pending coursework items before their deadline. Pending assignments: {totalPendingA} Pending quizzes: {totalPendingQ}"
+                        }
+                    });
+            }
+
             var existing = await _unitOfWork.FinalGradeReviews.GetAsync(studentId, studyYearId, semesterId);
             if (existing == null)
             {

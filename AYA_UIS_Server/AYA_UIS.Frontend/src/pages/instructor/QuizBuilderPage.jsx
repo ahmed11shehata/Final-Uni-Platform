@@ -334,8 +334,9 @@ function StepSettings({ data, onChange, color }) {
           <label className={styles.fieldLabel}>Points per question</label>
           <input
             type="number"
-            min={1}
+            min={0.5}
             max={10}
+            step={0.5}
             className={styles.input}
             value={data.gradePerQ || ""}
             placeholder="1"
@@ -917,7 +918,7 @@ export default function QuizBuilderPage() {
   // Backend treats quiz total = (non-empty questions) × points-per-question. Match that
   // here so the banner reflects what the budget validator will actually see.
   const computedQuizTotal =
-    questions.filter(q => q.text.trim()).length * Math.max(1, Number(info.gradePerQ) || 1);
+    questions.filter(q => q.text.trim()).length * Math.max(0.5, Number(info.gradePerQ) || 0.5);
   const budgetOk = !budget || computedQuizTotal <= (budget?.remaining ?? 0);
 
   useEffect(() => {
@@ -1127,7 +1128,7 @@ export default function QuizBuilderPage() {
               }}>
                 <strong style={{ color: "var(--text-primary)" }}>Coursework budget</strong> —
                 Used: <strong>{budget.used}</strong> / {budget.budget} · Remaining: <strong>{budget.remaining}</strong>
-                · Quiz total (questions × {Math.max(1, Number(info.gradePerQ) || 1)} pt): <strong>{computedQuizTotal}</strong>
+                · Quiz total (questions × {Math.max(0.5, Number(info.gradePerQ) || 0.5)} pt): <strong>{computedQuizTotal}</strong>
                 {!budgetOk && (
                   <div style={{ color: "#ef4444", fontWeight: 700, marginTop: 4 }}>
                     ⚠ This quiz total exceeds the remaining 40-point coursework budget. Reduce the

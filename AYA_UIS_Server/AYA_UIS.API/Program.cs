@@ -572,11 +572,35 @@ namespace AYA_UIS.API
                 ");
 
                 // ── Quiz GradePerQuestion (points-per-question for coursework budget). ──
-                // Default 1 preserves the historical 1-point-per-question behavior for any
-                // quizzes that already exist when this column is added.
+                // DECIMAL(5,2) allows values like 0.5, 1.5 etc.
+                // Default 1.0 preserves the historical 1-point-per-question behavior.
                 await db.Database.ExecuteSqlRawAsync(@"
                     IF COL_LENGTH('dbo.Quizzes', 'GradePerQuestion') IS NULL
-                        ALTER TABLE dbo.Quizzes ADD GradePerQuestion INT NOT NULL CONSTRAINT DF_Quizzes_GradePerQuestion DEFAULT 1;
+                        ALTER TABLE dbo.Quizzes ADD GradePerQuestion DECIMAL(5,2) NOT NULL CONSTRAINT DF_Quizzes_GradePerQuestion DEFAULT 1.0;
+                ");
+                // Convert existing INT column to DECIMAL(5,2) (idempotent — skipped if already decimal).
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_NAME = 'Quizzes' AND COLUMN_NAME = 'GradePerQuestion' AND DATA_TYPE = 'int')
+                    BEGIN
+                        DECLARE @cn NVARCHAR(200) = (
+                            SELECT dc.name FROM sys.default_constraints dc
+                            JOIN sys.columns c ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
+                            WHERE OBJECT_NAME(c.object_id) = 'Quizzes' AND c.name = 'GradePerQuestion');
+                        IF @cn IS NOT NULL EXEC('ALTER TABLE dbo.Quizzes DROP CONSTRAINT ' + @cn);
+                        ALTER TABLE dbo.Quizzes ALTER COLUMN GradePerQuestion DECIMAL(5,2) NOT NULL;
+                        ALTER TABLE dbo.Quizzes ADD CONSTRAINT DF_Quizzes_GradePerQuestion DEFAULT 1.0 FOR GradePerQuestion;
+                    END
+                ");
+                // ── StudentQuizAttempts.Score: convert INT to DECIMAL(8,2) for fractional scores. ──
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_NAME = 'StudentQuizAttempts' AND COLUMN_NAME = 'Score' AND DATA_TYPE = 'int')
+                    BEGIN
+                        ALTER TABLE dbo.StudentQuizAttempts ALTER COLUMN Score DECIMAL(8,2) NOT NULL;
+                    END
                 ");
 
                 // ── MaterialResets (audit log for the Admin Reset Material feature) ──
@@ -653,9 +677,9 @@ namespace AYA_UIS.API
                             .Where(q => q.CourseId == cid && !q.IsArchived)
                             .Include(q => q.Questions)
                             .ToListAsync();
-                        int qMax = courseQuizzes.Sum(q => (q.Questions?.Count ?? 0) * Math.Max(1, q.GradePerQuestion));
+                        decimal qMax = courseQuizzes.Sum(q => (q.Questions?.Count ?? 0) * Math.Max(1m, q.GradePerQuestion));
                         int mMax = await db.MidtermGrades.Where(m => m.CourseId == cid).Select(m => (int?)m.Max).MaxAsync() ?? 0;
-                        int used = aMax + qMax + mMax;
+                        decimal used = aMax + qMax + mMax;
                         if (used <= BUDGET) continue;
 
                         // 1) Archive newest quizzes until we fit, or quizzes are exhausted.
@@ -663,7 +687,7 @@ namespace AYA_UIS.API
                         foreach (var q in quizzes)
                         {
                             if (used <= BUDGET) break;
-                            int qPts = (q.Questions?.Count ?? 0) * Math.Max(1, q.GradePerQuestion);
+                            decimal qPts = (q.Questions?.Count ?? 0) * Math.Max(1m, q.GradePerQuestion);
                             q.IsArchived = true;
                             q.DeletedAt = DateTime.UtcNow;
                             q.DeletedById = "auto-fix";
@@ -691,7 +715,7 @@ namespace AYA_UIS.API
                         //    cap the highest stored midterm Max rows down. This is rare.
                         if (used > BUDGET)
                         {
-                            int over = used - BUDGET;
+                            decimal over = used - BUDGET;
                             var mts = await db.MidtermGrades
                                 .Where(m => m.CourseId == cid)
                                 .OrderByDescending(m => m.Max)
@@ -699,7 +723,7 @@ namespace AYA_UIS.API
                             foreach (var m in mts)
                             {
                                 if (over <= 0) break;
-                                int reduce = Math.Min(over, m.Max);
+                                int reduce = (int)Math.Min(over, m.Max);
                                 m.Max = m.Max - reduce;
                                 if (m.Grade > m.Max) m.Grade = m.Max;
                                 over -= reduce;

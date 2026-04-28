@@ -27,18 +27,40 @@ namespace Presentation.Services
                 .Where(a => a.CourseId == courseId && !a.IsArchived)
                 .SumAsync(a => (int?)a.Points) ?? 0;
 
-            // Quiz total = Questions.Count * GradePerQuestion. Archived quizzes
-            // (Reset Material soft-delete) are excluded.
-            int qMax = await _ctx.Quizzes.AsNoTracking()
+            // Quiz total = questions × GradePerQuestion. Archived quizzes excluded.
+            // Two flat queries + C# sum avoid the SQL Server
+            // "aggregate on subquery" error that SUM(COUNT subquery) triggers.
+            var activeQuizzes = await _ctx.Quizzes.AsNoTracking()
                 .Where(q => q.CourseId == courseId && !q.IsArchived)
-                .Select(q => q.Questions.Count * (q.GradePerQuestion <= 0 ? 1 : q.GradePerQuestion))
-                .SumAsync();
+                .Select(q => new { q.Id, q.GradePerQuestion })
+                .ToListAsync();
+
+            decimal qMax = 0m;
+            if (activeQuizzes.Count > 0)
+            {
+                var activeIds = activeQuizzes.Select(q => q.Id).ToList();
+
+                var qCounts = await _ctx.QuizQuestions.AsNoTracking()
+                    .Where(qq => activeIds.Contains(qq.QuizId))
+                    .GroupBy(qq => qq.QuizId)
+                    .Select(g => new { QuizId = g.Key, Count = g.Count() })
+                    .ToListAsync();
+
+                var countByQuizId = qCounts.ToDictionary(x => x.QuizId, x => x.Count);
+
+                qMax = activeQuizzes.Sum(q =>
+                {
+                    int cnt        = countByQuizId.TryGetValue(q.Id, out var c) ? c : 0;
+                    decimal grade  = q.GradePerQuestion <= 0m ? 1m : q.GradePerQuestion;
+                    return cnt * grade;
+                });
+            }
 
             int mMax = await _ctx.MidtermGrades.AsNoTracking()
                 .Where(m => m.CourseId == courseId)
                 .Select(m => (int?)m.Max).MaxAsync() ?? 0;
 
-            int used = aMax + qMax + mMax;
+            decimal used = aMax + qMax + mMax;
             return new CourseworkBudgetDto
             {
                 CourseId       = courseId,
@@ -47,7 +69,7 @@ namespace Presentation.Services
                 QuizMax        = qMax,
                 MidtermMax     = mMax,
                 Used           = used,
-                Remaining      = Math.Max(0, COURSEWORK_BUDGET - used),
+                Remaining      = Math.Max(0m, COURSEWORK_BUDGET - used),
             };
         }
 
@@ -57,20 +79,20 @@ namespace Presentation.Services
             return Build(b, requestedPoints, "assignment");
         }
 
-        public async Task<CourseworkBudgetValidation> ValidateAddQuizAsync(int courseId, int requestedTotalPoints)
+        public async Task<CourseworkBudgetValidation> ValidateAddQuizAsync(int courseId, decimal requestedTotalPoints)
         {
             var b = await GetBudgetAsync(courseId);
             return Build(b, requestedTotalPoints, "quiz");
         }
 
-        public async Task<CourseworkBudgetValidation> ValidateUpdateQuizAsync(int courseId, int existingQuizTotalPoints, int newTotalPoints)
+        public async Task<CourseworkBudgetValidation> ValidateUpdateQuizAsync(int courseId, decimal existingQuizTotalPoints, decimal newTotalPoints)
         {
             var b = await GetBudgetAsync(courseId);
             // Subtract this quiz's existing footprint (questions × points-per-question)
             // before checking the new total.
-            int adjustedUsed = Math.Max(0, b.Used - existingQuizTotalPoints);
-            int adjustedRemaining = Math.Max(0, COURSEWORK_BUDGET - adjustedUsed);
-            int delta = newTotalPoints;
+            decimal adjustedUsed = Math.Max(0m, b.Used - existingQuizTotalPoints);
+            decimal adjustedRemaining = Math.Max(0m, COURSEWORK_BUDGET - adjustedUsed);
+            decimal delta = newTotalPoints;
             bool ok = delta <= adjustedRemaining;
             return new CourseworkBudgetValidation
             {
@@ -88,8 +110,8 @@ namespace Presentation.Services
         {
             // For midterm, the requested value REPLACES the existing midterm cap, it doesn't add to it.
             var b = await GetBudgetAsync(courseId);
-            int withoutMidterm = Math.Max(0, b.Used - b.MidtermMax);
-            int adjustedRemaining = Math.Max(0, COURSEWORK_BUDGET - withoutMidterm);
+            decimal withoutMidterm = Math.Max(0m, b.Used - b.MidtermMax);
+            decimal adjustedRemaining = Math.Max(0m, COURSEWORK_BUDGET - withoutMidterm);
             bool ok = requestedMidtermMax <= adjustedRemaining;
             return new CourseworkBudgetValidation
             {
@@ -106,7 +128,7 @@ namespace Presentation.Services
         // ──────────────────────────────────────────────────────────
         // helpers
         // ──────────────────────────────────────────────────────────
-        private static CourseworkBudgetValidation Build(CourseworkBudgetDto b, int requested, string label)
+        private static CourseworkBudgetValidation Build(CourseworkBudgetDto b, decimal requested, string label)
         {
             bool ok = requested <= b.Remaining;
             return new CourseworkBudgetValidation
@@ -119,7 +141,7 @@ namespace Presentation.Services
             };
         }
 
-        private static string BlockMessage(int used, int remaining, int requested, string label) =>
+        private static string BlockMessage(decimal used, decimal remaining, decimal requested, string label) =>
             $"Cannot add this {label}. Coursework budget is limited to {COURSEWORK_BUDGET} points. " +
             $"Used: {used} / {COURSEWORK_BUDGET}  ·  Remaining: {remaining}  ·  Requested: {requested}";
     }

@@ -4,7 +4,7 @@
     {
         public string    StudentId   { get; set; } = string.Empty;
         public string    StudentName { get; set; } = string.Empty;
-        public int       Score       { get; set; }
+        public decimal   Score       { get; set; }
         public DateTime  SubmittedAt { get; set; }
     }
 }

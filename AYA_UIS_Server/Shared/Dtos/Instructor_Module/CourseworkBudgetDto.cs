@@ -11,9 +11,9 @@ namespace Shared.Dtos.Instructor_Module
         [JsonPropertyName("courseId")]         public int CourseId        { get; set; }
         [JsonPropertyName("budget")]           public int Budget          { get; set; } = 40;
         [JsonPropertyName("assignmentMax")]    public int AssignmentMax   { get; set; }
-        [JsonPropertyName("quizMax")]          public int QuizMax         { get; set; }
+        [JsonPropertyName("quizMax")]          public decimal QuizMax      { get; set; }
         [JsonPropertyName("midtermMax")]       public int MidtermMax      { get; set; }
-        [JsonPropertyName("used")]             public int Used            { get; set; }
-        [JsonPropertyName("remaining")]        public int Remaining       { get; set; }
+        [JsonPropertyName("used")]             public decimal Used        { get; set; }
+        [JsonPropertyName("remaining")]        public decimal Remaining   { get; set; }
     }
 }

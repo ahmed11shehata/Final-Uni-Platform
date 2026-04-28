@@ -654,31 +654,31 @@ namespace Presentation.Controllers
                 });
 
             // GradePerQuestion can only change while no student has attempted the quiz.
-            int existingGradePerQ = quiz.GradePerQuestion <= 0 ? 1 : quiz.GradePerQuestion;
-            int newGradePerQ = existingGradePerQ;
+            decimal existingGradePerQ = quiz.GradePerQuestion <= 0m ? 1m : quiz.GradePerQuestion;
+            decimal newGradePerQ = existingGradePerQ;
             if (dto.GradePerQ.HasValue && dto.GradePerQ.Value != existingGradePerQ)
             {
                 if (hasAttempts)
                     return BadRequest(new { success = false, error = new {
                         code = "POINTS_LOCKED",
                         message = "Points per question cannot be changed after students have attempted this quiz." } });
-                if (dto.GradePerQ.Value < 1 || dto.GradePerQ.Value > 10)
-                    return BadRequest(new { success = false, error = new { message = "Points per question must be between 1 and 10." } });
+                if (dto.GradePerQ.Value < 0.5m || dto.GradePerQ.Value > 10m)
+                    return BadRequest(new { success = false, error = new { message = "Points per question must be between 0.5 and 10." } });
                 newGradePerQ = dto.GradePerQ.Value;
             }
 
             // If question structure or points-per-question changed, validate against the budget.
-            int existingQuestionCount = quiz.Questions?.Count ?? 0;
-            int existingTotalPoints   = existingQuestionCount * existingGradePerQ;
-            bool questionsChanging    = dto.Questions != null && dto.Questions.Count > 0 && !hasAttempts;
-            bool pointsChanging       = newGradePerQ != existingGradePerQ;
+            int existingQuestionCount    = quiz.Questions?.Count ?? 0;
+            decimal existingTotalPoints  = existingQuestionCount * existingGradePerQ;
+            bool questionsChanging       = dto.Questions != null && dto.Questions.Count > 0 && !hasAttempts;
+            bool pointsChanging          = newGradePerQ != existingGradePerQ;
 
             if (questionsChanging || pointsChanging)
             {
                 int newQuestionCount = questionsChanging
                     ? dto.Questions!.Count(q => !string.IsNullOrWhiteSpace(q.Text))
                     : existingQuestionCount;
-                int newTotalPoints = newQuestionCount * newGradePerQ;
+                decimal newTotalPoints = newQuestionCount * newGradePerQ;
                 var qv = await budget.ValidateUpdateQuizAsync(courseId, existingTotalPoints, newTotalPoints);
                 if (!qv.Ok)
                     return BadRequest(new { success = false, error = new {
@@ -799,12 +799,12 @@ namespace Presentation.Controllers
                 return BadRequest(new { success = false, error = new { message = "EndTime must be after StartTime." } });
 
             // Quiz total = (non-empty questions) × points-per-question.
-            // GradePerQ defaults to 1 if the client doesn't supply it; it must be 1..10.
+            // GradePerQ defaults to 1 if the client doesn't supply it; it must be 0.5..10.
             int newQuestions = dto.Questions.Count(q => !string.IsNullOrWhiteSpace(q.Text));
-            int gradePerQ = dto.GradePerQ <= 0 ? 1 : dto.GradePerQ;
-            if (gradePerQ < 1 || gradePerQ > 10)
-                return BadRequest(new { success = false, error = new { message = "Points per question must be between 1 and 10." } });
-            int newTotalPoints = newQuestions * gradePerQ;
+            decimal gradePerQ = dto.GradePerQ <= 0m ? 1m : dto.GradePerQ;
+            if (gradePerQ < 0.5m || gradePerQ > 10m)
+                return BadRequest(new { success = false, error = new { message = "Points per question must be between 0.5 and 10." } });
+            decimal newTotalPoints = newQuestions * gradePerQ;
             var bv = await budget.ValidateAddQuizAsync(courseId, newTotalPoints);
             if (!bv.Ok)
                 return BadRequest(new { success = false, error = new {
@@ -1492,6 +1492,41 @@ namespace Presentation.Controllers
                 return NotFound(new { success = false, error = new { message = "Student is not enrolled in this course." } });
             if (reg.Status != RegistrationStatus.Approved && reg.Status != RegistrationStatus.Pending)
                 return BadRequest(new { success = false, error = new { message = "Student is not actively enrolled in this course." } });
+
+            // ── Block if any coursework deadline has not yet passed (items still pending) ──
+            {
+                var pendingQuizList = (await _unitOfWork.Quizzes.GetQuizzesByCourseId(courseId)).ToList();
+                var pendingAsnList  = (await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(courseId)).ToList();
+                var nowCheck        = DateTime.UtcNow;
+                int pendingQ = 0, pendingA = 0;
+                foreach (var q in pendingQuizList)
+                {
+                    if (nowCheck <= q.EndTime)
+                    {
+                        var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(q.Id, studentId);
+                        if (attempt == null) pendingQ++;
+                    }
+                }
+                foreach (var a in pendingAsnList)
+                {
+                    if (nowCheck <= a.Deadline)
+                    {
+                        var sub = await _unitOfWork.Assignments.GetStudentSubmissionAsync(a.Id, studentId);
+                        if (sub == null || !string.Equals(sub.Status, "Accepted", StringComparison.OrdinalIgnoreCase))
+                            pendingA++;
+                    }
+                }
+                if (pendingA > 0 || pendingQ > 0)
+                    return UnprocessableEntity(new
+                    {
+                        success = false,
+                        error = new
+                        {
+                            code    = "PENDING_COURSEWORK",
+                            message = $"Cannot finalize this student's grade yet. There are still pending coursework items before their deadline. Pending assignments: {pendingA} Pending quizzes: {pendingQ}"
+                        }
+                    });
+            }
 
             // ── Bonus only fills the gap up to 40. Recompute here so the rule
             // cannot be bypassed by a hand-crafted payload.

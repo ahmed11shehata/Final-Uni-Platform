@@ -43,7 +43,7 @@ namespace AYA_UIS.Application.Handlers.Quiz.UnitTests
 
             // Assert
             Assert.IsNotNull(handler, "Constructor should create a non-null instance when a valid IUnitOfWork is provided.");
-            Assert.IsInstanceOfType(handler, typeof(IRequestHandler<SubmitQuizCommand, Response<int>>),
+            Assert.IsInstanceOfType(handler, typeof(IRequestHandler<SubmitQuizCommand, Response<decimal>>),
                 "Handler should implement IRequestHandler<SubmitQuizCommand, Response<int>>.");
         }
 
