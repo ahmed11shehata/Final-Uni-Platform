@@ -5,6 +5,7 @@ import styles from "./UploadMaterialPage.module.css";
 import {
   createAssignment,
   getCourseMaterials,
+  getCourseworkBudget,
   getInstructorCourses,
   uploadLecture,
   updateLecture,
@@ -433,17 +434,24 @@ function LectureForm({ courseId, color, onUploaded }) {
   );
 }
 
-function AssignmentForm({ courseCode, color }) {
+function AssignmentForm({ courseCode, courseId, color }) {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [deadline, setDeadline] = useState("");
   const [releaseDate, setReleaseDate] = useState("");
   const [relNow, setRelNow] = useState(true);
-  const [maxPts, setMaxPts] = useState("20");
+  // No silent default — instructor must visibly pick 1..5.
+  const [maxPts, setMaxPts] = useState("");
   const [file, setFile] = useState(null);
   const [allowFmt, setAllowFmt] = useState(["pdf"]);
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [budget, setBudget] = useState(null);
+
+  useEffect(() => {
+    if (!courseId) return;
+    getCourseworkBudget(courseId).then(setBudget).catch(() => setBudget(null));
+  }, [courseId]);
 
   const formats = ["pdf", "zip", "docx", "py", "cpp", "java", "mp4"];
   const toggleFmt = (format) => {
@@ -452,7 +460,10 @@ function AssignmentForm({ courseCode, color }) {
     );
   };
 
-  const valid = title.trim() && deadline && allowFmt.length > 0 && (relNow || releaseDate);
+  const numMax = Number(maxPts);
+  const maxGradeOk = Number.isFinite(numMax) && numMax >= 1 && numMax <= 5;
+  const budgetOk = !budget || numMax <= (budget?.remaining ?? 0);
+  const valid = title.trim() && deadline && allowFmt.length > 0 && (relNow || releaseDate) && maxGradeOk && budgetOk;
 
   const reset = () => {
     setDone(false);
@@ -461,7 +472,7 @@ function AssignmentForm({ courseCode, color }) {
     setDeadline("");
     setReleaseDate("");
     setRelNow(true);
-    setMaxPts("20");
+    setMaxPts("");
     setFile(null);
     setAllowFmt(["pdf"]);
   };
@@ -556,7 +567,9 @@ function AssignmentForm({ courseCode, color }) {
         </div>
 
         <div className={styles.fieldBlock}>
-          <label className={styles.fieldLabel}>Max grade (1–5)</label>
+          <label className={styles.fieldLabel}>
+            Max grade (1–5) <span className={styles.required}>*</span>
+          </label>
           <div className={styles.scoreRow}>
             {[1, 2, 3, 4, 5].map((item) => (
               <button
@@ -569,6 +582,23 @@ function AssignmentForm({ courseCode, color }) {
               </button>
             ))}
           </div>
+          {!maxGradeOk && (
+            <span style={{ fontSize: 11.5, color: "#ef4444", marginTop: 6, display: "block", fontWeight: 700 }}>
+              ⚠ Choose a max grade between 1 and 5 — this field is required.
+            </span>
+          )}
+          {budget && (
+            <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 6, lineHeight: 1.55 }}>
+              Coursework budget — Used: <strong>{budget.used}</strong> / {budget.budget}
+              · Remaining: <strong>{budget.remaining}</strong>
+              {numMax > 0 && <> · Requested: <strong>{numMax}</strong></>}
+              {!budgetOk && (
+                <div style={{ color: "#ef4444", fontWeight: 700, marginTop: 3 }}>
+                  ⚠ This exceeds the remaining 40-point coursework budget.
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className={`${styles.fieldBlock} ${styles.fieldBlockWide}`}>
@@ -1147,7 +1177,7 @@ export default function UploadMaterialPage() {
                   {matType === "lecture" ? (
                     <LectureForm courseId={course} color="#5a67d8" onUploaded={() => setRefreshKey((k) => k + 1)} />
                   ) : (
-                    <AssignmentForm courseCode={currentCourse.code} color={currentCourse.color || "#7c3aed"} />
+                    <AssignmentForm courseCode={currentCourse.code} courseId={course} color={currentCourse.color || "#7c3aed"} />
                   )}
                 </motion.section>
               ) : (

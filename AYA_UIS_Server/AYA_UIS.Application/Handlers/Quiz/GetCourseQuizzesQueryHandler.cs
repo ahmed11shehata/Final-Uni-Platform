@@ -32,6 +32,7 @@ namespace AYA_UIS.Application.Handlers.Quiz
                 EndTime       = q.EndTime,
                 Duration      = (int)Math.Round((q.EndTime - q.StartTime).TotalMinutes),
                 QuestionCount = q.Questions?.Count ?? 0,
+                TotalPoints   = (q.Questions?.Count ?? 0) * (q.GradePerQuestion <= 0 ? 1 : q.GradePerQuestion),
                 Questions     = null  // not loaded in list view
             });
         }

@@ -18,6 +18,10 @@ namespace AYA_UIS.Core.Domain.Entities.Models
 
         public Course? Course { get; set; }
 
+        // Points awarded per correct answer. Quiz total = Questions.Count * GradePerQuestion.
+        // Default 1 keeps backwards-compatibility for quizzes created before the column existed.
+        public int GradePerQuestion { get; set; } = 1;
+
         public ICollection<QuizQuestion> Questions { get; set; } = new List<QuizQuestion>();
 
         // ── Reset Material soft-delete fields ─────────────────────

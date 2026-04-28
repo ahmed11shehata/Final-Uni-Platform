@@ -32,6 +32,8 @@ namespace Shared.Dtos.Instructor_Module
         public DateTime? StartTime { get; set; }
         public DateTime? EndTime { get; set; }
         public List<QuizQuestionInputDto>? Questions { get; set; }
+        /// <summary>Optional new points-per-question. Locked once any student has attempted the quiz.</summary>
+        public int? GradePerQ { get; set; }
     }
 
     public class CreateInstructorQuizDto

@@ -5,6 +5,7 @@ import styles from "./QuizBuilderPage.module.css";
 import {
   createQuiz,
   deleteQuiz,
+  getCourseworkBudget,
   getInstructorCourses,
   getInstructorQuizzes,
   updateQuiz,
@@ -905,6 +906,19 @@ export default function QuizBuilderPage() {
   });
   const [questions, setQuestions] = useState([makeQ()]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [budget, setBudget] = useState(null);
+
+  // Reload coursework budget whenever the course changes or the user publishes/deletes.
+  useEffect(() => {
+    if (!courseId) { setBudget(null); return; }
+    getCourseworkBudget(courseId).then(setBudget).catch(() => setBudget(null));
+  }, [courseId, refreshKey]);
+
+  // Backend treats quiz total = (non-empty questions) × points-per-question. Match that
+  // here so the banner reflects what the budget validator will actually see.
+  const computedQuizTotal =
+    questions.filter(q => q.text.trim()).length * Math.max(1, Number(info.gradePerQ) || 1);
+  const budgetOk = !budget || computedQuizTotal <= (budget?.remaining ?? 0);
 
   useEffect(() => {
     getInstructorCourses()
@@ -924,6 +938,7 @@ export default function QuizBuilderPage() {
 
   const infoOk = !!courseId && info.title && info.startDate && info.startTime && info.deadlineDate && info.deadlineTime && info.duration;
   const questionsOk = questions.length > 0 && questions.every((q) => q.text.trim() && q.answers.some((a) => a.text.trim()));
+  const allOk = infoOk && questionsOk && budgetOk;
 
   const publish = async () => {
     if (!infoOk || !questionsOk) return;
@@ -1101,6 +1116,27 @@ export default function QuizBuilderPage() {
               onChanged={() => setRefreshKey((k) => k + 1)}
             />
 
+            {budget && (
+              <div style={{
+                margin: "0 0 12px",
+                padding: "10px 14px",
+                borderRadius: 12,
+                border: budgetOk ? "1px solid var(--border)" : "1px solid rgba(239,68,68,.35)",
+                background: budgetOk ? "var(--hover-bg)" : "rgba(239,68,68,.06)",
+                color: "var(--text-secondary)", fontSize: 12.5, lineHeight: 1.55,
+              }}>
+                <strong style={{ color: "var(--text-primary)" }}>Coursework budget</strong> —
+                Used: <strong>{budget.used}</strong> / {budget.budget} · Remaining: <strong>{budget.remaining}</strong>
+                · Quiz total (questions × {Math.max(1, Number(info.gradePerQ) || 1)} pt): <strong>{computedQuizTotal}</strong>
+                {!budgetOk && (
+                  <div style={{ color: "#ef4444", fontWeight: 700, marginTop: 4 }}>
+                    ⚠ This quiz total exceeds the remaining 40-point coursework budget. Reduce the
+                    number of questions or archive other coursework first.
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className={styles.footerBar}>
               <div className={styles.footerInfo}>
                 {step === 1
@@ -1131,10 +1167,10 @@ export default function QuizBuilderPage() {
                     type="button"
                     className={styles.primaryButton}
                     style={{ "--accent": currentCourse.color }}
-                    disabled={!infoOk || !questionsOk || saving}
+                    disabled={!allOk || saving}
                     onClick={publish}
-                    whileHover={infoOk && questionsOk ? { y: -2 } : {}}
-                    whileTap={infoOk && questionsOk ? { scale: 0.985 } : {}}
+                    whileHover={allOk ? { y: -2 } : {}}
+                    whileTap={allOk ? { scale: 0.985 } : {}}
                   >
                     {saving ? (
                       <>

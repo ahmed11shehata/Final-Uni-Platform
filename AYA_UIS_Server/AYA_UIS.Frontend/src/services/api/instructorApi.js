@@ -25,6 +25,16 @@ export const getCourseStudents = async (courseId) => {
   return res.data.data;
 };
 
+// ── Coursework Budget ────────────────────────────────────────
+/**
+ * GET /api/instructor/courses/{courseId}/coursework-budget
+ * Returns { courseId, budget=40, assignmentMax, quizMax, midtermMax, used, remaining }.
+ */
+export const getCourseworkBudget = async (courseId) => {
+  const res = await api.get(`/instructor/courses/${courseId}/coursework-budget`);
+  return res.data.data;
+};
+
 // ── Assignments ──────────────────────────────────────────────
 /** GET /api/instructor/assignments?courseId={id} */
 export const getInstructorAssignments = async (courseId) => {

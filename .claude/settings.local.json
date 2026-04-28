@@ -35,7 +35,8 @@
       "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('@microsoft/signalr' in p.dependencies\\)\")",
       "Bash(npm run:*)",
       "Bash(find D:\\\\kak\\\\Private\\\\final_project\\\\AYA_UIS_Server:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(tasklist)"
     ]
   }
 }

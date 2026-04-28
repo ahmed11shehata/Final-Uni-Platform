@@ -14,6 +14,8 @@ namespace Shared.Dtos.Info_Module.QuizDto
         public DateTime EndTime       { get; set; }
         public int      Duration      { get; set; }   // minutes — EndTime - StartTime
         public int      QuestionCount { get; set; }
+        /// <summary>Quiz total points = QuestionCount × points-per-question (matches scoring).</summary>
+        public int      TotalPoints   { get; set; }
 
         // Populated only in GetQuiz (detail endpoint)
         public List<FrontendQuizQuestionDto>? Questions { get; set; }

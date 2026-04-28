@@ -44,6 +44,7 @@ namespace AYA_UIS.Application.Handlers.Quiz
                 return Response<int>.ErrorResponse("Quiz already submitted");
 
             int score = 0;
+            int gradePerQ = quiz.GradePerQuestion <= 0 ? 1 : quiz.GradePerQuestion;
 
             var answers = new List<StudentAnswer>();
 
@@ -57,7 +58,7 @@ namespace AYA_UIS.Application.Handlers.Quiz
                     continue;
 
                 if (option.IsCorrect)
-                    score++;
+                    score += gradePerQ;
 
                 answers.Add(new StudentAnswer
                 {

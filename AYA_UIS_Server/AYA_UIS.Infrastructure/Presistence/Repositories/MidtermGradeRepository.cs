@@ -23,5 +23,10 @@ namespace Presistence.Repositories
             _ctx.MidtermGrades.Update(grade);
             return Task.CompletedTask;
         }
+
+        public async Task<IReadOnlyList<MidtermGrade>> GetByCourseAsync(int courseId)
+            => await _ctx.MidtermGrades
+                .Where(m => m.CourseId == courseId)
+                .ToListAsync();
     }
 }

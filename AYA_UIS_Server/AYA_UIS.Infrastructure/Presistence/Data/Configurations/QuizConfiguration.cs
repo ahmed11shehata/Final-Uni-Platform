@@ -26,7 +26,8 @@ namespace Presistence.Data.Configurations
             builder.Property(q => q.EndTime)
                    .IsRequired();
 
-
+            builder.Property(q => q.GradePerQuestion)
+                   .HasDefaultValue(1);
 
             builder.HasOne(q => q.Course)
                    .WithMany()

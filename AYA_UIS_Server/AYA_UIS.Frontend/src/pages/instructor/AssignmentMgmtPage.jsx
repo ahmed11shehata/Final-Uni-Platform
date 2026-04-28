@@ -8,6 +8,7 @@ import {
   createAssignment,
   updateAssignment,
   deleteAssignment,
+  getCourseworkBudget,
 } from "../../services/api/instructorApi";
 
 const sp = { type: "spring", stiffness: 400, damping: 28 };
@@ -46,14 +47,22 @@ function getStatusInfo(a) {
 }
 
 /* ── Assignment Form (create + edit) ── */
-function AssignmentForm({ courseCode, color, onDone, onCancel, editMode = false, initial = null }) {
+function AssignmentForm({ courseCode, courseId, color, onDone, onCancel, editMode = false, initial = null }) {
   const [title,      setTitle]      = useState(initial?.title ?? "");
   const [desc,       setDesc]       = useState(initial?.description ?? "");
   const [deadline,   setDeadline]   = useState(
     initial?.deadline ? initial.deadline.split("T")[0] : ""
   );
-  const [maxPts,     setMaxPts]     = useState(String(initial?.maxGrade ?? "20"));
+  // No silent default — instructor must explicitly select 1..5 in create mode.
+  const [maxPts,     setMaxPts]     = useState(initial?.maxGrade ? String(initial.maxGrade) : "");
   const [allowFmt,   setAllowFmt]   = useState(initial?.allowedFormats ?? ["pdf"]);
+  const [budget,     setBudget]     = useState(null);
+
+  // Fetch coursework budget for this course (create mode).
+  useEffect(() => {
+    if (editMode || !courseId) return;
+    getCourseworkBudget(courseId).then(setBudget).catch(() => setBudget(null));
+  }, [courseId, editMode]);
   const [attachFile, setAttachFile] = useState(null);
   const [removeAttachment, setRemoveAttachment] = useState(false);
   const [loading,    setLoading]    = useState(false);
@@ -68,7 +77,13 @@ function AssignmentForm({ courseCode, color, onDone, onCancel, editMode = false,
   const toggleFmt = (f) =>
     setAllowFmt((p) => (p.includes(f) ? p.filter((x) => x !== f) : [...p, f]));
 
-  const valid = title.trim() && deadline && allowFmt.length > 0;
+  // Max grade is required (1..5) for create; budget room must hold the new points.
+  const numMax = Number(maxPts);
+  const maxGradeOk = !editMode
+    ? Number.isFinite(numMax) && numMax >= 1 && numMax <= 5
+    : true;
+  const budgetOk = editMode || !budget || numMax <= (budget?.remaining ?? 0);
+  const valid = title.trim() && deadline && allowFmt.length > 0 && maxGradeOk && budgetOk;
 
   const submit = async () => {
     if (!valid) return;
@@ -150,30 +165,47 @@ function AssignmentForm({ courseCode, color, onDone, onCancel, editMode = false,
         </div>
         <div className={styles.field}>
           <label className={styles.label}>
-            Max Grade (pts){pointsLocked && <span className={styles.opt}> — locked</span>}
+            Max Grade (pts) <span className={styles.req}>*</span>
+            {editMode && <span className={styles.opt}> — locked after creation</span>}
           </label>
           <div className={styles.starRow}>
-            {[5, 10, 20, 50, 100].map((n) => (
+            {[1, 2, 3, 4, 5].map((n) => (
               <button
                 key={n}
                 className={`${styles.starBtn} ${Number(maxPts) === n ? styles.starBtnOn : ""}`}
                 style={
                   Number(maxPts) === n
-                    ? { background: color, borderColor: color, color: "#fff", opacity: pointsLocked ? 0.7 : 1 }
-                    : pointsLocked
+                    ? { background: color, borderColor: color, color: "#fff", opacity: editMode ? 0.7 : 1 }
+                    : editMode
                     ? { opacity: 0.5, cursor: "not-allowed" }
                     : {}
                 }
-                disabled={pointsLocked}
-                onClick={() => !pointsLocked && setMaxPts(String(n))}>
+                disabled={editMode}
+                onClick={() => !editMode && setMaxPts(String(n))}>
                 {n}
               </button>
             ))}
           </div>
-          {pointsLocked && (
+          {!editMode && !maxGradeOk && (
+            <span style={{ fontSize: 11.5, color: "#ef4444", marginTop: 6, display: "block", fontWeight: 700 }}>
+              ⚠ Choose a max grade between 1 and 5.
+            </span>
+          )}
+          {!editMode && budget && (
+            <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 6, lineHeight: 1.55 }}>
+              Coursework budget — Used: <strong>{budget.used}</strong> / {budget.budget}
+              · Remaining: <strong>{budget.remaining}</strong>
+              {numMax > 0 && <> · Requested: <strong>{numMax}</strong></>}
+              {!budgetOk && (
+                <div style={{ color: "#ef4444", fontWeight: 700, marginTop: 3 }}>
+                  ⚠ This exceeds the remaining 40-point coursework budget.
+                </div>
+              )}
+            </div>
+          )}
+          {editMode && (
             <span style={{ fontSize: 11.5, color: "#f59e0b", marginTop: 6, display: "block" }}>
-              ⚠ {subCount} submission{subCount !== 1 ? "s" : ""} already received. Maximum points are
-              locked to keep existing grades fair. Other fields can still be updated.
+              ⚠ Max grade is locked after creation. Other fields can still be edited.
             </span>
           )}
         </div>
@@ -662,6 +694,7 @@ export default function AssignmentMgmtPage() {
                     transition={{ duration: 0.28 }}>
                     <AssignmentForm
                       courseCode={c?.code}
+                      courseId={courseId}
                       color={color}
                       editMode={!!editTarget}
                       initial={editTarget}

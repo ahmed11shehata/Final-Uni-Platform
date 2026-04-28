@@ -260,6 +260,7 @@ namespace AYA_UIS.API
             builder.Services.AddScoped<IAcademicYearResetService, AcademicYearResetService>();
             builder.Services.AddScoped<IMaterialResetService, MaterialResetService>();
             builder.Services.AddScoped<IStudentDeletionService, StudentDeletionService>();
+            builder.Services.AddScoped<ICourseworkBudgetService, CourseworkBudgetService>();
             builder.Services.AddHostedService<NotificationCleanupService>();
 
             // Token blocklist for logout support (singleton — shared state across requests)
@@ -570,6 +571,14 @@ namespace AYA_UIS.API
                         ALTER TABLE dbo.Quizzes ADD FilePurgedAt DATETIME2 NULL;
                 ");
 
+                // ── Quiz GradePerQuestion (points-per-question for coursework budget). ──
+                // Default 1 preserves the historical 1-point-per-question behavior for any
+                // quizzes that already exist when this column is added.
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.Quizzes', 'GradePerQuestion') IS NULL
+                        ALTER TABLE dbo.Quizzes ADD GradePerQuestion INT NOT NULL CONSTRAINT DF_Quizzes_GradePerQuestion DEFAULT 1;
+                ");
+
                 // ── MaterialResets (audit log for the Admin Reset Material feature) ──
                 await db.Database.ExecuteSqlRawAsync(@"
                     IF NOT EXISTS (
@@ -627,6 +636,83 @@ namespace AYA_UIS.API
                         );
                     END
                 ");
+
+                // ── Auto-fix coursework budget over-budget courses (idempotent) ──
+                // Strategy: archive newest overflow items first to bring each course to <= 40.
+                // We archive newest quizzes first (since reducing quiz scoring breaks per-question
+                // logic), then newest assignments. Final exam (60) and existing grades untouched.
+                try
+                {
+                    const int BUDGET = 40;
+                    var courses = await db.Courses.Select(c => c.Id).ToListAsync();
+                    foreach (var cid in courses)
+                    {
+                        int aMax = await db.Assignments.Where(a => a.CourseId == cid && !a.IsArchived).SumAsync(a => (int?)a.Points) ?? 0;
+                        // Quiz total per quiz = Questions.Count * GradePerQuestion.
+                        var courseQuizzes = await db.Quizzes
+                            .Where(q => q.CourseId == cid && !q.IsArchived)
+                            .Include(q => q.Questions)
+                            .ToListAsync();
+                        int qMax = courseQuizzes.Sum(q => (q.Questions?.Count ?? 0) * Math.Max(1, q.GradePerQuestion));
+                        int mMax = await db.MidtermGrades.Where(m => m.CourseId == cid).Select(m => (int?)m.Max).MaxAsync() ?? 0;
+                        int used = aMax + qMax + mMax;
+                        if (used <= BUDGET) continue;
+
+                        // 1) Archive newest quizzes until we fit, or quizzes are exhausted.
+                        var quizzes = courseQuizzes.OrderByDescending(q => q.Id).ToList();
+                        foreach (var q in quizzes)
+                        {
+                            if (used <= BUDGET) break;
+                            int qPts = (q.Questions?.Count ?? 0) * Math.Max(1, q.GradePerQuestion);
+                            q.IsArchived = true;
+                            q.DeletedAt = DateTime.UtcNow;
+                            q.DeletedById = "auto-fix";
+                            used -= qPts;
+                        }
+
+                        // 2) Archive newest assignments next.
+                        if (used > BUDGET)
+                        {
+                            var asns = await db.Assignments
+                                .Where(a => a.CourseId == cid && !a.IsArchived)
+                                .OrderByDescending(a => a.Id)
+                                .ToListAsync();
+                            foreach (var a in asns)
+                            {
+                                if (used <= BUDGET) break;
+                                a.IsArchived = true;
+                                a.DeletedAt = DateTime.UtcNow;
+                                a.DeletedById = "auto-fix";
+                                used -= a.Points;
+                            }
+                        }
+
+                        // 3) If midterm Max alone is over the remaining budget after archives,
+                        //    cap the highest stored midterm Max rows down. This is rare.
+                        if (used > BUDGET)
+                        {
+                            int over = used - BUDGET;
+                            var mts = await db.MidtermGrades
+                                .Where(m => m.CourseId == cid)
+                                .OrderByDescending(m => m.Max)
+                                .ToListAsync();
+                            foreach (var m in mts)
+                            {
+                                if (over <= 0) break;
+                                int reduce = Math.Min(over, m.Max);
+                                m.Max = m.Max - reduce;
+                                if (m.Grade > m.Max) m.Grade = m.Max;
+                                over -= reduce;
+                            }
+                        }
+                    }
+                    await db.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+                    logger.LogWarning(ex, "Coursework budget auto-fix skipped (non-fatal).");
+                }
             }
 
             app.UseHttpsRedirection();

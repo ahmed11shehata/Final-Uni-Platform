@@ -204,13 +204,20 @@ namespace Presentation.Controllers
         public async Task<IActionResult> CreateAssignment(
             [FromForm] CreateInstructorAssignmentDto dto,
             IFormFile? attachmentFile,
-            [FromServices] ILocalFileService fileService)
+            [FromServices] ILocalFileService fileService,
+            [FromServices] ICourseworkBudgetService budget)
         {
             var uid = CurrentUserId;
             if (string.IsNullOrEmpty(uid)) return Unauthorized();
 
             if (dto == null || string.IsNullOrWhiteSpace(dto.Title))
                 return BadRequest(new { success = false, error = new { message = "Title is required." } });
+
+            // Assignment max grade is REQUIRED — must be selected, must be 1..5.
+            if (dto.MaxGrade < 1 || dto.MaxGrade > 5)
+                return BadRequest(new { success = false, error = new {
+                    code = "MAX_GRADE_REQUIRED",
+                    message = "Assignment max grade is required and must be between 1 and 5." } });
 
             // Resolve course by code OR by ID
             var allCourses = await _unitOfWork.Courses.GetAllAsync();
@@ -222,6 +229,14 @@ namespace Presentation.Controllers
 
             if (!await InstructorOwnsCourse(course.Id))
                 return Forbid();
+
+            // Coursework budget check (assignments + quizzes + midterm <= 40).
+            var bv = await budget.ValidateAddAssignmentAsync(course.Id, dto.MaxGrade);
+            if (!bv.Ok)
+                return BadRequest(new { success = false, error = new {
+                    code = "COURSEWORK_BUDGET_EXCEEDED",
+                    message = bv.Message,
+                    used = bv.Used, remaining = bv.Remaining, requested = bv.Requested } });
 
             if (!DateTime.TryParse(dto.Deadline, out var deadline))
                 return BadRequest(new { success = false, error = new { message = "Invalid deadline format." } });
@@ -243,7 +258,7 @@ namespace Presentation.Controllers
             {
                 Title           = dto.Title,
                 Description     = dto.Description ?? "",
-                Points          = dto.MaxGrade > 0 ? dto.MaxGrade : 20,
+                Points          = dto.MaxGrade,   // already validated to be 1..5 above
                 Deadline        = deadline,
                 ReleaseDate     = releaseDate,
                 CourseId        = course.Id,
@@ -317,23 +332,21 @@ namespace Presentation.Controllers
             if (!await InstructorOwnsCourse(assignment.CourseId))
                 return Forbid();
 
-            bool hasGraded = await _unitOfWork.Assignments.HasGradedSubmissionAsync(assignmentId);
-
-            // Block changes that would invalidate already-issued grades.
-            if (hasGraded && dto.MaxGrade > 0 && dto.MaxGrade != assignment.Points)
+            // Spec: assignment max grade is locked after creation regardless of grading state.
+            // Other metadata (title, description, deadline, attachment) is still editable.
+            if (dto.MaxGrade > 0 && dto.MaxGrade != assignment.Points)
                 return BadRequest(new
                 {
                     success = false,
                     error = new
                     {
                         code    = "POINTS_LOCKED",
-                        message = "This assignment already has graded submissions, so the maximum points cannot be changed. Other fields can still be updated."
+                        message = "Assignment max grade cannot be changed after the assignment is created. Other fields can still be updated."
                     }
                 });
 
             if (!string.IsNullOrWhiteSpace(dto.Title))        assignment.Title       = dto.Title;
             if (dto.Description != null)                       assignment.Description = dto.Description;
-            if (!hasGraded && dto.MaxGrade > 0)                assignment.Points      = dto.MaxGrade;
             if (DateTime.TryParse(dto.Deadline, out var dl))   assignment.Deadline    = dl;
             if (!string.IsNullOrWhiteSpace(dto.ReleaseDate) && DateTime.TryParse(dto.ReleaseDate, out var rdu))
                 assignment.ReleaseDate = rdu.ToUniversalTime();
@@ -600,9 +613,8 @@ namespace Presentation.Controllers
                     Submissions = attList.Count,
                     AvgScore    = avg,
                     HasAttempts = attList.Count > 0,
-                    // Attempt scores are stored as raw point counts (1 pt per question, by default),
-                    // so total points roughly equal the question count.
-                    TotalPoints = qCount,
+                    // Quiz max = questions × points-per-question (matches student-facing scoring).
+                    TotalPoints = qCount * (q.GradePerQuestion <= 0 ? 1 : q.GradePerQuestion),
                 });
             }
 
@@ -615,7 +627,9 @@ namespace Presentation.Controllers
         // ══════════════════════════════════════════════════════════
         [HttpPut("courses/{courseId:int}/quizzes/{quizId:int}")]
         public async Task<IActionResult> UpdateQuiz(
-            int courseId, int quizId, [FromBody] UpdateInstructorQuizDto dto)
+            int courseId, int quizId,
+            [FromBody] UpdateInstructorQuizDto dto,
+            [FromServices] ICourseworkBudgetService budget)
         {
             if (!await InstructorOwnsCourse(courseId))
                 return Forbid();
@@ -639,10 +653,45 @@ namespace Presentation.Controllers
                     }
                 });
 
+            // GradePerQuestion can only change while no student has attempted the quiz.
+            int existingGradePerQ = quiz.GradePerQuestion <= 0 ? 1 : quiz.GradePerQuestion;
+            int newGradePerQ = existingGradePerQ;
+            if (dto.GradePerQ.HasValue && dto.GradePerQ.Value != existingGradePerQ)
+            {
+                if (hasAttempts)
+                    return BadRequest(new { success = false, error = new {
+                        code = "POINTS_LOCKED",
+                        message = "Points per question cannot be changed after students have attempted this quiz." } });
+                if (dto.GradePerQ.Value < 1 || dto.GradePerQ.Value > 10)
+                    return BadRequest(new { success = false, error = new { message = "Points per question must be between 1 and 10." } });
+                newGradePerQ = dto.GradePerQ.Value;
+            }
+
+            // If question structure or points-per-question changed, validate against the budget.
+            int existingQuestionCount = quiz.Questions?.Count ?? 0;
+            int existingTotalPoints   = existingQuestionCount * existingGradePerQ;
+            bool questionsChanging    = dto.Questions != null && dto.Questions.Count > 0 && !hasAttempts;
+            bool pointsChanging       = newGradePerQ != existingGradePerQ;
+
+            if (questionsChanging || pointsChanging)
+            {
+                int newQuestionCount = questionsChanging
+                    ? dto.Questions!.Count(q => !string.IsNullOrWhiteSpace(q.Text))
+                    : existingQuestionCount;
+                int newTotalPoints = newQuestionCount * newGradePerQ;
+                var qv = await budget.ValidateUpdateQuizAsync(courseId, existingTotalPoints, newTotalPoints);
+                if (!qv.Ok)
+                    return BadRequest(new { success = false, error = new {
+                        code = "COURSEWORK_BUDGET_EXCEEDED",
+                        message = qv.Message,
+                        used = qv.Used, remaining = qv.Remaining, requested = qv.Requested } });
+            }
+
             // ── Metadata ──
             if (!string.IsNullOrWhiteSpace(dto.Title)) quiz.Title = dto.Title;
             if (dto.StartTime.HasValue) quiz.StartTime = dto.StartTime.Value.ToUniversalTime();
             if (dto.EndTime.HasValue)   quiz.EndTime   = dto.EndTime.Value.ToUniversalTime();
+            quiz.GradePerQuestion = newGradePerQ;
             if (quiz.EndTime <= quiz.StartTime)
                 return BadRequest(new { success = false, error = new { message = "EndTime must be after StartTime." } });
 
@@ -701,7 +750,7 @@ namespace Presentation.Controllers
                     EndTime     = quiz.EndTime.ToString("yyyy-MM-dd HH:mm"),
                     Submissions = attList.Count,
                     HasAttempts = attList.Count > 0,
-                    TotalPoints = quiz.Questions?.Count ?? 0,
+                    TotalPoints = (quiz.Questions?.Count ?? 0) * (quiz.GradePerQuestion <= 0 ? 1 : quiz.GradePerQuestion),
                 }
             });
         }
@@ -732,7 +781,10 @@ namespace Presentation.Controllers
         //  Creates quiz + questions + options in one call.
         // ══════════════════════════════════════════════════════════
         [HttpPost("courses/{courseId:int}/quizzes")]
-        public async Task<IActionResult> CreateQuiz(int courseId, [FromBody] CreateInstructorQuizDto dto)
+        public async Task<IActionResult> CreateQuiz(
+            int courseId,
+            [FromBody] CreateInstructorQuizDto dto,
+            [FromServices] ICourseworkBudgetService budget)
         {
             if (!await InstructorOwnsCourse(courseId))
                 return Forbid();
@@ -746,14 +798,29 @@ namespace Presentation.Controllers
             if (dto.EndTime <= dto.StartTime)
                 return BadRequest(new { success = false, error = new { message = "EndTime must be after StartTime." } });
 
+            // Quiz total = (non-empty questions) × points-per-question.
+            // GradePerQ defaults to 1 if the client doesn't supply it; it must be 1..10.
+            int newQuestions = dto.Questions.Count(q => !string.IsNullOrWhiteSpace(q.Text));
+            int gradePerQ = dto.GradePerQ <= 0 ? 1 : dto.GradePerQ;
+            if (gradePerQ < 1 || gradePerQ > 10)
+                return BadRequest(new { success = false, error = new { message = "Points per question must be between 1 and 10." } });
+            int newTotalPoints = newQuestions * gradePerQ;
+            var bv = await budget.ValidateAddQuizAsync(courseId, newTotalPoints);
+            if (!bv.Ok)
+                return BadRequest(new { success = false, error = new {
+                    code = "COURSEWORK_BUDGET_EXCEEDED",
+                    message = bv.Message,
+                    used = bv.Used, remaining = bv.Remaining, requested = bv.Requested } });
+
             // Build quiz with questions/options
             var quiz = new Quiz
             {
-                Title     = dto.Title,
-                StartTime = dto.StartTime.ToUniversalTime(),
-                EndTime   = dto.EndTime.ToUniversalTime(),
-                CourseId  = courseId,
-                Questions = new List<QuizQuestion>(),
+                Title            = dto.Title,
+                StartTime        = dto.StartTime.ToUniversalTime(),
+                EndTime          = dto.EndTime.ToUniversalTime(),
+                CourseId         = courseId,
+                GradePerQuestion = gradePerQ,
+                Questions        = new List<QuizQuestion>(),
             };
 
             foreach (var qDto in dto.Questions)
@@ -810,14 +877,15 @@ namespace Presentation.Controllers
                 success = true,
                 data = new InstructorQuizDto
                 {
-                    Id        = quiz.Id.ToString(),
-                    CourseId  = courseId.ToString(),
-                    Title     = quiz.Title,
-                    Duration  = dto.Duration,
-                    Questions = quiz.Questions.Count,
-                    Status    = DateTime.UtcNow < quiz.StartTime ? "upcoming" : "active",
-                    StartTime = quiz.StartTime.ToString("yyyy-MM-dd HH:mm"),
-                    EndTime   = quiz.EndTime.ToString("yyyy-MM-dd HH:mm"),
+                    Id          = quiz.Id.ToString(),
+                    CourseId    = courseId.ToString(),
+                    Title       = quiz.Title,
+                    Duration    = dto.Duration,
+                    Questions   = quiz.Questions.Count,
+                    Status      = DateTime.UtcNow < quiz.StartTime ? "upcoming" : "active",
+                    StartTime   = quiz.StartTime.ToString("yyyy-MM-dd HH:mm"),
+                    EndTime     = quiz.EndTime.ToString("yyyy-MM-dd HH:mm"),
+                    TotalPoints = quiz.Questions.Count * quiz.GradePerQuestion,
                 }
             });
         }
@@ -836,7 +904,8 @@ namespace Presentation.Controllers
                 return NotFound();
 
             var attempts = await _unitOfWork.Quizzes.GetAttemptsByQuizIdAsync(quizId);
-            var qCount   = quiz.Questions?.Count ?? 0;
+            var qCount     = quiz.Questions?.Count ?? 0;
+            var quizMaxPts = qCount * (quiz.GradePerQuestion <= 0 ? 1 : quiz.GradePerQuestion);
 
             var result = new List<QuizSubmissionDto>();
             foreach (var a in attempts ?? Enumerable.Empty<StudentQuizAttempt>())
@@ -849,11 +918,27 @@ namespace Presentation.Controllers
                     StudentName = student?.DisplayName ?? a.StudentId,
                     SubmittedAt = a.SubmittedAt.ToString("MMM dd · hh:mm tt"),
                     Score       = a.Score,
-                    Max         = qCount,
+                    Max         = quizMaxPts,
                 });
             }
 
             return Ok(new { success = true, data = result });
+        }
+
+        // ══════════════════════════════════════════════════════════
+        //  GET /api/instructor/courses/{courseId}/coursework-budget
+        //  Read-only — used by the assignment/quiz/midterm forms to render
+        //  Used X/40 · Remaining Y · Requested Z and pre-block invalid input.
+        // ══════════════════════════════════════════════════════════
+        [HttpGet("courses/{courseId:int}/coursework-budget")]
+        public async Task<IActionResult> GetCourseworkBudget(
+            int courseId, [FromServices] ICourseworkBudgetService budget)
+        {
+            if (!await InstructorOwnsCourse(courseId))
+                return Forbid();
+
+            var data = await budget.GetBudgetAsync(courseId);
+            return Ok(new { success = true, data });
         }
 
         // ══════════════════════════════════════════════════════════
@@ -895,7 +980,8 @@ namespace Presentation.Controllers
         // ══════════════════════════════════════════════════════════
         [HttpPut("courses/{courseId:int}/midterm/{studentId}")]
         public async Task<IActionResult> SetMidtermGrade(
-            int courseId, string studentId, [FromBody] SetMidtermGradeDto dto)
+            int courseId, string studentId, [FromBody] SetMidtermGradeDto dto,
+            [FromServices] ICourseworkBudgetService budget)
         {
             if (!await InstructorOwnsCourse(courseId))
                 return Forbid();
@@ -908,6 +994,16 @@ namespace Presentation.Controllers
 
             if (dto.Grade < 0 || dto.Grade > dto.Max)
                 return BadRequest(new { success = false, error = new { message = $"Grade must be 0–{dto.Max}." } });
+
+            // Coursework budget — assignments + quizzes + midterm Max <= 40.
+            // The midterm Max is treated as a single course-level cap: validation
+            // replaces the existing midterm Max rather than adding to it.
+            var mv = await budget.ValidateMidtermMaxAsync(courseId, dto.Max);
+            if (!mv.Ok)
+                return BadRequest(new { success = false, error = new {
+                    code = "COURSEWORK_BUDGET_EXCEEDED",
+                    message = mv.Message,
+                    used = mv.Used, remaining = mv.Remaining, requested = mv.Requested } });
 
             var existing = await _unitOfWork.MidtermGrades.GetAsync(studentId, courseId);
             if (existing == null)
@@ -927,6 +1023,20 @@ namespace Presentation.Controllers
                 existing.Max       = dto.Max;
                 existing.Published = dto.Published;
                 await _unitOfWork.MidtermGrades.UpdateAsync(existing);
+            }
+
+            // Normalize: keep one consistent course-level midterm Max so the budget
+            // service (which uses MAX across rows) cannot drift student-by-student.
+            // If any other student's row has a different Max for this course, sync it
+            // to dto.Max and clamp the stored Grade so it never exceeds the new cap.
+            var courseMidterms = await _unitOfWork.MidtermGrades.GetByCourseAsync(courseId);
+            foreach (var mg in courseMidterms)
+            {
+                if (mg.StudentId == studentId) continue;
+                if (mg.Max == dto.Max) continue;
+                mg.Max = dto.Max;
+                if (mg.Grade > dto.Max) mg.Grade = dto.Max;
+                await _unitOfWork.MidtermGrades.UpdateAsync(mg);
             }
 
             await _unitOfWork.SaveChangesAsync();
@@ -1235,9 +1345,12 @@ namespace Presentation.Controllers
             var regs = (await _unitOfWork.Registrations.GetByCourseIdAsync(courseId))
                        ?? Enumerable.Empty<Registration>();
 
-            // Pre-load quizzes and assignments for this course once
+            // Pre-load quizzes and assignments for this course once.
+            // Note: GetQuizzesByCourseId / GetAssignmentsByCourseIdAsync already filter
+            // archived rows from Reset Material, so they never count toward grading here.
             var quizzes     = (await _unitOfWork.Quizzes.GetQuizzesByCourseId(courseId)).ToList();
             var assignments = (await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(courseId)).ToList();
+            var now = DateTime.UtcNow;
 
             var result = new List<FinalGradeStudentDto>();
 
@@ -1256,22 +1369,54 @@ namespace Presentation.Controllers
                 var midGrade   = midterm?.Grade ?? 0;
                 var midMax     = midterm?.Max ?? 0;
 
-                // ── Quizzes ──
+                // ── Quizzes (deadline-aware) ──
+                // Before quiz EndTime: missing attempt = pending, NOT explicit 0.
+                // After quiz EndTime:  missing attempt = explicit 0 (no contribution).
                 decimal quizScore = 0;
+                int pendingQuizzes = 0;
+                int missedQuizzes  = 0;
                 foreach (var q in quizzes)
                 {
                     var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(q.Id, reg.UserId);
                     if (attempt != null)
+                    {
                         quizScore += attempt.Score;
+                    }
+                    else if (now > q.EndTime)
+                    {
+                        // Quiz window closed without an attempt → explicit 0 contribution.
+                        missedQuizzes++;
+                    }
+                    else
+                    {
+                        // Quiz still open / not yet started → pending, not zero yet.
+                        pendingQuizzes++;
+                    }
                 }
 
-                // ── Assignments ──
+                // ── Assignments (deadline-aware) ──
+                // Before assignment Deadline: missing submission = pending, NOT explicit 0.
+                // After assignment Deadline:  missing submission = explicit 0 (no contribution).
                 decimal asnScore = 0;
+                int pendingAssignments = 0;
+                int missedAssignments  = 0;
                 foreach (var a in assignments)
                 {
                     var sub = await _unitOfWork.Assignments.GetStudentSubmissionAsync(a.Id, reg.UserId);
                     if (sub != null && string.Equals(sub.Status, "Accepted", StringComparison.OrdinalIgnoreCase))
+                    {
                         asnScore += sub.Grade ?? 0;
+                    }
+                    else if (now > a.Deadline)
+                    {
+                        // Past deadline with no Accepted submission → explicit 0 contribution.
+                        missedAssignments++;
+                    }
+                    else
+                    {
+                        // Before deadline → pending, not zero yet.
+                        pendingAssignments++;
+                    }
                 }
 
                 // ── Stored final grade ──
@@ -1285,19 +1430,23 @@ namespace Presentation.Controllers
 
                 result.Add(new FinalGradeStudentDto
                 {
-                    StudentId        = reg.UserId,
-                    StudentCode      = user.Academic_Code ?? "",
-                    StudentName      = user.DisplayName,
-                    MidtermGrade     = midGrade,
-                    MidtermMax       = midMax,
-                    QuizScore        = Math.Round(quizScore, 1),
-                    AssignmentScore  = Math.Round(asnScore, 1),
-                    Bonus            = bonus,
-                    CourseworkTotal  = Math.Round(cwTotal, 1),
-                    FinalScore       = stored?.FinalScore,
-                    Total            = total.HasValue ? Math.Round(total.Value, 1) : null,
-                    LetterGrade      = letter,
-                    Submitted        = stored != null,
+                    StudentId          = reg.UserId,
+                    StudentCode        = user.Academic_Code ?? "",
+                    StudentName        = user.DisplayName,
+                    MidtermGrade       = midGrade,
+                    MidtermMax         = midMax,
+                    QuizScore          = Math.Round(quizScore, 1),
+                    AssignmentScore    = Math.Round(asnScore, 1),
+                    Bonus              = bonus,
+                    CourseworkTotal    = Math.Round(cwTotal, 1),
+                    FinalScore         = stored?.FinalScore,
+                    Total              = total.HasValue ? Math.Round(total.Value, 1) : null,
+                    LetterGrade        = letter,
+                    Submitted          = stored != null,
+                    PendingAssignments = pendingAssignments,
+                    PendingQuizzes     = pendingQuizzes,
+                    MissedAssignments  = missedAssignments,
+                    MissedQuizzes      = missedQuizzes,
                 });
             }
 
@@ -1321,8 +1470,11 @@ namespace Presentation.Controllers
             if (dto.FinalScore < 0 || dto.FinalScore > 60)
                 return BadRequest(new { success = false, error = new { message = "FinalScore must be 0–60." } });
 
-            if (dto.Bonus < 0 || dto.Bonus > 10)
-                return BadRequest(new { success = false, error = new { message = "Bonus must be 0–10." } });
+            // Bonus is upper-bounded by the coursework cap; final per-student
+            // ceiling is computed below from earned coursework. Reject only
+            // values that are nonsensical (negative or > 40).
+            if (dto.Bonus < 0 || dto.Bonus > 40)
+                return BadRequest(new { success = false, error = new { message = "Bonus must be 0–40 and is further limited by the student's earned coursework." } });
 
             // Block save if the student has no midterm grade recorded
             var midterm = await _unitOfWork.MidtermGrades.GetAsync(studentId, courseId);
@@ -1342,7 +1494,11 @@ namespace Presentation.Controllers
                 return BadRequest(new { success = false, error = new { message = "Student is not actively enrolled in this course." } });
 
             // ── Bonus only fills the gap up to 40. Recompute here so the rule
-            // cannot be bypassed by a hand-crafted payload. ──
+            // cannot be bypassed by a hand-crafted payload.
+            // Deadline rule: missing submission/attempt counts as 0 either before or
+            // after the deadline (it just doesn't add anything). The "before deadline =
+            // pending" distinction is reported to the UI via PendingAssignments /
+            // PendingQuizzes; numerically the contribution is 0 in both cases. ──
             decimal cwQuizForCap = 0, cwAsnForCap = 0;
             var quizzesForCap = (await _unitOfWork.Quizzes.GetQuizzesByCourseId(courseId)).ToList();
             foreach (var q in quizzesForCap)
@@ -1358,7 +1514,9 @@ namespace Presentation.Controllers
                     cwAsnForCap += sub.Grade ?? 0;
             }
             decimal coreCw  = midterm.Grade + cwQuizForCap + cwAsnForCap;
-            int maxBonus    = (int)Math.Max(0m, Math.Min(10m, 40m - coreCw));
+            // Bonus may fill the gap between earned coursework and 40 — no extra
+            // 10-point ceiling. allowedBonus = max(0, 40 - courseworkBeforeBonus).
+            int maxBonus    = (int)Math.Max(0m, 40m - coreCw);
             int effectiveBonus = Math.Min(dto.Bonus, maxBonus);
             if (effectiveBonus < 0) effectiveBonus = 0;
             dto.Bonus = effectiveBonus;

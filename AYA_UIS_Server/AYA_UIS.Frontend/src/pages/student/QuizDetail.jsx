@@ -77,9 +77,9 @@ function InfoPhase({ quiz, color, courseName, onStart }) {
             { icon: "📅", label: "Date",         val: fmtDate(quiz.startTime) },
             { icon: "⏱",  label: "Duration",     val: `${quiz.duration} minutes` },
             { icon: "❓",  label: "Questions",    val: `${quiz.questionCount} MCQ` },
-            { icon: "⭐",  label: "Total Points", val: `${quiz.questionCount} pts` },
+            { icon: "⭐",  label: "Total Points", val: `${quiz.totalPoints ?? quiz.questionCount} pts` },
             { icon: "⏰",  label: "Closes At",    val: fmtDeadline(quiz.endTime) },
-            { icon: "🎯",  label: "Per Question", val: "1 pt each" },
+            { icon: "🎯",  label: "Per Question", val: `${(quiz.totalPoints && quiz.questionCount) ? Math.round((quiz.totalPoints / quiz.questionCount) * 10) / 10 : 1} pt each` },
           ].map((d, i) => (
             <motion.div key={i} className={styles.infoCard}
               style={{ borderColor: `${c}22` }}
@@ -596,7 +596,7 @@ export default function QuizDetail() {
       {phase === "results" && (
         <motion.div key="results"
           initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
-          <ResultsPhase quiz={quiz} score={score} total={quiz.questionCount}
+          <ResultsPhase quiz={quiz} score={score} total={quiz.totalPoints ?? quiz.questionCount}
             reviewAvailable={quiz.reviewAvailable} color={color} onBack={handleBack}/>
         </motion.div>
       )}

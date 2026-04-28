@@ -45,6 +45,7 @@ namespace AYA_UIS.Application.Handlers.Quiz
                 EndTime         = quiz.EndTime,
                 Duration        = (int)Math.Round((quiz.EndTime - quiz.StartTime).TotalMinutes),
                 QuestionCount   = quiz.Questions?.Count ?? 0,
+                TotalPoints     = (quiz.Questions?.Count ?? 0) * (quiz.GradePerQuestion <= 0 ? 1 : quiz.GradePerQuestion),
                 ReviewAvailable = reviewAvailable,
                 MyScore         = myScore,
                 Questions       = quiz.Questions?.Select(q => new FrontendQuizQuestionDto
