@@ -1,9 +1,12 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useAuth } from "../../hooks/useAuth";
 import { Link } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import styles from "./StudentDashboard.module.css";
-import { getStudentTimetableEvents } from "../../services/api/studentApi";
+import {
+  getStudentTimetableEvents,
+  getStudentDashboardSummary,
+} from "../../services/api/studentApi";
 
 // ── Animated Counter ─────────────────────────────
 function Counter({ value }) {
@@ -44,11 +47,13 @@ function Particles() {
 }
 
 // ── Data ─────────────────────────────────────────
-const STATS = [
-  { label:"Current GPA",      value:"3.85", icon:"🎯", color:"#7c3aed", sub:"+0.12 this term" },
-  { label:"Enrolled Courses", value:"6",    icon:"📚", color:"#0891b2", sub:"This semester"   },
-  { label:"Assignments Due",  value:"3",    icon:"📋", color:"#dc2626", sub:"This week"       },
-  { label:"Quizzes Pending",  value:"2",    icon:"✏️", color:"#d97706", sub:"Upcoming"        },
+// Stat-card style (icon/color/sub) is a static UI configuration.
+// Numeric values are filled from the backend dashboard summary at runtime.
+const STAT_CARDS = [
+  { key:"gpa",      label:"Current GPA",      icon:"🎯", color:"#7c3aed", sub:"This semester" },
+  { key:"courses",  label:"Enrolled Courses", icon:"📚", color:"#0891b2", sub:"This semester" },
+  { key:"asnDue",   label:"Assignments Due",  icon:"📋", color:"#dc2626", sub:"This week"     },
+  { key:"quizPend", label:"Quizzes Pending",  icon:"✏️", color:"#d97706", sub:"Upcoming"      },
 ];
 
 const TYPE_COLORS = {
@@ -82,12 +87,9 @@ function eventDateIso(ev) {
   return ev.startAt || ev.endAt || ev.deadlineAt;
 }
 
-const COURSES = [
-  { id:1, name:"Physics 201",      instructor:"Dr. Ahmed",  progress:72, color:"#7c3aed", icon:"⚡" },
-  { id:2, name:"Mathematics 301",  instructor:"Dr. Sara",   progress:85, color:"#0891b2", icon:"📐" },
-  { id:3, name:"Computer Science", instructor:"Dr. Khaled", progress:60, color:"#10b981", icon:"💻" },
-  { id:4, name:"Chemistry 201",    instructor:"Dr. Mona",   progress:45, color:"#d97706", icon:"🧪" },
-];
+// Fallback list shown only while the summary endpoint is loading or has not
+// returned any items. Real data replaces this in <My Courses> when available.
+const COURSES_FALLBACK = [];
 
 const VALUES = [
   { icon:"🎓", title:"Academic Excellence", desc:"Striving for the highest standards in education and research" },
@@ -119,6 +121,46 @@ export default function StudentDashboard() {
 
   const [upcoming, setUpcoming] = useState([]);
   const [upcomingLoading, setUpcomingLoading] = useState(true);
+
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSummaryLoading(true);
+    getStudentDashboardSummary()
+      .then((data) => { if (!cancelled) setSummary(data || null); })
+      .catch(() => { if (!cancelled) setSummary(null); })
+      .finally(() => { if (!cancelled) setSummaryLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Map backend summary into the existing hero/stat/course slots.
+  const stats = useMemo(() => {
+    const a = summary?.academic || {};
+    const c = summary?.courses  || {};
+    const k = summary?.counts   || {};
+    const values = {
+      gpa:      a.gpa != null ? Number(a.gpa).toFixed(2) : "0.00",
+      courses:  String(c.registeredCount ?? 0),
+      asnDue:   String(k.assignmentsDueThisWeek ?? 0),
+      quizPend: String(k.quizzesPending ?? 0),
+    };
+    return STAT_CARDS.map((card) => ({ ...card, value: values[card.key] ?? "0" }));
+  }, [summary]);
+
+  const heroStats = useMemo(() => {
+    const a = summary?.academic || {};
+    const c = summary?.courses  || {};
+    const s = summary?.student  || {};
+    return [
+      { v: a.gpa != null ? Number(a.gpa).toFixed(2) : "0.00", l: "GPA" },
+      { v: String(c.registeredCount ?? 0),                    l: "Courses" },
+      { v: s.currentYear ? `Yr ${s.currentYear}` : "Yr 1",    l: "Year" },
+    ];
+  }, [summary]);
+
+  const courseList = (summary?.courses?.items?.length ? summary.courses.items : COURSES_FALLBACK);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,7 +201,7 @@ export default function StudentDashboard() {
               initial={{ opacity:0, scale:0.8 }} animate={{ opacity:1, scale:1 }}
               transition={{ delay:0.1, type:"spring" }}
             >
-              <span className={styles.heroPulse} /> Academic Year 2024–2025
+              <span className={styles.heroPulse} /> Academic Year {summary?.student?.academicYear || "2024–2025"}
             </motion.span>
 
             <motion.h1 className={styles.heroTitle}
@@ -205,11 +247,11 @@ export default function StudentDashboard() {
                 animate={{ y:[0,-12,0], rotate:[0,6,-6,0] }}
                 transition={{ duration:4, repeat:Infinity, ease:"easeInOut" }}
               >🎓</motion.span>
-              <p className={styles.heroCardName}>{user?.name}</p>
-              <p className={styles.heroCardId}>ID: {user?.id}</p>
+              <p className={styles.heroCardName}>{summary?.student?.name || user?.name}</p>
+              <p className={styles.heroCardId}>ID: {summary?.student?.studentCode || user?.id}</p>
               <div className={styles.heroCardLine} />
               <div className={styles.heroCardRow}>
-                {[{v:"3.85",l:"GPA"},{v:"6",l:"Courses"},{v:"Yr 3",l:"Year"}].map(x=>(
+                {heroStats.map(x=>(
                   <div key={x.l} className={styles.heroCardStat}>
                     <strong>{x.v}</strong><span>{x.l}</span>
                   </div>
@@ -219,11 +261,11 @@ export default function StudentDashboard() {
             <motion.div className={styles.floatA}
               animate={{ y:[0,-10,0], rotate:[-2,2,-2] }}
               transition={{ duration:3.5, repeat:Infinity }}
-            >🏆 Top 10%</motion.div>
+            >🏆 {summary?.academic?.standing || "New Student"}</motion.div>
             <motion.div className={styles.floatB}
               animate={{ y:[0,10,0], rotate:[2,-2,2] }}
               transition={{ duration:4, repeat:Infinity, delay:0.6 }}
-            >⚡ 3 Due Soon</motion.div>
+            >⚡ {summary?.counts?.assignmentsDueThisWeek ?? 0} Due Soon</motion.div>
           </motion.div>
         </div>
       </motion.div>
@@ -233,7 +275,7 @@ export default function StudentDashboard() {
         initial="hidden" animate="visible"
         variants={{ hidden:{}, visible:{ transition:{ staggerChildren:0.09 } } }}
       >
-        {STATS.map((s,i) => (
+        {stats.map((s,i) => (
           <motion.div key={s.label} className={styles.statCard}
             variants={{ hidden:{opacity:0,y:24}, visible:{opacity:1,y:0,transition:{duration:0.5,ease:[0.22,1,0.36,1]}} }}
             whileHover={{ y:-7, boxShadow:`0 16px 40px ${s.color}22` }}
@@ -343,14 +385,23 @@ export default function StudentDashboard() {
               <span className={styles.cardIcon}>📚</span>
               <div>
                 <h3 className={styles.cardTitle}>My Courses</h3>
-                <p className={styles.cardMeta}>Current semester</p>
+                <p className={styles.cardMeta}>
+                  {summaryLoading
+                    ? "Loading…"
+                    : summary?.student?.currentSemesterLabel || "Current semester"}
+                </p>
               </div>
             </div>
             <Link to="/student/courses" className={styles.viewAll}>View all →</Link>
           </div>
           <div className={styles.courseList}>
-            {COURSES.map((c,i) => (
-              <motion.div key={c.id} className={styles.courseRow}
+            {!summaryLoading && courseList.length === 0 && (
+              <div style={{ padding:"18px 4px", color:"var(--text-muted, #94a3b8)", fontSize:13.5 }}>
+                No registered courses yet. Use Register Now in the hero above to enroll.
+              </div>
+            )}
+            {courseList.map((c,i) => (
+              <motion.div key={c.id || c.code || i} className={styles.courseRow}
                 initial={{ opacity:0, y:12 }} whileInView={{ opacity:1, y:0 }}
                 viewport={{ once:true }} transition={{ delay:i*0.08 }}
                 whileHover={{ x:4 }}

@@ -599,6 +599,147 @@ namespace Presentation.Controllers
         };
 
         // ═══════════════════════════════════════════════════════════
+        // Dashboard — one-shot summary for the student dashboard
+        // ═══════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// GET /api/student/dashboard/summary
+        /// Returns identity, current academic standing, registered course list,
+        /// and small "due this week / pending" counts in one payload — used to
+        /// populate the existing StudentDashboard hero card, stat chips and
+        /// "My Courses" list without mock data.
+        /// </summary>
+        [HttpGet("dashboard/summary")]
+        public async Task<IActionResult> GetDashboardSummary()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { success = false, error = new { code = "UNAUTHORIZED", message = "Not authenticated." } });
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return Unauthorized(new { success = false, error = new { code = "UNAUTHORIZED", message = "User not found." } });
+
+            // Reuse existing source of truth for current year / semester / credits.
+            var regStatus = await _registrationService.GetRegistrationStatusAsync(userId);
+            var enrolled  = await _registrationService.GetEnrolledCoursesAsync(userId);
+
+            // History flag — "new student" mirrors StudentRegistrationService.IsInitialNewStudent
+            var allRegs = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            bool hasHistory = (allRegs ?? Enumerable.Empty<Registration>())
+                .Any(r => r.IsPassed || r.Progress == CourseProgress.Completed || r.Grade.HasValue);
+            bool isNewStudent = (regStatus.CurrentYear == 1 && regStatus.CurrentSemesterNum == 1) || !hasHistory;
+
+            decimal gpa = user.TotalGPA ?? 0m;
+
+            string standing = isNewStudent ? "New Student"
+                : gpa >= 3.5m ? "Excellent"
+                : gpa >= 3.0m ? "Very Good"
+                : gpa >= 2.5m ? "Good"
+                : gpa >= 2.0m ? "Pass"
+                : gpa >= 1.5m ? "Warning"
+                :               "Probation";
+
+            string yearLabel = regStatus.CurrentYear switch
+            {
+                1 => "First Year",
+                2 => "Second Year",
+                3 => "Third Year",
+                4 => "Fourth Year",
+                _ => "First Year",
+            };
+            string semesterLabel = regStatus.CurrentSemesterNum == 2 ? "Semester Two" : "Semester One";
+
+            // Counts: assignments deadline within the next 7 days (currently available),
+            // quizzes that have not yet ended (upcoming or available).
+            var now      = DateTime.UtcNow;
+            var nextWeek = now.AddDays(7);
+            int assignmentsDueThisWeek = 0;
+            int quizzesPending = 0;
+
+            var activeRegs = (allRegs ?? Enumerable.Empty<Registration>())
+                .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending)
+                            && !r.IsEquivalency
+                            && !r.IsArchived)
+                .ToList();
+
+            foreach (var reg in activeRegs)
+            {
+                var asns = await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(reg.CourseId);
+                foreach (var a in asns ?? Enumerable.Empty<Assignment>())
+                {
+                    var release = a.ReleaseDate ?? DateTime.MinValue;
+                    if (now >= release && now <= a.Deadline && a.Deadline <= nextWeek)
+                        assignmentsDueThisWeek++;
+                }
+
+                var quizzes = await _unitOfWork.Quizzes.GetQuizzesByCourseId(reg.CourseId);
+                foreach (var q in quizzes ?? Enumerable.Empty<Quiz>())
+                {
+                    if (now <= q.EndTime) quizzesPending++;
+                }
+            }
+
+            // Map enrolled courses → trimmed dashboard items (top 4 to fit existing list block).
+            var courseItems = (enrolled ?? new List<StudentCourseDto>())
+                .Take(4)
+                .Select(c => new DashboardCourseItemDto
+                {
+                    Id         = c.Id,
+                    Code       = c.Code,
+                    Name       = c.Name,
+                    Instructor = string.IsNullOrWhiteSpace(c.Instructor) ? "TBA" : c.Instructor,
+                    Progress   = c.Progress,
+                    Color      = string.IsNullOrWhiteSpace(c.Color) ? "#7c3aed" : c.Color,
+                    Icon       = string.IsNullOrWhiteSpace(c.Icon)  ? "📚"     : c.Icon,
+                })
+                .ToList();
+
+            int registeredCredits = regStatus.CurrentCredits;
+            int allowedCredits    = regStatus.MaxCredits > 0 ? regStatus.MaxCredits : 21;
+            int remainingCredits  = Math.Max(0, allowedCredits - registeredCredits);
+
+            var summary = new StudentDashboardSummaryDto
+            {
+                Student = new DashboardStudentDto
+                {
+                    Id                   = user.Id,
+                    Name                 = user.DisplayName,
+                    StudentCode          = user.Academic_Code ?? string.Empty,
+                    Email                = user.Email ?? string.Empty,
+                    ProfilePicture       = user.ProfilePicture ?? string.Empty,
+                    Level                = yearLabel,
+                    CurrentYear          = regStatus.CurrentYear,
+                    CurrentYearLabel     = yearLabel,
+                    CurrentSemester      = regStatus.CurrentSemesterNum,
+                    CurrentSemesterLabel = semesterLabel,
+                    AcademicYear         = regStatus.AcademicYear ?? string.Empty,
+                },
+                Academic = new DashboardAcademicDto
+                {
+                    Gpa               = Math.Round(gpa, 2),
+                    RegisteredCredits = registeredCredits,
+                    AllowedCredits    = allowedCredits,
+                    RemainingCredits  = remainingCredits,
+                    Standing          = standing,
+                    IsNewStudent      = isNewStudent,
+                },
+                Courses = new DashboardCoursesDto
+                {
+                    RegisteredCount = enrolled?.Count ?? 0,
+                    Items           = courseItems,
+                },
+                Counts = new DashboardCountsDto
+                {
+                    AssignmentsDueThisWeek = assignmentsDueThisWeek,
+                    QuizzesPending         = quizzesPending,
+                },
+            };
+
+            return Ok(new { success = true, data = summary });
+        }
+
+        // ═══════════════════════════════════════════════════════════
         // Timetable — unified activity feed for the logged-in student
         // ═══════════════════════════════════════════════════════════
 

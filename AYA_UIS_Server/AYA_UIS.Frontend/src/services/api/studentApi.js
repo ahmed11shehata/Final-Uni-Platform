@@ -150,6 +150,18 @@ export const getStudentPublishedFinalGrades = async () => {
   return Array.isArray(res.data?.data) ? res.data.data : [];
 };
 
+// ── Dashboard ───────────────────────────────────────────────
+
+/**
+ * GET /api/student/dashboard/summary
+ * One-shot payload for StudentDashboard. Shape:
+ * { student: {...}, academic: {...}, courses: { registeredCount, items[] }, counts: { assignmentsDueThisWeek, quizzesPending } }
+ */
+export const getStudentDashboardSummary = async () => {
+  const res = await api.get("/student/dashboard/summary");
+  return res.data?.data ?? null;
+};
+
 // ── Timetable ───────────────────────────────────────────────
 
 /**
