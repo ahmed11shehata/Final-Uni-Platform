@@ -17,11 +17,20 @@ namespace AYA_UIS.Core.Domain.Entities.Models
 
         public DateTime CapturedAt { get; set; } = DateTime.UtcNow;
 
-        // Frozen labels for audit
+        // Frozen labels for audit (human-readable)
         public string? SourceLevel    { get; set; }
         public string? SourceSemester { get; set; }
         public string? TargetLevel    { get; set; }
         public string? TargetSemester { get; set; }
+
+        // Stable numeric source/target position used by the duplicate-reset guard.
+        // SourceYearNum is the student's year-bucket (1-4), SourceSemesterNum is 1 or 2.
+        // Legacy snapshots written before these columns existed will have NULL here
+        // and are intentionally ignored by the duplicate check.
+        public int? SourceYearNum     { get; set; }
+        public int? SourceSemesterNum { get; set; }
+        public int? TargetYearNum     { get; set; }
+        public int? TargetSemesterNum { get; set; }
 
         // Counts pre-reset
         public int RegistrationsCount { get; set; }

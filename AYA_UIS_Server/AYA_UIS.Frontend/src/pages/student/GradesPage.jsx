@@ -101,8 +101,8 @@ function CurrentCoursesView({ courses, finalGradesMap }) {
           })
         ) : (
           <div className={styles.currentEmptyInline}>
-            <div className={styles.currentEmptyTitle}>No confirmed current courses</div>
-            <div className={styles.currentEmptySub}>No courses are available in the current section right now.</div>
+            <div className={styles.currentEmptyTitle}>No current courses yet</div>
+            <div className={styles.currentEmptySub}>You have no registrations for the current semester. Once you register for courses, they will appear here.</div>
           </div>
         )}
       </div>
@@ -244,9 +244,14 @@ export default function GradesPage() {
   const { years, allCompleted, totalEarned, currentYear } = useMemo(() => {
     if (!transcript) return { years: [], allCompleted: [], totalEarned: 0, currentYear: 1 };
 
-    const curYear = transcript.student?.currentYear ?? 1;
-    const curSemNum = regStatus?.currentSemesterNum ?? 1;
-    const hasCurrent = (regStatus?.registeredCourses ?? []).length > 0;
+    // Source of truth for "current" comes from the user's authoritative academic
+    // position (Level + CurrentSemester) returned on transcript.student. Falling
+    // back to regStatus.currentSemesterNum keeps legacy responses working.
+    const curYear  = transcript.student?.currentYear ?? 1;
+    const curSemNum =
+      transcript.student?.currentSemester ??
+      regStatus?.currentSemesterNum ??
+      1;
 
     const grouped = {};
 
@@ -258,11 +263,12 @@ export default function GradesPage() {
       grouped[yr][sm].courses.push(c);
     }
 
-    if (hasCurrent) {
-      if (!grouped[curYear]) grouped[curYear] = {};
-      if (!grouped[curYear][curSemNum]) grouped[curYear][curSemNum] = { courses: [], isCurrent: false };
-      grouped[curYear][curSemNum].isCurrent = true;
-    }
+    // Always surface a Current slot from the user's academic position — even
+    // when there are no current registrations yet (e.g. right after Academic
+    // Reset). The empty-state UI handles the "No current courses yet" case.
+    if (!grouped[curYear]) grouped[curYear] = {};
+    if (!grouped[curYear][curSemNum]) grouped[curYear][curSemNum] = { courses: [], isCurrent: false };
+    grouped[curYear][curSemNum].isCurrent = true;
 
     const all = transcript.completedCourses ?? [];
     const earned = all.reduce((s, c) => s + Number(c.credits ?? 3), 0);

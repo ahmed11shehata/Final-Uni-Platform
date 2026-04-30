@@ -57,6 +57,9 @@ namespace Shared.Dtos.Admin_Module
 
         [JsonPropertyName("alreadyResetCount")]
         public int AlreadyResetCount { get; set; }
+
+        [JsonPropertyName("noRegistrationsCount")]
+        public int NoRegistrationsCount { get; set; }
     }
 
     public class AcademicYearResetStudentPreviewDto

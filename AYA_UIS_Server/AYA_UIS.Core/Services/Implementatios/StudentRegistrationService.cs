@@ -291,9 +291,24 @@ namespace Services.Implementatios
                 string status;
                 string? reason = null;
                 List<string>? missingPrereqs = null;
+                List<PrerequisiteDetailDto>? prereqDetails = null;
                 bool retake = false;
                 bool canRegister = false;
                 bool isAdminLocked = false;
+
+                // Always build per-prereq detail so the frontend can show passed/missing
+                // breakdown on the Prerequisite tab. Empty list when the course has no prereqs.
+                if (prereqs.Any())
+                {
+                    prereqDetails = prereqs
+                        .Select(p => new PrerequisiteDetailDto
+                        {
+                            Code   = p.Code,
+                            Name   = p.Name,
+                            Passed = passedCourseIds.Contains(p.Id),
+                        })
+                        .ToList();
+                }
 
                 // a) Already passed
                 if (passedCourseIds.Contains(course.Id))
@@ -324,7 +339,10 @@ namespace Services.Implementatios
 
                     if (unmetPrereqs.Any())
                     {
-                        status = "unavailable";
+                        // New "prerequisite" status — frontend renders this in the
+                        // Prerequisite tab and disables registration. Prerequisite
+                        // reason takes priority over Locked/Full per spec.
+                        status = "prerequisite";
                         missingPrereqs = unmetPrereqs.Select(p => p.Name).ToList();
                         if (unmetPrereqs.Count == 1)
                             reason = $"You must pass {unmetPrereqs[0].Name} first";
@@ -387,6 +405,7 @@ namespace Services.Implementatios
                     Status = status,
                     Prereqs = prereqCodes,
                     MissingPrerequisites = missingPrereqs,
+                    PrerequisiteDetails = prereqDetails,
                     Reason = reason,
                     LockReason = reason,       // backward compat
 
@@ -981,7 +1000,10 @@ namespace Services.Implementatios
             Levels.Third_Year => 3,
             Levels.Fourth_Year => 4,
             Levels.Graduate => 4,
-            _ => 4 // default max visibility
+            // Brand-new students (Level not set yet) must default to First Year,
+            // not Fourth Year — otherwise Register Courses would surface Year-4
+            // courses to a student who has not even started Year 1.
+            _ => 1
         };
 
         /// <summary>Parse rich OpenedCoursesByYear JSON from settings.</summary>

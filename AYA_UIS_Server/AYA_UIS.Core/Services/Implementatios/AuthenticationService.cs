@@ -289,10 +289,11 @@ namespace AYA_UIS.Core.Services.Implementations
             {
                 DisplayName = registerStudentDto.DisplayName,
                 Email = registerStudentDto.Email,
-                UserName = registerStudentDto.UserName,   
+                UserName = registerStudentDto.UserName,
                 PhoneNumber = registerStudentDto.PhoneNumber,
                 Academic_Code = registerStudentDto.Academic_Code,
                 Level = startingLevel,
+                CurrentSemester = 1,
                 TotalCredits = 0,
                 AllowedCredits = allowedCredits,
                 TotalGPA = 0,

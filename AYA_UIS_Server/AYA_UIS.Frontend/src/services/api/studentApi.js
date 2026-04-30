@@ -150,6 +150,21 @@ export const getStudentPublishedFinalGrades = async () => {
   return Array.isArray(res.data?.data) ? res.data.data : [];
 };
 
+// ── Timetable ───────────────────────────────────────────────
+
+/**
+ * GET /api/student/timetable/events
+ * Returns a normalized list of assignment / quiz / lecture events for the
+ * student's actively-registered courses. Server decides availability —
+ * frontend MUST use status / isAvailable / actionUrl as the source of truth.
+ *
+ * Optional params: { limit, type } where type ∈ "assignment" | "quiz" | "lecture".
+ */
+export const getStudentTimetableEvents = async (params = {}) => {
+  const res = await api.get("/student/timetable/events", { params });
+  return Array.isArray(res.data?.data) ? res.data.data : [];
+};
+
 // ── Stubs (not yet implemented on backend) ──────────────────
 export const getStudentGrades = () => Promise.resolve([]);
 

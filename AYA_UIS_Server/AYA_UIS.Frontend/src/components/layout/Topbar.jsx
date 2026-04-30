@@ -53,9 +53,12 @@ function notifMeta(type) {
   return map[type] || { emoji: "🔔", color: "#6366f1", bg: "rgba(99,102,241,0.1)" };
 }
 
-/* ── Compute the target route for a notification's action button ── */
-function getActionRoute(notif) {
+/* ── Compute the target route for a notification's action button ──
+   Students get null unconditionally — even if a legacy backend response
+   somehow leaked deep-link ids, the student client never navigates. */
+function getActionRoute(notif, role) {
   if (!notif) return null;
+  if ((role || "").toLowerCase() === "student") return null;
   const d = notif.detail || {};
   switch (notif.type) {
     // Student — graded assignment
@@ -101,8 +104,10 @@ function getActionRoute(notif) {
   }
 }
 
-/* ── Compute the action button label ── */
-function getActionLabel(notif) {
+/* ── Compute the action button label ──
+   Students never deep-link — show a plain Close label. */
+function getActionLabel(notif, role) {
+  if ((role || "").toLowerCase() === "student") return "Close";
   switch (notif?.type) {
     case "grade_approved":
     case "assignment_accepted":
@@ -411,12 +416,13 @@ export default function Topbar() {
 
               <DetailContent notif={detailNotif} />
 
-              {/* Action button — navigates to target entity when a route exists */}
+              {/* Action button — navigates to target entity when a route exists.
+                  Students never navigate; the button just closes the panel. */}
               <button
                 className={styles.detailDoneBtn}
                 style={{ background: notifMeta(detailNotif.type).color }}
                 onClick={() => {
-                  const route = getActionRoute(detailNotif);
+                  const route = getActionRoute(detailNotif, role);
                   setDetailNotif(null);
                   if (!route) return;
                   // route is either a plain path string or { path, state } for deep links
@@ -427,7 +433,7 @@ export default function Topbar() {
                   }
                 }}
               >
-                {getActionLabel(detailNotif)}
+                {getActionLabel(detailNotif, role)}
               </button>
             </motion.div>
           </>

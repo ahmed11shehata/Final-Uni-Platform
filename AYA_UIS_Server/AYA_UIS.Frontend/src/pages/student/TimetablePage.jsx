@@ -1,19 +1,9 @@
 // src/pages/student/TimetablePage.jsx
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import styles from "./TimetablePage.module.css";
-
-/*
-// ── REAL API — uncomment when backend ready ─────────────────
-import axios from "axios";
-export const fetchTimetableEvents = async (token) => {
-  const res = await axios.get("/api/student/timetable", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return res.data;
-};
-*/
+import { getStudentTimetableEvents } from "../../services/api/studentApi";
 
 // ── Type config ──────────────────────────────────────────────────
 const TYPE = {
@@ -28,7 +18,7 @@ const TYPE = {
   },
   assignment: {
     label:"Assignment", color:"#e11d48", light:"rgba(225,29,72,0.07)", border:"rgba(225,29,72,0.2)",
-    route:"/student/assignments",
+    route:"/student/courses",
     icon:(
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -47,44 +37,7 @@ const TYPE = {
       </svg>
     ),
   },
-  video: {
-    label:"Video Session", color:"#047857", light:"rgba(4,120,87,0.07)", border:"rgba(4,120,87,0.2)",
-    route:"/student/courses",
-    icon:(
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="23 7 16 12 23 17 23 7"/>
-        <rect x="1" y="5" width="15" height="14" rx="2"/>
-      </svg>
-    ),
-  },
 };
-
-// ── Mock events ──────────────────────────────────────────────────
-const MOCK_EVENTS = [
-  { id:1,  type:"quiz",       title:"Quiz 1 – Search Algorithms",          courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-03-03", time:"10:00 AM", duration:"20 min" },
-  { id:2,  type:"assignment", title:"Linear Algebra Problem Set",           courseCode:"MATH302", course:"Mathematics",             date:"2026-03-03", time:"11:59 PM", duration:null     },
-  { id:3,  type:"lecture",    title:"Intro to Neural Networks",             courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-03-03", time:"Uploaded",  duration:null     },
-  { id:4,  type:"quiz",       title:"Quiz 2 – Circuit Analysis",            courseCode:"EE301",   course:"Electronics",             date:"2026-03-05", time:"11:00 AM", duration:"20 min" },
-  { id:5,  type:"assignment", title:"Op-Amp Circuit Design",                courseCode:"EE301",   course:"Electronics",             date:"2026-03-05", time:"11:59 PM", duration:null     },
-  { id:6,  type:"video",      title:"Electronics Live Q&A",                 courseCode:"EE301",   course:"Electronics",             date:"2026-03-05", time:"03:00 PM", duration:"60 min" },
-  { id:7,  type:"lecture",    title:"Operational Amplifiers Pt.2",          courseCode:"EE301",   course:"Electronics",             date:"2026-03-10", time:"Uploaded",  duration:null     },
-  { id:8,  type:"assignment", title:"Search Algorithm Implementation",      courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-03-10", time:"11:59 PM", duration:null     },
-  { id:9,  type:"quiz",       title:"Midterm – Calculus II",                courseCode:"MATH302", course:"Mathematics",             date:"2026-03-12", time:"09:00 AM", duration:"90 min" },
-  { id:10, type:"quiz",       title:"Quiz 3 – ML Fundamentals",             courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-03-12", time:"11:00 AM", duration:"20 min" },
-  { id:11, type:"assignment", title:"Database Schema Design",               courseCode:"CS302",   course:"Database Systems",        date:"2026-03-12", time:"11:59 PM", duration:null     },
-  { id:12, type:"video",      title:"AI Concepts Live Session",             courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-03-12", time:"04:00 PM", duration:"75 min" },
-  { id:13, type:"lecture",    title:"Deep Learning & CNNs",                 courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-03-17", time:"Uploaded",  duration:null     },
-  { id:14, type:"assignment", title:"Op-Amp Design Report",                 courseCode:"EE301",   course:"Electronics",             date:"2026-03-17", time:"11:59 PM", duration:null     },
-  { id:15, type:"quiz",       title:"Quiz 4 – Knowledge Representation",    courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-03-19", time:"10:00 AM", duration:"20 min" },
-  { id:16, type:"lecture",    title:"SQL Joins & Subqueries",               courseCode:"CS302",   course:"Database Systems",        date:"2026-03-19", time:"Uploaded",  duration:null     },
-  { id:17, type:"assignment", title:"Neural Network from Scratch",          courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-03-24", time:"11:59 PM", duration:null     },
-  { id:18, type:"video",      title:"Calculus Review Session",              courseCode:"MATH302", course:"Mathematics",             date:"2026-03-24", time:"11:00 AM", duration:"60 min" },
-  { id:19, type:"quiz",       title:"Final Exam – Electronics",             courseCode:"EE301",   course:"Electronics",             date:"2026-03-26", time:"09:00 AM", duration:"120 min"},
-  { id:20, type:"assignment", title:"Final Project Submission",             courseCode:"CS302",   course:"Database Systems",        date:"2026-03-26", time:"11:59 PM", duration:null     },
-  { id:21, type:"lecture",    title:"Integration Techniques",               courseCode:"MATH302", course:"Mathematics",             date:"2026-03-26", time:"Uploaded",  duration:null     },
-  { id:22, type:"assignment", title:"AI Final Project",                     courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-04-02", time:"11:59 PM", duration:null     },
-  { id:23, type:"video",      title:"Project Showcase Session",             courseCode:"CS401",   course:"Artificial Intelligence", date:"2026-04-07", time:"02:00 PM", duration:"120 min"},
-];
 
 const MONTHS    = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAYS_S    = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -93,32 +46,146 @@ const DAYS_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","
 const toDate   = (s) => new Date(s + "T00:00:00");
 const daysLeft = (s) => { const t=new Date(); t.setHours(0,0,0,0); return Math.ceil((toDate(s)-t)/86400000); };
 const sameDay  = (a,b) => a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+const isAbsoluteUrl = (s) => typeof s === "string" && /^https?:\/\//i.test(s);
+
+// Calm palette for course-based coloring — consistent per course code/id.
+const COURSE_PALETTE = [
+  "#6366f1", // indigo
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#ec4899", // pink
+  "#0ea5e9", // sky
+  "#8b5cf6", // violet
+  "#14b8a6", // teal
+  "#f97316", // orange
+  "#a855f7", // purple
+  "#22c55e", // green
+  "#3b82f6", // blue
+  "#eab308", // yellow
+];
+function hashKey(s) {
+  let h = 0;
+  const str = String(s ?? "");
+  for (let i = 0; i < str.length; i++) h = ((h * 31) + str.charCodeAt(i)) >>> 0;
+  return h;
+}
+function getCourseColor(courseCode, courseId) {
+  const key = courseCode || courseId;
+  if (!key) return COURSE_PALETTE[0];
+  return COURSE_PALETTE[hashKey(key) % COURSE_PALETTE.length];
+}
+
+// Calendar placement uses publish/release/start date — never deadline.
+// "Publish now" assignments arrive without a release timestamp; place them
+// on today (or, for already-expired ones, fall back to deadline so the
+// chip is still visible).
+function pickPrimaryIso(raw) {
+  const todayIso = (() => {
+    const t = new Date(); t.setHours(0,0,0,0); return t.toISOString();
+  })();
+
+  if (raw.type === "assignment") {
+    if (raw.releaseAt) return raw.releaseAt;
+    if (raw.isExpired && raw.deadlineAt) return raw.deadlineAt;
+    return todayIso;
+  }
+  if (raw.type === "quiz") {
+    return raw.startAt || raw.releaseAt || todayIso;
+  }
+  if (raw.type === "lecture") {
+    return raw.releaseAt || raw.startAt || todayIso;
+  }
+  return raw.startAt || raw.releaseAt || raw.deadlineAt || todayIso;
+}
+function fmtTimeLocal(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+}
+function isoToLocalDateString(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const dd= String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dd}`;
+}
+function durationMinutes(startIso, endIso) {
+  if (!startIso || !endIso) return null;
+  const mins = Math.round((new Date(endIso) - new Date(startIso)) / 60000);
+  return mins > 0 ? `${mins} min` : null;
+}
+function normalizeEvent(raw) {
+  const primaryIso = pickPrimaryIso(raw);
+  return {
+    id:             raw.id,
+    sourceId:       raw.sourceId,
+    type:           raw.type,
+    title:          raw.title,
+    courseId:       raw.courseId ?? null,
+    courseCode:     raw.courseCode || "",
+    course:         raw.courseName || raw.courseCode || "",
+    date:           isoToLocalDateString(primaryIso),
+    time:           raw.type === "lecture" ? "Uploaded" : fmtTimeLocal(primaryIso),
+    duration:       raw.type === "quiz" ? durationMinutes(raw.startAt, raw.endAt) : null,
+    status:         raw.status,
+    isAvailable:    !!raw.isAvailable,
+    isExpired:      !!raw.isExpired,
+    actionUrl:      raw.actionUrl || null,
+    attachmentUrl:  raw.attachmentUrl || null,
+    lockedMessage:  raw.lockedMessage || null,
+    expiredMessage: raw.expiredMessage || null,
+    description:    raw.description || "",
+    releaseAt:      raw.releaseAt || null,
+    startAt:        raw.startAt   || null,
+    endAt:          raw.endAt     || null,
+    deadlineAt:     raw.deadlineAt|| null,
+  };
+}
 
 // ── Status badge ─────────────────────────────────────────────────
-function StatusBadge({ days, type }) {
-  if (type==="lecture")   return <span className={`${styles.badge} ${styles.bNew}`}>New Upload</span>;
-  if (days < 0)           return <span className={`${styles.badge} ${styles.bExp}`}>Expired</span>;
-  if (days === 0)         return <span className={`${styles.badge} ${styles.bToday}`}>Due Today!</span>;
-  if (days === 1)         return <span className={`${styles.badge} ${styles.bTmrw}`}>Tomorrow</span>;
-  if (days <= 3)          return <span className={`${styles.badge} ${styles.bSoon}`}>In {days} days</span>;
-  if (days <= 7)          return <span className={`${styles.badge} ${styles.bWeek}`}>This week</span>;
+function StatusBadge({ days, type, ev }) {
+  // Authoritative status comes from backend when present
+  if (ev?.status === "completed") return <span className={`${styles.badge} ${styles.bWeek}`}>Completed</span>;
+  if (ev?.isExpired)              return <span className={`${styles.badge} ${styles.bExp}`}>Expired</span>;
+  if (type==="lecture")           return <span className={`${styles.badge} ${styles.bNew}`}>New Upload</span>;
+  if (days < 0)                   return <span className={`${styles.badge} ${styles.bExp}`}>Expired</span>;
+  if (days === 0)                 return <span className={`${styles.badge} ${styles.bToday}`}>Due Today!</span>;
+  if (days === 1)                 return <span className={`${styles.badge} ${styles.bTmrw}`}>Tomorrow</span>;
+  if (days <= 3)                  return <span className={`${styles.badge} ${styles.bSoon}`}>In {days} days</span>;
+  if (days <= 7)                  return <span className={`${styles.badge} ${styles.bWeek}`}>This week</span>;
   return <span className={`${styles.badge} ${styles.bFar}`}>{days} days left</span>;
 }
 
 // ── Event Popup ──────────────────────────────────────────────────
 function EventPopup({ ev, onClose }) {
   const navigate = useNavigate();
-  const tm      = TYPE[ev.type];
+  const tm      = TYPE[ev.type] || TYPE.lecture;
   const days    = daysLeft(ev.date);
   const d       = toDate(ev.date);
-  const expired = days < 0 && ev.type !== "lecture";
+  const expired = ev.isExpired;
   const urgPct  = expired ? 100 : Math.max(5, Math.min(95, 100 - (days/30)*100));
   const urgCol  = days<=0 ? "#ef4444" : days<=3 ? "#f59e0b" : days<=7 ? "#a78bfa" : tm.color;
 
   const ctaLabel =
-    ev.type==="quiz"       ? "Go to Quiz"      :
-    ev.type==="assignment" ? "View Assignment" :
-    ev.type==="lecture"    ? "Watch Lecture"   : "Join Session";
+    ev.type === "quiz"       ? (ev.status === "completed" ? "Review Quiz" : "Open Quiz") :
+    ev.type === "assignment" ? "Open Assignment" :
+    ev.type === "lecture"    ? "Open Material"   : "Open";
+
+  const handleAction = () => {
+    if (!ev.actionUrl) return;
+    onClose();
+    if (isAbsoluteUrl(ev.actionUrl) || ev.actionUrl.startsWith("/uploads") || ev.actionUrl.startsWith("/wwwroot")) {
+      window.open(ev.actionUrl, "_blank", "noopener,noreferrer");
+    } else {
+      navigate(ev.actionUrl);
+    }
+  };
+
+  // Action gating mirrors backend authority
+  const canOpen   = ev.isAvailable && !!ev.actionUrl;
+  const canReview = ev.status === "completed" && !!ev.actionUrl;
+  const lockedMsg = ev.lockedMessage || ev.expiredMessage ||
+    (ev.status === "completed" ? "You have submitted this quiz." : "This event has passed. Contact your instructor if needed.");
 
   return (
     <motion.div className={styles.overlay}
@@ -143,7 +210,7 @@ function EventPopup({ ev, onClose }) {
           <div style={{flex:1,minWidth:0}}>
             <div className={styles.popTags}>
               <span className={styles.popTypeBadge} style={{background:`${tm.color}15`, color:tm.color}}>{tm.label}</span>
-              <StatusBadge days={days} type={ev.type}/>
+              <StatusBadge days={days} type={ev.type} ev={ev}/>
             </div>
             <h2 className={styles.popTitle}>{ev.title}</h2>
           </div>
@@ -201,12 +268,12 @@ function EventPopup({ ev, onClose }) {
           </div>
         )}
 
-        {/* CTA / expired note */}
-        {!expired ? (
+        {/* CTA / locked-or-expired note */}
+        {canOpen ? (
           <div className={styles.popFoot}>
             <motion.button className={styles.ctaBtn}
               style={{background:`linear-gradient(135deg,${tm.color} 0%,${tm.color}bb 100%)`}}
-              onClick={()=>{onClose(); navigate(tm.route);}}
+              onClick={handleAction}
               whileHover={{scale:1.02, filter:"brightness(1.09)"}} whileTap={{scale:0.97}}>
               <span className={styles.ctaIco}>{tm.icon}</span>
               {ctaLabel}
@@ -214,13 +281,33 @@ function EventPopup({ ev, onClose }) {
                 <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
               </svg>
             </motion.button>
+            {ev.attachmentUrl && (
+              <a href={ev.attachmentUrl} target="_blank" rel="noreferrer"
+                 style={{
+                   marginTop:10, display:"inline-flex", alignItems:"center", gap:8,
+                   padding:"9px 14px", borderRadius:10, fontSize:13, fontWeight:700,
+                   color:tm.color, background:`${tm.color}10`, border:`1px solid ${tm.color}30`,
+                   textDecoration:"none", alignSelf:"flex-start",
+                 }}>
+                📎 Open attachment
+              </a>
+            )}
+          </div>
+        ) : canReview ? (
+          <div className={styles.popFoot}>
+            <motion.button className={styles.ctaBtn}
+              style={{background:`linear-gradient(135deg,#22c55e 0%,#16a34a 100%)`}}
+              onClick={handleAction}
+              whileHover={{scale:1.02}} whileTap={{scale:0.97}}>
+              ✓ Already submitted — Review
+            </motion.button>
           </div>
         ) : (
           <div className={styles.expNote}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="14" height="14">
               <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
-            This event has passed. Contact your instructor if needed.
+            {lockedMsg}
           </div>
         )}
       </motion.div>
@@ -232,9 +319,9 @@ function EventPopup({ ev, onClose }) {
 function FloatingTooltip({ tooltip }) {
   if (!tooltip) return null;
   const { ev, x, y } = tooltip;
-  const tm      = TYPE[ev.type];
+  const tm      = TYPE[ev.type] || TYPE.lecture;
   const days    = daysLeft(ev.date);
-  const expired = days < 0 && ev.type !== "lecture";
+  const expired = ev.isExpired;
 
   return (
     <motion.div
@@ -250,7 +337,7 @@ function FloatingTooltip({ tooltip }) {
       <span className={styles.ftTitle}>{ev.title}</span>
       <span className={styles.ftCode}>{ev.courseCode}</span>
       {expired && <span className={styles.ftExp}>Expired</span>}
-      {!expired && ev.type!=="lecture" && days<=7 && <StatusBadge days={days} type={ev.type}/>}
+      {!expired && ev.type!=="lecture" && days<=7 && <StatusBadge days={days} type={ev.type} ev={ev}/>}
     </motion.div>
   );
 }
@@ -265,6 +352,23 @@ export default function TimetablePage() {
   const [dir,     setDir]     = useState(1);
   const tipTimer = useRef(null);
 
+  const [events,  setEvents]  = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getStudentTimetableEvents()
+      .then((list) => {
+        if (cancelled) return;
+        setEvents((Array.isArray(list) ? list : []).map(normalizeEvent));
+      })
+      .catch((e) => { if (!cancelled) setLoadErr(e?.response?.data?.error?.message || "Could not load timetable."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const startDay    = new Date(year,month,1).getDay();
   const daysInMonth = new Date(year,month+1,0).getDate();
   const prevCount   = new Date(year,month,0).getDate();
@@ -278,7 +382,7 @@ export default function TimetablePage() {
     return {day:off+1, cur:true, date:new Date(year,month,off+1)};
   });
 
-  const eventsOn = (date) => MOCK_EVENTS.filter(e=>sameDay(toDate(e.date),date));
+  const eventsOn = (date) => events.filter(e=>e.date && sameDay(toDate(e.date),date));
   const isToday  = (date) => sameDay(date,todayObj);
 
   const nav = (d) => {
@@ -301,12 +405,15 @@ export default function TimetablePage() {
     tipTimer.current = setTimeout(() => setTooltip(null), 80);
   }, []);
 
-  const mEvs = MOCK_EVENTS.filter(e=>{const d=toDate(e.date);return d.getMonth()===month&&d.getFullYear()===year;});
+  const mEvs = events.filter(e=>{
+    if (!e.date) return false;
+    const d=toDate(e.date);
+    return d.getMonth()===month && d.getFullYear()===year;
+  });
   const STATS = [
     {n:mEvs.filter(e=>e.type==="quiz").length,       label:"Quizzes",   color:"#7c3aed"},
     {n:mEvs.filter(e=>e.type==="assignment").length, label:"Deadlines", color:"#e11d48"},
     {n:mEvs.filter(e=>e.type==="lecture").length,    label:"Lectures",  color:"#0369a1"},
-    {n:mEvs.filter(e=>e.type==="video").length,      label:"Sessions",  color:"#047857"},
   ];
 
   const slide = {
@@ -385,7 +492,7 @@ export default function TimetablePage() {
             {cells.map((cell,i)=>{
               const evs   = eventsOn(cell.date);
               const today = isToday(cell.date);
-              const MAX   = 3;
+              const MAX   = 6;
               return (
                 <div key={i} className={`
                   ${styles.cell}
@@ -409,25 +516,24 @@ export default function TimetablePage() {
                   {cell.cur && evs.length > 0 && (
                     <div className={styles.evStack}>
                       {evs.slice(0,MAX).map((ev,ei)=>{
-                        const tm      = TYPE[ev.type];
-                        const days    = daysLeft(ev.date);
-                        const expired = days<0 && ev.type!=="lecture";
+                        const tm      = TYPE[ev.type] || TYPE.lecture;
+                        const expired = ev.isExpired;
+                        const cColor  = getCourseColor(ev.courseCode, ev.courseId);
                         return (
                           <motion.button key={ev.id}
                             className={`${styles.evChip} ${expired?styles.evExpired:""}`}
-                            style={{"--c":tm.color,"--bg":tm.light,"--br":tm.border}}
+                            style={{"--c":cColor}}
                             onClick={()=>setActive(ev)}
                             onMouseEnter={(e)=>handleEnter(e,ev)}
                             onMouseLeave={handleLeave}
-                            initial={{opacity:0,x:-5}}
-                            animate={{opacity:1,x:0}}
+                            initial={{opacity:0,scale:0.9}}
+                            animate={{opacity:1,scale:1}}
                             transition={{delay:i*0.003+ei*0.035+0.06}}
-                            whileHover={{x:2}}
-                            whileTap={{scale:0.94}}
+                            whileHover={{y:-1}}
+                            whileTap={{scale:0.92}}
                           >
-                            <span className={styles.evStripe} style={{background:expired?"#94a3b8":tm.color}}/>
+                            <span className={styles.evIco} style={{color:expired?"#94a3b8":cColor}}>{tm.icon}</span>
                             <span className={styles.evName}>{ev.title}</span>
-                            <span className={styles.evIco} style={{color:expired?"#94a3b8":tm.color}}>{tm.icon}</span>
                           </motion.button>
                         );
                       })}
@@ -460,6 +566,16 @@ export default function TimetablePage() {
             <span className={styles.legDot} style={{background:"#94a3b8",opacity:.5}}/>
             <span style={{color:"#94a3b8"}}>Expired</span>
           </div>
+          {(loading || loadErr || (!loading && events.length === 0)) && (
+            <span style={{
+              marginLeft:"auto", fontSize:11, color: loadErr ? "#ef4444" : "var(--text-muted, #94a3b8)",
+              fontWeight:600,
+            }}>
+              {loading ? "Loading timetable…"
+                : loadErr ? loadErr
+                : "No activities yet."}
+            </span>
+          )}
         </div>
       </motion.div>
 

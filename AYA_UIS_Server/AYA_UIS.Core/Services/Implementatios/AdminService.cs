@@ -176,6 +176,19 @@ namespace Services.Implementatios
                 CreatedAt = DateTime.UtcNow
             };
 
+            // New Student accounts created via Email Manager always start at
+            // First Year / Semester 1 — admin can override later via Academic Setup.
+            // For non-Student roles Level/CurrentSemester stay null.
+            if (string.Equals(dto.Role, "student", StringComparison.OrdinalIgnoreCase))
+            {
+                user.Level           = Levels.First_Year;
+                user.CurrentSemester = 1;
+                user.AllowedCredits  = 21;
+                user.TotalCredits    = 0;
+                user.TotalGPA        = 0;
+                user.EntryYear       = DateTime.UtcNow.Year.ToString();
+            }
+
             if (!string.IsNullOrWhiteSpace(dto.Phone))
                 user.PhoneNumber = dto.Phone;
 
@@ -1155,6 +1168,8 @@ namespace Services.Implementatios
                 yearsDto[yr.ToString()] = new AcademicSetupYearDto { Semesters = semDto };
             }
 
+            int currentSemester = user.CurrentSemester ?? 1;
+
             return new AcademicSetupResponseDto
             {
                 Student = new AcademicSetupStudentDto
@@ -1163,6 +1178,7 @@ namespace Services.Implementatios
                     Name = user.DisplayName,
                     Email = user.Email,
                     CurrentYear = currentYear,
+                    CurrentSemester = currentSemester,
                     Gpa = user.TotalGPA ?? 0,
                     TotalCreditsEarned = totalCreditsEarned,
                     Standing = standing
@@ -1170,6 +1186,7 @@ namespace Services.Implementatios
                 AcademicSetup = new AcademicSetupDataDto
                 {
                     CurrentYear = currentYear,
+                    CurrentSemester = currentSemester,
                     Years = yearsDto
                 }
             };
@@ -1237,6 +1254,7 @@ namespace Services.Implementatios
                     Name               = user.DisplayName,
                     Email              = user.Email,
                     CurrentYear        = LevelToYearNum(user.Level),
+                    CurrentSemester    = user.CurrentSemester ?? 1,
                     Gpa                = user.TotalGPA ?? 0,
                     TotalCreditsEarned = totalCreditsEarned,
                     Standing           = ComputeStanding(user.TotalGPA ?? 0, isNewStudentTr)
@@ -1384,8 +1402,10 @@ namespace Services.Implementatios
                 await _unitOfWork.Registrations.AddAsync(reg);
             }
 
-            // 7. Update student's current year
+            // 7. Update student's current year + semester (authoritative academic position)
             user.Level = YearNumToLevel(dto.CurrentYear);
+            int requestedSem = dto.CurrentSemester ?? 1;
+            user.CurrentSemester = (requestedSem == 2) ? 2 : 1;
 
             // 8. Recalculate GPA from ALL passed registrations (real + equivalency)
             // Must save first to persist new registrations, then re-query
@@ -1455,6 +1475,7 @@ namespace Services.Implementatios
             {
                 StudentId = user.Academic_Code ?? user.Id,
                 CurrentYear = dto.CurrentYear,
+                CurrentSemester = user.CurrentSemester ?? 1,
                 Gpa = newGpa,
                 TotalCreditsEarned = totalCreditsEarned,
                 Standing = standing,

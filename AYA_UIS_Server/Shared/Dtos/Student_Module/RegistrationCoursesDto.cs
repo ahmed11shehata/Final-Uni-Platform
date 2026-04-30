@@ -67,6 +67,13 @@ namespace Shared.Dtos.Student_Module
         [JsonPropertyName("missingPrerequisites")]
         public List<string>? MissingPrerequisites { get; set; }
 
+        /// <summary>
+        /// Per-prerequisite breakdown (code, name, passed flag) so the frontend
+        /// can render the Prerequisite tab with clear "Passed / Missing" labels.
+        /// </summary>
+        [JsonPropertyName("prerequisiteDetails")]
+        public List<PrerequisiteDetailDto>? PrerequisiteDetails { get; set; }
+
         [JsonPropertyName("reason")]
         public string? Reason { get; set; }
 
@@ -109,5 +116,21 @@ namespace Shared.Dtos.Student_Module
         // Kept for backward compat but deprecated
         [JsonPropertyName("lockReason")]
         public string? LockReason { get; set; }
+    }
+
+    /// <summary>
+    /// One prerequisite course with its pass/missing status for the current student.
+    /// </summary>
+    public class PrerequisiteDetailDto
+    {
+        [JsonPropertyName("code")]
+        public string Code { get; set; } = string.Empty;
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>True if the student has already passed this prerequisite.</summary>
+        [JsonPropertyName("passed")]
+        public bool Passed { get; set; }
     }
 }

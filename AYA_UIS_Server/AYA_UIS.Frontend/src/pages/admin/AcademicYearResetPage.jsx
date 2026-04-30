@@ -622,35 +622,49 @@ function ConfirmStep({
           </div>
 
           <div className={styles.transitionList}>
-            {(preview.perStudent || []).map((student) => (
-              <div key={student.studentId} className={styles.transitionItem}>
-                <div className={styles.transitionPerson}>
-                  <Avatar name={student.studentName} />
-                  <div>
-                    <strong>{student.studentName || "Unnamed student"}</strong>
-                    <span>{student.academicCode || "No code"}</span>
+            {(preview.perStudent || []).map((student) => {
+              const noRegs = (student.registeredCount ?? 0) === 0;
+              return (
+                <div key={student.studentId} className={styles.transitionItem}>
+                  <div className={styles.transitionPerson}>
+                    <Avatar name={student.studentName} />
+                    <div>
+                      <strong>{student.studentName || "Unnamed student"}</strong>
+                      <span>{student.academicCode || "No code"}</span>
+                    </div>
                   </div>
-                </div>
 
-                <div className={styles.termMove}>
-                  <span>{labelizeLevel(student.currentLevel)} · Semester {student.currentSemester}</span>
-                  <b>→</b>
-                  <span>{labelizeLevel(student.targetLevel)} · Semester {student.targetSemester}</span>
-                </div>
+                  <div className={styles.termMove}>
+                    <span>{labelizeLevel(student.currentLevel)} · Semester {student.currentSemester}</span>
+                    <b>→</b>
+                    <span>{labelizeLevel(student.targetLevel)} · Semester {student.targetSemester}</span>
+                  </div>
 
-                <div className={styles.transitionStats}>
-                  {student.alreadyReset ? (
-                    <span className={styles.alreadyTag}>Already reset</span>
-                  ) : (
-                    <>
-                      <span>{student.passedCount} passed</span>
-                      <span>{student.failedCount} failed</span>
-                      <span>{student.unassignedCount} unassigned</span>
-                    </>
+                  <div className={styles.transitionStats}>
+                    {student.alreadyReset && (
+                      <span className={styles.alreadyTag}>Already reset (this source)</span>
+                    )}
+                    {noRegs ? (
+                      <span className={styles.alreadyTag}>No current registrations</span>
+                    ) : (
+                      <>
+                        <span>{student.passedCount} passed</span>
+                        <span>{student.failedCount} failed</span>
+                        <span>{student.unassignedCount} unassigned</span>
+                      </>
+                    )}
+                  </div>
+
+                  {(student.warnings || []).length > 0 && (
+                    <ul className={styles.transitionWarnings}>
+                      {(student.warnings || []).map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

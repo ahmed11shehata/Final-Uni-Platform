@@ -3,6 +3,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import styles from "./StudentDashboard.module.css";
+import { getStudentTimetableEvents } from "../../services/api/studentApi";
 
 // ── Animated Counter ─────────────────────────────
 function Counter({ value }) {
@@ -50,12 +51,36 @@ const STATS = [
   { label:"Quizzes Pending",  value:"2",    icon:"✏️", color:"#d97706", sub:"Upcoming"        },
 ];
 
-const UPCOMING = [
-  { id:1, type:"quiz",       title:"Physics Quiz",      course:"PHYS 201", date:"Tomorrow",  time:"10:00 AM", color:"#7c3aed" },
-  { id:2, type:"assignment", title:"Math Assignment",   course:"MATH 301", date:"In 3 days", time:"11:59 PM", color:"#dc2626" },
-  { id:3, type:"assignment", title:"CS Project Report", course:"CS 401",   date:"In 5 days", time:"05:00 PM", color:"#0891b2" },
-  { id:4, type:"quiz",       title:"Chemistry Midterm", course:"CHEM 201", date:"In 7 days", time:"09:00 AM", color:"#10b981" },
-];
+const TYPE_COLORS = {
+  assignment: "#dc2626",
+  quiz:       "#7c3aed",
+  lecture:    "#0891b2",
+};
+
+function relativeDayLabel(iso) {
+  if (!iso) return "—";
+  const target = new Date(iso); target.setHours(0,0,0,0);
+  const today  = new Date();   today.setHours(0,0,0,0);
+  const diff   = Math.round((target - today) / 86400000);
+  if (diff < 0)  return target.toLocaleDateString();
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff <= 7) return `In ${diff} days`;
+  return target.toLocaleDateString();
+}
+
+function formatTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+}
+
+function eventDateIso(ev) {
+  if (ev.type === "assignment" && ev.deadlineAt) return ev.deadlineAt;
+  if (ev.type === "quiz"       && ev.startAt)    return ev.startAt;
+  if (ev.type === "lecture"    && ev.startAt)    return ev.startAt;
+  return ev.startAt || ev.endAt || ev.deadlineAt;
+}
 
 const COURSES = [
   { id:1, name:"Physics 201",      instructor:"Dr. Ahmed",  progress:72, color:"#7c3aed", icon:"⚡" },
@@ -91,6 +116,34 @@ export default function StudentDashboard() {
   const heroRef = useRef(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset:["start start","end start"] });
   const heroY = useTransform(scrollYProgress, [0,1], [0, 50]);
+
+  const [upcoming, setUpcoming] = useState([]);
+  const [upcomingLoading, setUpcomingLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setUpcomingLoading(true);
+    getStudentTimetableEvents({ limit: 5 })
+      .then((list) => {
+        if (cancelled) return;
+        const mapped = (Array.isArray(list) ? list : [])
+          .filter((ev) => !ev.isExpired)
+          .slice(0, 5)
+          .map((ev) => ({
+            id:     ev.id,
+            type:   ev.type,
+            title:  ev.title,
+            course: ev.courseCode || ev.courseName,
+            date:   relativeDayLabel(eventDateIso(ev)),
+            time:   formatTime(eventDateIso(ev)),
+            color:  TYPE_COLORS[ev.type] || "#7c3aed",
+          }));
+        setUpcoming(mapped);
+      })
+      .catch(() => { if (!cancelled) setUpcoming([]); })
+      .finally(() => { if (!cancelled) setUpcomingLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div className={styles.page}>
@@ -240,21 +293,34 @@ export default function StudentDashboard() {
             <div className={styles.cardHeaderLeft}>
               <span className={styles.cardIcon}>📅</span>
               <div>
-                <h3 className={styles.cardTitle}>Upcoming Deadlines</h3>
-                <p className={styles.cardMeta}>{UPCOMING.length} tasks this week</p>
+                <h3 className={styles.cardTitle}>Next Academic Activities</h3>
+                <p className={styles.cardMeta}>
+                  {upcomingLoading
+                    ? "Loading…"
+                    : upcoming.length === 0
+                      ? "No upcoming activities yet."
+                      : `${upcoming.length} item${upcoming.length !== 1 ? "s" : ""} on the way`}
+                </p>
               </div>
             </div>
-            <Link to="/student/timetable" className={styles.viewAll}>View all →</Link>
+            <Link to="/student/timetable" className={styles.viewAll}>Open Timetable →</Link>
           </div>
           <div className={styles.upList}>
-            {UPCOMING.map((item,i) => (
+            {!upcomingLoading && upcoming.length === 0 && (
+              <div style={{ padding:"18px 4px", color:"var(--text-muted, #94a3b8)", fontSize:13.5 }}>
+                No upcoming activities yet. Check back when an instructor publishes new material.
+              </div>
+            )}
+            {upcoming.map((item,i) => (
               <motion.div key={item.id} className={styles.upRow}
                 initial={{ opacity:0, x:-16 }} whileInView={{ opacity:1, x:0 }}
                 viewport={{ once:true }} transition={{ delay:i*0.08 }}
                 whileHover={{ x:6 }}
                 style={{ "--c": item.color }}
               >
-                <div className={styles.upIcon}>{item.type==="quiz"?"✏️":"📋"}</div>
+                <div className={styles.upIcon}>
+                  {item.type === "quiz" ? "✏️" : item.type === "lecture" ? "🎬" : "📋"}
+                </div>
                 <div className={styles.upMid}>
                   <strong>{item.title}</strong>
                   <span>{item.course}</span>

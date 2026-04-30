@@ -598,6 +598,230 @@ namespace Presentation.Controllers
             _     => "F",
         };
 
+        // ═══════════════════════════════════════════════════════════
+        // Timetable — unified activity feed for the logged-in student
+        // ═══════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// GET /api/student/timetable/events
+        /// Returns assignments, quizzes, and lecture materials for the student's
+        /// actively-registered courses, normalized for the timetable UI.
+        /// Hides actionUrl/attachmentUrl before release; flags expired entries
+        /// after deadline. Optional ?limit=N returns the nearest N entries.
+        /// </summary>
+        [HttpGet("timetable/events")]
+        public async Task<IActionResult> GetTimetableEvents([FromQuery] int? limit, [FromQuery] string? type)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { success = false, error = new { code = "UNAUTHORIZED", message = "Not authenticated." } });
+
+            var regs = await _unitOfWork.Registrations.GetByUserIdAsync(userId);
+            var active = (regs ?? Enumerable.Empty<Registration>())
+                .Where(r => (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending)
+                            && !r.IsEquivalency
+                            && !r.IsArchived)
+                .ToList();
+
+            var events = new List<StudentTimetableActivityDto>();
+            var now = DateTime.UtcNow;
+
+            string? wanted = string.IsNullOrWhiteSpace(type) ? null : type.ToLowerInvariant();
+
+            foreach (var reg in active)
+            {
+                var course = await _unitOfWork.Courses.GetByIdAsync(reg.CourseId);
+                if (course == null) continue;
+
+                if (wanted is null or "assignment")
+                {
+                    var asns = await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(reg.CourseId);
+                    foreach (var a in asns ?? Enumerable.Empty<Assignment>())
+                    {
+                        // No release date ⇒ available immediately (DateTime.MinValue is always ≤ now).
+                        var releaseAt = a.ReleaseDate ?? DateTime.MinValue;
+                        var deadlineAt = a.Deadline;
+
+                        string status; bool isAvailable; bool isExpired;
+                        string? actionUrl = null;
+                        string? attachmentUrl = null;
+                        string? lockedMessage = null;
+                        string? expiredMessage = null;
+
+                        if (now < releaseAt)
+                        {
+                            status = "upcoming"; isAvailable = false; isExpired = false;
+                            lockedMessage = "Assignment is not available yet.";
+                        }
+                        else if (now > deadlineAt)
+                        {
+                            status = "expired"; isAvailable = false; isExpired = true;
+                            expiredMessage = "Assignment has expired.";
+                        }
+                        else
+                        {
+                            status = "available"; isAvailable = true; isExpired = false;
+                            actionUrl = $"/student/courses/{course.Id}";
+                            attachmentUrl = string.IsNullOrWhiteSpace(a.FileUrl) ? null : a.FileUrl;
+                        }
+
+                        events.Add(new StudentTimetableActivityDto
+                        {
+                            Id             = $"assignment-{a.Id}",
+                            SourceId       = a.Id,
+                            Type           = "assignment",
+                            Title          = a.Title,
+                            Description    = a.Description ?? string.Empty,
+                            CourseId       = course.Id,
+                            CourseCode     = course.Code,
+                            CourseName     = course.Name,
+                            ReleaseAt      = a.ReleaseDate.HasValue ? a.ReleaseDate.Value.ToUniversalTime().ToString("o") : null,
+                            StartAt        = a.ReleaseDate.HasValue ? a.ReleaseDate.Value.ToUniversalTime().ToString("o") : deadlineAt.ToUniversalTime().ToString("o"),
+                            EndAt          = deadlineAt.ToUniversalTime().ToString("o"),
+                            DeadlineAt     = deadlineAt.ToUniversalTime().ToString("o"),
+                            Status         = status,
+                            IsAvailable    = isAvailable,
+                            IsExpired      = isExpired,
+                            ActionUrl      = actionUrl,
+                            AttachmentUrl  = attachmentUrl,
+                            LockedMessage  = lockedMessage,
+                            ExpiredMessage = expiredMessage,
+                        });
+                    }
+                }
+
+                if (wanted is null or "quiz")
+                {
+                    var quizzes = await _unitOfWork.Quizzes.GetQuizzesByCourseId(reg.CourseId);
+                    foreach (var q in quizzes ?? Enumerable.Empty<Quiz>())
+                    {
+                        var startAt = q.StartTime;
+                        var endAt   = q.EndTime;
+
+                        string status; bool isAvailable; bool isExpired;
+                        string? actionUrl = null;
+                        string? lockedMessage = null;
+                        string? expiredMessage = null;
+
+                        var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(q.Id, userId);
+                        var alreadyTaken = attempt != null;
+
+                        if (now < startAt)
+                        {
+                            status = "upcoming"; isAvailable = false; isExpired = false;
+                            lockedMessage = "Quiz has not started yet.";
+                        }
+                        else if (now > endAt)
+                        {
+                            status = alreadyTaken ? "completed" : "expired";
+                            isAvailable = false; isExpired = !alreadyTaken;
+                            expiredMessage = alreadyTaken ? null : "Quiz has expired.";
+                            if (alreadyTaken) actionUrl = $"/student/quiz/{course.Id}/{q.Id}";
+                        }
+                        else
+                        {
+                            if (alreadyTaken)
+                            {
+                                status = "completed"; isAvailable = false; isExpired = false;
+                                actionUrl = $"/student/quiz/{course.Id}/{q.Id}";
+                            }
+                            else
+                            {
+                                status = "available"; isAvailable = true; isExpired = false;
+                                actionUrl = $"/student/quiz/{course.Id}/{q.Id}";
+                            }
+                        }
+
+                        events.Add(new StudentTimetableActivityDto
+                        {
+                            Id             = $"quiz-{q.Id}",
+                            SourceId       = q.Id,
+                            Type           = "quiz",
+                            Title          = q.Title,
+                            Description    = string.Empty,
+                            CourseId       = course.Id,
+                            CourseCode     = course.Code,
+                            CourseName     = course.Name,
+                            ReleaseAt      = startAt.ToUniversalTime().ToString("o"),
+                            StartAt        = startAt.ToUniversalTime().ToString("o"),
+                            EndAt          = endAt.ToUniversalTime().ToString("o"),
+                            DeadlineAt     = endAt.ToUniversalTime().ToString("o"),
+                            Status         = status,
+                            IsAvailable    = isAvailable,
+                            IsExpired      = isExpired,
+                            ActionUrl      = actionUrl,
+                            AttachmentUrl  = null,
+                            LockedMessage  = lockedMessage,
+                            ExpiredMessage = expiredMessage,
+                        });
+                    }
+                }
+
+                if (wanted is null or "lecture")
+                {
+                    var uploads = await _unitOfWork.CourseUploads.GetByCourseIdAsync(reg.CourseId);
+                    foreach (var u in uploads ?? Enumerable.Empty<CourseUpload>())
+                    {
+                        var releaseAt = u.ReleaseDate ?? u.UploadedAt;
+
+                        string status; bool isAvailable; bool isExpired;
+                        string? actionUrl = null;
+                        string? attachmentUrl = null;
+                        string? lockedMessage = null;
+
+                        if (now < releaseAt)
+                        {
+                            status = "upcoming"; isAvailable = false; isExpired = false;
+                            lockedMessage = "Lecture material is not available yet.";
+                        }
+                        else
+                        {
+                            status = "available"; isAvailable = true; isExpired = false;
+                            actionUrl = string.IsNullOrWhiteSpace(u.Url) ? $"/student/courses/{course.Id}" : u.Url;
+                            attachmentUrl = string.IsNullOrWhiteSpace(u.Url) ? null : u.Url;
+                        }
+
+                        events.Add(new StudentTimetableActivityDto
+                        {
+                            Id             = $"lecture-{u.Id}",
+                            SourceId       = u.Id,
+                            Type           = "lecture",
+                            Title          = u.Title,
+                            Description    = u.Description ?? string.Empty,
+                            CourseId       = course.Id,
+                            CourseCode     = course.Code,
+                            CourseName     = course.Name,
+                            ReleaseAt      = releaseAt.ToUniversalTime().ToString("o"),
+                            StartAt        = releaseAt.ToUniversalTime().ToString("o"),
+                            EndAt          = null,
+                            DeadlineAt     = null,
+                            Status         = status,
+                            IsAvailable    = isAvailable,
+                            IsExpired      = isExpired,
+                            ActionUrl      = actionUrl,
+                            AttachmentUrl  = attachmentUrl,
+                            LockedMessage  = lockedMessage,
+                            ExpiredMessage = null,
+                        });
+                    }
+                }
+            }
+
+            // Sort: nearest non-expired first, then expired by most recent past
+            DateTime KeyDate(StudentTimetableActivityDto e) =>
+                DateTime.TryParse(e.StartAt, out var d) ? d.ToUniversalTime() : DateTime.MaxValue;
+
+            var sorted = events
+                .OrderBy(e => e.IsExpired ? 1 : 0)
+                .ThenBy(e => e.IsExpired ? -KeyDate(e).Ticks : KeyDate(e).Ticks)
+                .ToList();
+
+            if (limit.HasValue && limit.Value > 0 && limit.Value < sorted.Count)
+                sorted = sorted.Take(limit.Value).ToList();
+
+            return Ok(new { success = true, data = sorted });
+        }
+
         /// <summary>
         /// GET /api/student/transcript
         /// Returns the logged-in student's completed academic transcript —

@@ -35,6 +35,12 @@ namespace Presentation.Controllers
 
             var list = await _uow.Notifications.GetForUserAsync(uid);
 
+            // Students must never receive deep-link navigation payloads — even on
+            // legacy rows that already have CourseId/AssignmentId/QuizId/LectureId
+            // stamped. Display-only fields (CourseName, AssignmentTitle, etc.) stay.
+            // Admin/Instructor notifications retain their full detail.
+            bool isStudent = User.IsInRole("Student");
+
             var dto = list.Select(n => new StudentNotificationDto
             {
                 Id     = n.Id,
@@ -43,7 +49,7 @@ namespace Presentation.Controllers
                 Body   = n.Body,
                 IsRead = n.IsRead,
                 Time   = FormatTimeAgo(n.CreatedAt),
-                Detail = BuildDetail(n),
+                Detail = BuildDetail(n, isStudent),
             }).ToList();
 
             return Ok(new { success = true, data = dto });
@@ -90,23 +96,28 @@ namespace Presentation.Controllers
         // ──────────────────────────────────────────────────────────────
         //  Helpers
         // ──────────────────────────────────────────────────────────────
-        private static StudentNotificationDetailDto BuildDetail(AYA_UIS.Core.Domain.Entities.Models.Notification n) => new()
+        // When isStudent==true, every navigation-capable id is nulled so a student
+        // client cannot construct a deep-link route, even for old DB rows that were
+        // saved with the ids populated. Title/name fields stay so the list/detail
+        // popup still renders meaningful labels.
+        private static StudentNotificationDetailDto BuildDetail(
+            AYA_UIS.Core.Domain.Entities.Models.Notification n, bool isStudent) => new()
         {
             CourseName      = n.CourseName,
-            CourseId        = n.CourseId,
+            CourseId        = isStudent ? null : n.CourseId,
             AssignmentTitle = n.AssignmentTitle,
-            AssignmentId    = n.AssignmentId,
+            AssignmentId    = isStudent ? null : n.AssignmentId,
             Grade           = n.Grade,
             Max             = n.Max,
             RejectionReason = n.RejectionReason,
             QuizTitle       = n.QuizTitle,
-            QuizId          = n.QuizId,
+            QuizId          = isStudent ? null : n.QuizId,
             LectureTitle    = n.LectureTitle,
-            LectureId       = n.LectureId,
+            LectureId       = isStudent ? null : n.LectureId,
             InstructorName  = n.InstructorName,
             StudentName     = n.StudentName,
             StudentCode     = n.StudentCode,
-            TargetStudentId = n.TargetStudentId,
+            TargetStudentId = isStudent ? null : n.TargetStudentId,
         };
 
         internal static string FormatTimeAgo(DateTime dt)

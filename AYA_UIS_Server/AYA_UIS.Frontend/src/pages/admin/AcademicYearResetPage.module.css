@@ -1115,6 +1115,28 @@
   border-color: rgba(245, 158, 11, 0.22) !important;
 }
 
+.transitionWarnings {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  border-radius: 8px;
+}
+
+.transitionWarnings li::before {
+  content: "⚠ ";
+  color: #fbbf24;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
 .executePanel {
   position: sticky;
   top: 18px;

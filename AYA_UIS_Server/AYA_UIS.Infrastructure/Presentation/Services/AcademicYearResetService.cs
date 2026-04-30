@@ -75,8 +75,13 @@ namespace Presentation.Services
                 resp.Totals.FailedCourses     += perStu.FailedCount;
                 resp.Totals.UnassignedGrades  += perStu.UnassignedCount;
 
-                if (perStu.ReviewStatus != "completed") resp.Totals.NotCompletedReviewCount++;
+                // Students with NO current registrations are a no-op archive that only
+                // advances the academic position. They do not need Final Grade Review or
+                // grade-completion checks, so don't roll them into the force-reset totals.
+                if (perStu.RegisteredCount > 0 && perStu.ReviewStatus != "completed")
+                    resp.Totals.NotCompletedReviewCount++;
                 if (perStu.AlreadyReset)                resp.Totals.AlreadyResetCount++;
+                if (perStu.RegisteredCount == 0)        resp.Totals.NoRegistrationsCount++;
             }
 
             // Roll up warnings to the top-level
@@ -86,6 +91,8 @@ namespace Presentation.Services
                 resp.Warnings.Add($"{resp.Totals.UnassignedGrades} registered course(s) have no grade — they will be treated as Failed if force reset is used.");
             if (resp.Totals.AlreadyResetCount > 0)
                 resp.Warnings.Add($"{resp.Totals.AlreadyResetCount} student(s) were already reset for their current source year/semester.");
+            if (resp.Totals.NoRegistrationsCount > 0)
+                resp.Warnings.Add($"{resp.Totals.NoRegistrationsCount} student(s) have no current registrations — reset will only advance their academic position.");
 
             resp.RequiresForceReset = resp.Totals.NotCompletedReviewCount > 0 ||
                                       resp.Totals.UnassignedGrades       > 0;
@@ -130,9 +137,17 @@ namespace Presentation.Services
             {
                 var preview = await BuildStudentPreviewAsync(u, regsByU, reviewByStudent);
                 if (preview.AlreadyReset)
-                    blockingErrors.Add($"{u.DisplayName} ({u.Academic_Code}): already reset for {preview.CurrentLevel} / Semester {preview.CurrentSemester}.");
+                {
+                    var lvlLabel = string.IsNullOrWhiteSpace(preview.CurrentLevel)
+                        ? "(no level)"
+                        : preview.CurrentLevel.Replace("_", " ");
+                    blockingErrors.Add($"{u.DisplayName} ({u.Academic_Code}): already reset from {lvlLabel} / Semester {preview.CurrentSemester}.");
+                }
 
-                if (!request.ForceReset)
+                // Skip review/grade-completion validation when the student has no current
+                // registrations: this case is treated as a no-op archive that only advances
+                // the academic position. Force-reset still bypasses these checks.
+                if (preview.RegisteredCount > 0 && !request.ForceReset)
                 {
                     if (preview.ReviewStatus != "completed")
                         blockingErrors.Add($"{u.DisplayName} ({u.Academic_Code}): not marked Completed in Final Grade Review.");
@@ -250,9 +265,14 @@ namespace Presentation.Services
                 .ToListAsync();
 
             int sourceLevelNum = LevelToYearNum(user.Level);
-            int sourceSemNum   = activeRegs.Count > 0
-                ? (activeRegs[0].SemesterId % 2 == 0 ? 2 : 1)
-                : await ResolveGlobalSemesterNumAsync();
+            // Source semester comes from the student's authoritative CurrentSemester
+            // (not the first registration's SemesterId, which can be stale or absent
+            // after a previous reset). Falls back to active registration / global term
+            // for legacy rows where CurrentSemester was never set.
+            int sourceSemNum = user.CurrentSemester
+                ?? (activeRegs.Count > 0
+                    ? (activeRegs[0].SemesterId % 2 == 0 ? 2 : 1)
+                    : await ResolveGlobalSemesterNumAsync());
 
             var (targetLevel, targetSemNum) = ComputeTransition(user.Level, sourceSemNum);
 
@@ -283,6 +303,10 @@ namespace Presentation.Services
                 SourceSemester     = $"Semester {sourceSemNum}",
                 TargetLevel        = targetLevel?.ToString(),
                 TargetSemester     = $"Semester {targetSemNum}",
+                SourceYearNum      = sourceLevelNum > 0 ? sourceLevelNum : (int?)null,
+                SourceSemesterNum  = sourceSemNum,
+                TargetYearNum      = LevelToYearNum(targetLevel) > 0 ? LevelToYearNum(targetLevel) : (int?)null,
+                TargetSemesterNum  = targetSemNum,
                 RegistrationsCount = activeRegs.Count,
                 FinalGradesCount   = preFinalGrades.Count,
                 SubmissionsCount   = preSubs.Count,
@@ -378,6 +402,9 @@ namespace Presentation.Services
             // ── Advance the student's level only on Sem 2 → Sem 1 transition ──
             if (sourceSemNum == 2 && targetLevel != user.Level)
                 user.Level = targetLevel;
+            // CurrentSemester always advances per the transition table — this is
+            // the authoritative new academic position for the next cycle.
+            user.CurrentSemester = targetSemNum;
 
             // ── Flush archive/purge before recomputing GPA ──
             // RecalculateStudentGpaAsync reads via AsNoTracking, which would not
@@ -435,17 +462,27 @@ namespace Presentation.Services
                 else             failed++;
             }
 
-            int curSemNum = active.Count > 0
-                ? (active[0].SemesterId % 2 == 0 ? 2 : 1)
-                : await ResolveGlobalSemesterNumAsync();
+            // Authoritative current semester for the student. After a previous reset
+            // the student usually has no active registrations, so the registration-derived
+            // value would be wrong. CurrentSemester on User is the source of truth and
+            // distinguishes Year X / Sem 1 from Year X / Sem 2 for the duplicate guard.
+            int curSemNum = user.CurrentSemester
+                ?? (active.Count > 0
+                    ? (active[0].SemesterId % 2 == 0 ? 2 : 1)
+                    : await ResolveGlobalSemesterNumAsync());
             var (targetLevel, targetSemNum) = ComputeTransition(user.Level, curSemNum);
 
-            // Detect duplicate-reset for the SAME source year+sem
-            var levelStr = user.Level?.ToString();
-            bool alreadyReset = await _ctx.AcademicYearResetSnapshots.AnyAsync(s =>
+            // Detect duplicate-reset using a stable numeric key
+            // (StudentId + SourceYearNum + SourceSemesterNum). Legacy snapshots written
+            // before these columns existed will have NULL numeric fields and are
+            // intentionally ignored, so old/incomplete rows cannot block sequential resets.
+            int curYearNum = LevelToYearNum(user.Level);
+            bool alreadyReset = curYearNum > 0 && await _ctx.AcademicYearResetSnapshots.AnyAsync(s =>
                 s.StudentId == user.Id &&
-                s.SourceLevel == levelStr &&
-                s.SourceSemester == "Semester " + curSemNum);
+                s.SourceYearNum != null &&
+                s.SourceSemesterNum != null &&
+                s.SourceYearNum == curYearNum &&
+                s.SourceSemesterNum == curSemNum);
 
             var status = reviewByStudent.TryGetValue(user.Id, out var st) ? st : "progress";
 
@@ -468,7 +505,9 @@ namespace Presentation.Services
 
             if (alreadyReset)
                 dto.Warnings.Add("This student was already reset for this source year/semester.");
-            if (status != "completed")
+            if (registered == 0)
+                dto.Warnings.Add("This student has no current registrations. Reset will only advance academic position.");
+            if (registered > 0 && status != "completed")
                 dto.Warnings.Add("Final Grade Review status is not Completed.");
             if (unassigned > 0)
                 dto.Warnings.Add($"{unassigned} course(s) have no final grade — will be marked Failed under force reset.");

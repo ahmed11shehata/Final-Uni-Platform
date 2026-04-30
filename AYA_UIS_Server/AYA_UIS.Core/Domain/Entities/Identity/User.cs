@@ -16,6 +16,10 @@ namespace AYA_UIS.Core.Domain.Entities.Identity
         public string Academic_Code { get; set; } = string.Empty; 
         public Gender Gender { get; set; }
         public Levels? Level { get; set; } // if he study eng will prep year any other will start from first year
+        // Authoritative current semester for the student (1 or 2). Combined with Level
+        // it is the single source of truth for "what year/semester am I in?".
+        // Defaults to 1 for newly created students.
+        public int? CurrentSemester { get; set; } = 1;
         public int? TotalCredits { get; set; } // the total credits that the student has registered for in the current study year
         public int? AllowedCredits { get; set; } = 21; // the total credits updated every semester depend on gpa and the level of the student
         public decimal? TotalGPA { get; set; } = 0; // the gpa of the student updated every semester

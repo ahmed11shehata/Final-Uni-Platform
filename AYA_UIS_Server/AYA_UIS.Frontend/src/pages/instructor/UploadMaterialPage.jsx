@@ -10,6 +10,9 @@ import {
   uploadLecture,
   updateLecture,
   deleteLecture,
+  getInstructorAssignments,
+  updateAssignment,
+  deleteAssignment,
 } from "../../services/api/instructorApi";
 
 const WEEKS = Array.from({ length: 16 }, (_, i) => `Week ${i + 1}`);
@@ -434,7 +437,7 @@ function LectureForm({ courseId, color, onUploaded }) {
   );
 }
 
-function AssignmentForm({ courseCode, courseId, color }) {
+function AssignmentForm({ courseCode, courseId, color, onCreated, refreshKey }) {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -451,7 +454,7 @@ function AssignmentForm({ courseCode, courseId, color }) {
   useEffect(() => {
     if (!courseId) return;
     getCourseworkBudget(courseId).then(setBudget).catch(() => setBudget(null));
-  }, [courseId]);
+  }, [courseId, refreshKey]);
 
   const formats = ["pdf", "zip", "docx", "py", "cpp", "java", "mp4"];
   const toggleFmt = (format) => {
@@ -498,6 +501,7 @@ function AssignmentForm({ courseCode, courseId, color }) {
         file,
       );
       setDone(true);
+      onCreated?.();
     } catch (e) {
       alert(e?.response?.data?.error?.message || "Failed to create assignment");
     } finally {
@@ -1026,11 +1030,478 @@ function LectureList({ courseId, color, refreshKey, onChanged }) {
   );
 }
 
+/* ── Assignment cards list ──────────────────────────────────────── */
+function fmtDateShort(value) {
+  if (!value) return null;
+  try {
+    return new Date(value).toLocaleDateString("en-US", {
+      month: "short", day: "numeric", year: "numeric",
+    });
+  } catch { return String(value); }
+}
+
+function getAssignmentStatus(a) {
+  const now = new Date();
+  const deadline = a.deadline ? new Date(a.deadline) : null;
+  const release = a.releaseDate ? new Date(a.releaseDate) : null;
+  if (deadline && now > deadline) return { label: "Closed", color: "#ef4444", bg: "rgba(239,68,68,0.12)" };
+  if (release && now < release)  return { label: "Scheduled", color: "#f59e0b", bg: "rgba(245,158,11,0.12)" };
+  const subs = Number(a?.submissionsCount ?? 0);
+  if (subs > 0) return { label: "Active", color: "#22c55e", bg: "rgba(34,197,94,0.12)" };
+  return { label: "Open", color: "#818cf8", bg: "rgba(129,140,248,0.12)" };
+}
+
+function AssignmentCard({ item, color, onEdit, onDelete }) {
+  const status = getAssignmentStatus(item);
+  const subs = Number(item?.submissionsCount ?? 0);
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ ...spring }}
+      style={{
+        position: "relative",
+        background: "var(--card-bg)",
+        border: "1px solid var(--border)",
+        borderRadius: 18,
+        padding: 18,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+      }}
+    >
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 3,
+        background: color, borderRadius: "18px 18px 0 0",
+      }} />
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{
+          padding: "3px 9px", borderRadius: 99, background: `${color}15`, color,
+          fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em",
+        }}>
+          assignment
+        </span>
+        <span style={{
+          padding: "3px 9px", borderRadius: 99, background: status.bg, color: status.color,
+          fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em",
+        }}>
+          {status.label}
+        </span>
+        {item.releaseDate && (
+          <span style={{
+            padding: "3px 9px", borderRadius: 99, background: "var(--hover-bg)",
+            fontSize: 11, fontWeight: 700, color: "var(--text-secondary)",
+          }}>
+            🗓 {fmtDateShort(item.releaseDate)}
+          </span>
+        )}
+      </div>
+
+      <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary)" }}>
+        {item.title}
+      </h4>
+
+      <div style={{
+        display: "flex", flexWrap: "wrap", gap: 10, fontSize: 12.5,
+        color: "var(--text-secondary)", fontWeight: 600,
+      }}>
+        <span>📅 Due {fmtDateShort(item.deadline) || "—"}</span>
+        <span>·</span>
+        <span>⭐ {item.maxGrade ?? "—"} pts</span>
+        {subs > 0 && (
+          <>
+            <span>·</span>
+            <span>📬 {subs} submission{subs !== 1 ? "s" : ""}</span>
+          </>
+        )}
+      </div>
+
+      {item.description && (
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: "var(--text-secondary)" }}>
+          {item.description}
+        </p>
+      )}
+
+      {item.allowedFormats?.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {item.allowedFormats.map((f) => (
+            <span key={f} style={{
+              padding: "3px 8px", borderRadius: 99, background: "var(--hover-bg)",
+              border: "1px solid var(--border)",
+              fontSize: 11, fontWeight: 700, color: "var(--text-secondary)",
+            }}>
+              .{f}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {item.attachmentUrl && (
+        <a href={item.attachmentUrl} target="_blank" rel="noreferrer"
+           style={{
+             fontSize: 12, fontWeight: 700, color, textDecoration: "none",
+             padding: "6px 10px", borderRadius: 8, background: `${color}10`,
+             border: `1px solid ${color}30`, alignSelf: "flex-start",
+           }}>
+          📎 Open attachment
+        </a>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: "auto", paddingTop: 8 }}>
+        <button
+          type="button"
+          onClick={() => onEdit(item)}
+          style={{
+            padding: "8px 14px", borderRadius: 10, cursor: "pointer",
+            border: "1px solid var(--border)", background: "var(--hover-bg)",
+            color: "var(--text-primary)", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+          }}
+        >
+          ✎ Update
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(item)}
+          style={{
+            padding: "8px 14px", borderRadius: 10, cursor: "pointer",
+            border: "1.5px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)",
+            color: "#ef4444", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+          }}
+        >
+          🗑 Delete
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function EditAssignmentModal({ item, color, onSaved, onClose }) {
+  const [title, setTitle] = useState(item?.title ?? "");
+  const [desc, setDesc] = useState(item?.description ?? "");
+  const [deadline, setDeadline] = useState(
+    item?.deadline ? String(item.deadline).split(/[T ]/)[0] : "",
+  );
+  const [relDate, setRelDate] = useState(
+    item?.releaseDate ? String(item.releaseDate).split(/[T ]/)[0] : "",
+  );
+  const [file, setFile] = useState(null);
+  const [removeAttachment, setRemoveAttachment] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+
+  const existingAttachUrl = item?.attachmentUrl || null;
+
+  const submit = async () => {
+    if (!title.trim() || !deadline) return;
+    setBusy(true);
+    try {
+      const dto = {
+        title,
+        description: desc,
+        deadline: new Date(`${deadline}T23:59:00`).toISOString(),
+        removeAttachment: removeAttachment && !file,
+      };
+      if (relDate) {
+        dto.releaseDate = new Date(`${relDate}T00:00:00`).toISOString();
+      } else if (item?.releaseDate) {
+        dto.clearReleaseDate = true;
+      }
+      await updateAssignment(item.id, dto, file || null);
+      onSaved?.();
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <motion.div
+      onClick={onClose}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: 16, overflowY: "auto",
+      }}
+    >
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.94, y: 18 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96 }}
+        transition={spring}
+        style={{
+          width: "min(560px, 100%)", background: "var(--card-bg)",
+          borderRadius: 20, overflow: "hidden",
+          border: "1px solid var(--border)", boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
+        }}
+      >
+        <div style={{ height: 4, background: color }} />
+        <div style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
+          <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800 }}>Edit assignment</h3>
+
+          <div>
+            <label className={styles.fieldLabel}>Title</label>
+            <input className={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+
+          <div>
+            <label className={styles.fieldLabel}>Instructions</label>
+            <textarea className={styles.textarea} rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label className={styles.fieldLabel}>Deadline</label>
+              <input
+                type="date"
+                className={styles.input}
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={styles.fieldLabel}>Release date</label>
+              <input
+                type="date"
+                className={styles.input}
+                value={relDate}
+                onChange={(e) => setRelDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={{
+            padding: "10px 12px", borderRadius: 10, background: "var(--hover-bg)",
+            border: "1px solid var(--border)", fontSize: 12, color: "var(--text-secondary)",
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span>🔒</span>
+            <span>
+              <strong style={{ color: "var(--text-primary)" }}>Max grade: {item?.maxGrade ?? "—"} pts.</strong>{" "}
+              Max grade is locked after creation.
+            </span>
+          </div>
+
+          <div>
+            <label className={styles.fieldLabel}>Attachment</label>
+            {existingAttachUrl && !file && !removeAttachment && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                border: `1.5px solid ${color}40`, borderRadius: 10, background: `${color}08`,
+                marginBottom: 8,
+              }}>
+                <span style={{ flex: 1, fontSize: 13, color: "var(--text-secondary)" }}>
+                  📎 Current file: <a href={existingAttachUrl} target="_blank" rel="noreferrer" style={{ color }}>open</a>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRemoveAttachment(true)}
+                  style={{
+                    padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+                    border: "1.5px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.07)",
+                    color: "#ef4444", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700,
+                  }}>
+                  Remove
+                </button>
+              </div>
+            )}
+
+            {removeAttachment && !file && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                border: "1.5px solid rgba(239,68,68,0.25)", borderRadius: 10,
+                background: "rgba(239,68,68,0.06)", marginBottom: 8,
+              }}>
+                <span style={{ flex: 1, fontSize: 12.5, color: "#ef4444" }}>
+                  The current attachment will be deleted on save.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRemoveAttachment(false)}
+                  style={{
+                    padding: "4px 10px", borderRadius: 8, cursor: "pointer",
+                    border: "1px solid var(--border)", background: "transparent",
+                    color: "var(--text-secondary)", fontFamily: "inherit", fontSize: 11, fontWeight: 700,
+                  }}>
+                  Undo
+                </button>
+              </div>
+            )}
+
+            <input
+              ref={fileRef}
+              type="file"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                setFile(e.target.files?.[0] || null);
+                setRemoveAttachment(false);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              style={{
+                width: "100%", textAlign: "left", padding: "11px 14px", borderRadius: 12,
+                border: `1.5px solid ${file ? `${color}60` : "var(--border)"}`,
+                background: "var(--hover-bg)", cursor: "pointer", fontFamily: "inherit",
+                fontSize: 13, color: file ? "var(--text-primary)" : "var(--text-muted)",
+              }}>
+              {file
+                ? `📎 ${file.name}`
+                : existingAttachUrl && !removeAttachment
+                  ? "📎 Click to replace the current file…"
+                  : "📎 Click to attach a file…"}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", paddingTop: 4 }}>
+            <button type="button" onClick={onClose} disabled={busy}
+              style={{
+                padding: "10px 16px", borderRadius: 11, cursor: "pointer",
+                border: "1px solid var(--border)", background: "var(--hover-bg)",
+                color: "var(--text-primary)", fontFamily: "inherit", fontSize: 13, fontWeight: 700,
+              }}>
+              Cancel
+            </button>
+            <button type="button" onClick={submit} disabled={busy || !title.trim() || !deadline}
+              style={{
+                padding: "10px 18px", borderRadius: 11, cursor: "pointer", border: "none",
+                background: color, color: "#fff", fontFamily: "inherit", fontSize: 13, fontWeight: 800,
+                opacity: title.trim() && deadline ? 1 : 0.5,
+              }}>
+              {busy ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function AssignmentList({ courseId, color, refreshKey, onChanged }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2400);
+  };
+
+  const reload = useCallback(async () => {
+    if (!courseId) return;
+    setLoading(true);
+    try {
+      const list = await getInstructorAssignments(courseId);
+      setItems(Array.isArray(list) ? list : []);
+    } catch { setItems([]); }
+    finally { setLoading(false); }
+  }, [courseId]);
+
+  useEffect(() => { reload(); }, [reload, refreshKey]);
+
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setBusy(true);
+    try {
+      await deleteAssignment(deleting.id);
+      setItems((prev) => prev.filter((a) => a.id !== deleting.id));
+      setDeleting(null);
+      onChanged?.();
+      showToast("🗑 Assignment deleted · budget refreshed");
+    } catch (e) {
+      alert(e?.response?.data?.error?.message || "Delete failed");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <section className={styles.surface} style={{ "--accent": color }}>
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{
+              position: "fixed", top: 24, right: 24, zIndex: 1000,
+              background: "var(--card-bg)", color: "var(--text-primary)",
+              border: "1px solid var(--border)", borderRadius: 12,
+              padding: "10px 14px", fontSize: 13, fontWeight: 700,
+              boxShadow: "0 12px 30px rgba(0,0,0,0.18)",
+            }}>
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className={styles.surfaceHead}>
+        <div>
+          <span className={styles.sectionEyebrow}>Library</span>
+          <h2 className={styles.sectionTitle}>Existing assignments</h2>
+          <p className={styles.sectionText}>
+            All assignments created for this course. Update the attachment or timing, or permanently delete an assignment.
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>
+      ) : items.length === 0 ? (
+        <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13.5 }}>
+          No assignments yet. Use the form above to create your first one.
+        </div>
+      ) : (
+        <div style={{
+          display: "grid", gap: 14,
+          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        }}>
+          <AnimatePresence>
+            {items.map((a) => (
+              <AssignmentCard key={a.id} item={a} color={color}
+                onEdit={setEditing} onDelete={setDeleting} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {editing && (
+          <EditAssignmentModal
+            item={editing}
+            color={color}
+            onClose={() => setEditing(null)}
+            onSaved={() => {
+              setEditing(null);
+              reload();
+              onChanged?.();
+              showToast("✓ Assignment updated");
+            }}
+          />
+        )}
+        {deleting && (
+          <ConfirmDeleteModal
+            title="Delete assignment?"
+            body={`"${deleting.title}" will be permanently deleted. Its uploaded attachment and student submissions will be removed from the active course view. Coursework budget will be recalculated automatically.`}
+            onClose={() => setDeleting(null)}
+            onConfirm={handleDelete}
+            busy={busy}
+          />
+        )}
+      </AnimatePresence>
+    </section>
+  );
+}
+
 export default function UploadMaterialPage() {
   const [courses, setCourses] = useState([]);
   const [course, setCourse] = useState(null);
   const [matType, setMatType] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [assignmentRefreshKey, setAssignmentRefreshKey] = useState(0);
 
   useEffect(() => {
     getInstructorCourses()
@@ -1177,7 +1648,13 @@ export default function UploadMaterialPage() {
                   {matType === "lecture" ? (
                     <LectureForm courseId={course} color="#5a67d8" onUploaded={() => setRefreshKey((k) => k + 1)} />
                   ) : (
-                    <AssignmentForm courseCode={currentCourse.code} courseId={course} color={currentCourse.color || "#7c3aed"} />
+                    <AssignmentForm
+                      courseCode={currentCourse.code}
+                      courseId={course}
+                      color={currentCourse.color || "#7c3aed"}
+                      refreshKey={assignmentRefreshKey}
+                      onCreated={() => setAssignmentRefreshKey((k) => k + 1)}
+                    />
                   )}
                 </motion.section>
               ) : (
@@ -1205,6 +1682,15 @@ export default function UploadMaterialPage() {
                 color="#5a67d8"
                 refreshKey={refreshKey}
                 onChanged={() => setRefreshKey((k) => k + 1)}
+              />
+            )}
+
+            {matType === "assignment" && (
+              <AssignmentList
+                courseId={course}
+                color={currentCourse.color || "#7c3aed"}
+                refreshKey={assignmentRefreshKey}
+                onChanged={() => setAssignmentRefreshKey((k) => k + 1)}
               />
             )}
           </>

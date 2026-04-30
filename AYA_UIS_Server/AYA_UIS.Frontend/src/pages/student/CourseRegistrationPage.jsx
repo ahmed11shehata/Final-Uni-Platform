@@ -35,13 +35,14 @@ function getPatternBg(pattern, color) {
   return patterns[pattern] || patterns.mosaic;
 }
 
-const FILTERS = ["All","Available","Registered","Locked","Full"];
+const FILTERS = ["All","Available","Registered","Locked","Full","Prerequisite"];
 
 const STATUS_CFG = {
-  available:  { color:"#22c55e",  label:"Available"  },
-  registered: { color:"#818cf8",  label:"Registered" },
-  locked:     { color:"#f59e0b",  label:"Locked"     },
-  full:       { color:"#6b7280",  label:"Full"       },
+  available:    { color:"#22c55e",  label:"Available"     },
+  registered:   { color:"#818cf8",  label:"Registered"    },
+  locked:       { color:"#f59e0b",  label:"Locked"        },
+  full:         { color:"#6b7280",  label:"Full"          },
+  prerequisite: { color:"#a855f7",  label:"Prerequisite"  },
 };
 
 /* ── Variants ── */
@@ -149,11 +150,12 @@ export default function CourseRegistrationPage() {
   }), [courses, filter, search]);
 
   const counts = useMemo(() => ({
-    all:        courses.filter(c => STATUS_CFG[c.status]).length,
-    available:  courses.filter(c=>c.status==="available").length,
-    registered: courses.filter(c=>c.status==="registered").length,
-    locked:     courses.filter(c=>c.status==="locked").length,
-    full:       courses.filter(c=>c.status==="full").length,
+    all:          courses.filter(c => STATUS_CFG[c.status]).length,
+    available:    courses.filter(c=>c.status==="available").length,
+    registered:   courses.filter(c=>c.status==="registered").length,
+    locked:       courses.filter(c=>c.status==="locked").length,
+    full:         courses.filter(c=>c.status==="full").length,
+    prerequisite: courses.filter(c=>c.status==="prerequisite").length,
   }), [courses]);
 
   /* ── Loading state ── */
@@ -527,6 +529,52 @@ function CourseCard({ course, index, remaining, actionLoading, onRegister, onDro
           </div>
         )}
 
+        {/* Prerequisite breakdown — shown for any course with prereq metadata.
+            Highlights passed/missing per prerequisite. */}
+        {Array.isArray(course.prerequisiteDetails) && course.prerequisiteDetails.length>0 && (
+          <div style={{
+            marginTop:8,
+            padding:"8px 10px",
+            border:"1px solid var(--card-border)",
+            borderRadius:8,
+            background:"var(--hover-bg)",
+            fontSize:12.5,
+            lineHeight:1.5,
+          }}>
+            <div style={{
+              fontWeight:700,
+              color:"var(--text-primary)",
+              marginBottom:4,
+              fontSize:12,
+            }}>
+              Prerequisites
+            </div>
+            {course.prerequisiteDetails.map(p => (
+              <div key={p.code} style={{
+                display:"flex",
+                justifyContent:"space-between",
+                alignItems:"center",
+                gap:8,
+                padding:"3px 0",
+              }}>
+                <span style={{color:"var(--text-secondary)"}}>
+                  <strong>{p.code}</strong> {p.name}
+                </span>
+                <span style={{
+                  fontWeight:700,
+                  fontSize:11,
+                  padding:"2px 8px",
+                  borderRadius:999,
+                  background: p.passed ? "rgba(34,197,94,.12)" : "rgba(239,68,68,.12)",
+                  color:      p.passed ? "#22c55e" : "#ef4444",
+                }}>
+                  {p.passed ? "Passed" : "Missing"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Action button */}
         <div className={styles.cardFoot}>
           {course.status==="registered" && (
@@ -575,6 +623,19 @@ function CourseCard({ course, index, remaining, actionLoading, onRegister, onDro
                 <path d="M7 11V7a5 5 0 0110 0v4"/>
               </svg>
               Prerequisite Required
+            </div>
+          )}
+          {course.status==="prerequisite" && (
+            <div className={styles.lockedBtn} style={{
+              background: "rgba(168,85,247,.12)",
+              color: "#a855f7",
+              borderColor: "rgba(168,85,247,.35)",
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 3v18h18"/>
+                <path d="M7 14l4-4 4 4 5-5"/>
+              </svg>
+              Prerequisite Not Met
             </div>
           )}
         </div>

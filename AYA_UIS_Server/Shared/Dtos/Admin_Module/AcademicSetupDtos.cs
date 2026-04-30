@@ -30,6 +30,10 @@ namespace Shared.Dtos.Admin_Module
         [JsonPropertyName("currentYear")]
         public int CurrentYear { get; set; }
 
+        /// <summary>Authoritative current semester (1 or 2). Source of truth for "what semester am I in".</summary>
+        [JsonPropertyName("currentSemester")]
+        public int CurrentSemester { get; set; } = 1;
+
         [JsonPropertyName("gpa")]
         public decimal Gpa { get; set; }
 
@@ -44,6 +48,10 @@ namespace Shared.Dtos.Admin_Module
     {
         [JsonPropertyName("currentYear")]
         public int CurrentYear { get; set; }
+
+        /// <summary>Authoritative current semester (1 or 2).</summary>
+        [JsonPropertyName("currentSemester")]
+        public int CurrentSemester { get; set; } = 1;
 
         [JsonPropertyName("years")]
         public Dictionary<string, AcademicSetupYearDto> Years { get; set; } = new();
@@ -92,6 +100,10 @@ namespace Shared.Dtos.Admin_Module
         [JsonPropertyName("currentYear")]
         public int CurrentYear { get; set; }
 
+        /// <summary>Optional admin-set current semester (1 or 2). Defaults to 1 if omitted.</summary>
+        [JsonPropertyName("currentSemester")]
+        public int? CurrentSemester { get; set; }
+
         [Required]
         [JsonPropertyName("years")]
         public Dictionary<string, AcademicSetupYearSaveDto> Years { get; set; } = new();
@@ -133,6 +145,9 @@ namespace Shared.Dtos.Admin_Module
 
         [JsonPropertyName("currentYear")]
         public int CurrentYear { get; set; }
+
+        [JsonPropertyName("currentSemester")]
+        public int CurrentSemester { get; set; } = 1;
 
         [JsonPropertyName("gpa")]
         public decimal Gpa { get; set; }

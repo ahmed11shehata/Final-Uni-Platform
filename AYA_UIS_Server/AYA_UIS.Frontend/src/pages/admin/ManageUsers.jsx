@@ -819,6 +819,7 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
 
   const [setupEntries, setSetupEntries] = useState(null); // { [code]: entry }
   const [setupCurYear, setSetupCurYear] = useState(null);
+  const [setupCurSemester, setSetupCurSemester] = useState(1);
   const [setupLoading, setSetupLoading] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
@@ -885,6 +886,7 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
       );
       setAllCourses(sortedCourses);
       setSetupCurYear(setupData.academicSetup?.currentYear ?? yearNum(student.year));
+      setSetupCurSemester(setupData.academicSetup?.currentSemester ?? 1);
       setSetupEntries(buildEntriesMap(setupData, sortedCourses));
     } catch (e) {
       toast(e.message || "Failed to load academic setup", "error");
@@ -968,6 +970,7 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
 
     const payload = {
       currentYear: setupCurYear ?? yearNum(student.year),
+      currentSemester: setupCurSemester ?? 1,
       years: yearsPayload,
     };
 
@@ -1157,6 +1160,22 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
                             onClick={() => setSetupCurYear(year)}
                           >
                             Year {year}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={styles.currentYearChooser}>
+                      <span className={styles.currentYearLabel}>Student current semester</span>
+                      <div className={styles.currentYearPills}>
+                        {[1, 2].map((sem) => (
+                          <button
+                            key={sem}
+                            type="button"
+                            className={`${styles.currentYearPill} ${(setupCurSemester ?? 1) === sem ? styles.currentYearPillActive : ""}`}
+                            onClick={() => setSetupCurSemester(sem)}
+                          >
+                            Semester {sem}
                           </button>
                         ))}
                       </div>

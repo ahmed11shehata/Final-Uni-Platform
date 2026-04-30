@@ -317,6 +317,16 @@ namespace AYA_UIS.API
                     END
                 ");
 
+                // ── User authoritative current semester (1 or 2) ──
+                // Backfills existing students to 1 when the column is added the first time.
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.AspNetUsers', 'CurrentSemester') IS NULL
+                        ALTER TABLE dbo.AspNetUsers ADD CurrentSemester INT NULL CONSTRAINT DF_AspNetUsers_CurrentSemester DEFAULT 1;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    UPDATE dbo.AspNetUsers SET CurrentSemester = 1 WHERE CurrentSemester IS NULL;
+                ");
+
                 // ── Academic Setup: add IsEquivalency + NumericTotal to Registrations ──
                 await db.Database.ExecuteSqlRawAsync(@"
                     IF NOT EXISTS (
@@ -496,6 +506,26 @@ namespace AYA_UIS.API
                         CREATE INDEX [IX_AcademicYearResetSnapshots_StudentId]
                             ON [AcademicYearResetSnapshots] ([StudentId]);
                     END
+                ");
+
+                // Numeric source/target position columns used by the duplicate-reset
+                // guard. Older deployments created the snapshot table without these
+                // columns; legacy rows keep NULLs and are ignored by the guard.
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.AcademicYearResetSnapshots', 'SourceYearNum') IS NULL
+                        ALTER TABLE dbo.AcademicYearResetSnapshots ADD SourceYearNum INT NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.AcademicYearResetSnapshots', 'SourceSemesterNum') IS NULL
+                        ALTER TABLE dbo.AcademicYearResetSnapshots ADD SourceSemesterNum INT NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.AcademicYearResetSnapshots', 'TargetYearNum') IS NULL
+                        ALTER TABLE dbo.AcademicYearResetSnapshots ADD TargetYearNum INT NULL;
+                ");
+                await db.Database.ExecuteSqlRawAsync(@"
+                    IF COL_LENGTH('dbo.AcademicYearResetSnapshots', 'TargetSemesterNum') IS NULL
+                        ALTER TABLE dbo.AcademicYearResetSnapshots ADD TargetSemesterNum INT NULL;
                 ");
 
                 // ── FinalGradeReviews table (admin classification Progress / NotCompleted / Completed) ──
