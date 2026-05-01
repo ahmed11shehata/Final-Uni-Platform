@@ -88,6 +88,22 @@ namespace Shared.Dtos.Admin_Module
 
         [JsonPropertyName("isEquivalency")]
         public bool IsEquivalency { get; set; }
+
+        /// <summary>
+        /// True when this Selected entry came from a published-grade Registration
+        /// (Phase A system completion), not from a manual Academic Setup row.
+        /// Frontend uses this to render the red-locked state and to disable the
+        /// "deactivate" toggle.
+        /// </summary>
+        [JsonPropertyName("isSystemCompleted")]
+        public bool IsSystemCompleted { get; set; }
+
+        /// <summary>
+        /// False only when IsSystemCompleted is true. Manual completions remain
+        /// deactivatable by clearing them from the next save payload.
+        /// </summary>
+        [JsonPropertyName("canDeactivate")]
+        public bool CanDeactivate { get; set; } = true;
     }
 
     // ═════════════════════════════════════════════════════════════

@@ -333,6 +333,12 @@ namespace Presentation.Controllers
                     await _unitOfWork.FinalGrades.UpdateAsync(fg);
                     publishedCount++;
                 }
+
+                // Always re-sync the Registration row from the published FinalGrade
+                // (idempotent — calling twice produces the same state). This way an
+                // already-published grade whose Registration was never promoted
+                // (legacy data, or a publish that predates this code) gets healed too.
+                await SyncRegistrationOnPublishAsync(studentId, reg, fg);
             }
 
             await _unitOfWork.SaveChangesAsync();
@@ -415,12 +421,19 @@ namespace Presentation.Controllers
                 {
                     var fg = await _unitOfWork.FinalGrades.GetAsync(user.Id, reg.CourseId);
                     if (fg == null) { skippedCount++; continue; }
-                    if (fg.Published) continue;
 
-                    fg.Published = true;
-                    await _unitOfWork.FinalGrades.UpdateAsync(fg);
-                    publishedCount++;
-                    touched = true;
+                    if (!fg.Published)
+                    {
+                        fg.Published = true;
+                        await _unitOfWork.FinalGrades.UpdateAsync(fg);
+                        publishedCount++;
+                        touched = true;
+                    }
+
+                    // Idempotent Registration promote — runs even when already
+                    // published, so previously-published grades whose Registration
+                    // was never marked Completed get healed without a backfill job.
+                    await SyncRegistrationOnPublishAsync(user.Id, reg, fg);
                 }
                 if (touched) studentsTouched++;
             }
@@ -586,6 +599,84 @@ namespace Presentation.Controllers
             >= 70 => "C",
             >= 60 => "D",
             _     => "F",
+        };
+
+        // ══════════════════════════════════════════════════════════════════
+        //  Publish-grade → Registration sync (Phase A)
+        //
+        //  Promotes the existing Registration row to Completed when the
+        //  effective published total ≥ 60. Failing publish leaves the
+        //  Registration alone so the failed grade stays visible (via the
+        //  FinalGrade) and the course remains retakable after Academic
+        //  Year Reset archives the row.
+        //
+        //  Idempotent: re-invoking with the same data produces the same row.
+        //  Preserves StudyYearId / SemesterId / TranscriptYear so the original
+        //  history slot is never moved.
+        // ══════════════════════════════════════════════════════════════════
+        private async Task SyncRegistrationOnPublishAsync(string studentId, Registration reg, FinalGrade fg)
+        {
+            decimal total;
+            if (fg.AdminFinalTotal.HasValue)
+            {
+                total = fg.AdminFinalTotal.Value;
+            }
+            else
+            {
+                var midterm = await _unitOfWork.MidtermGrades.GetAsync(studentId, reg.CourseId);
+                var midGrade = midterm?.Grade ?? 0;
+
+                decimal quizScore = 0;
+                foreach (var q in await _unitOfWork.Quizzes.GetQuizzesByCourseId(reg.CourseId))
+                {
+                    var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(q.Id, studentId);
+                    if (attempt != null) quizScore += attempt.Score;
+                }
+
+                decimal asnScore = 0;
+                foreach (var a in await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(reg.CourseId))
+                {
+                    var sub = await _unitOfWork.Assignments.GetStudentSubmissionAsync(a.Id, studentId);
+                    if (sub != null && string.Equals(sub.Status, "Accepted", StringComparison.OrdinalIgnoreCase))
+                        asnScore += sub.Grade ?? 0;
+                }
+
+                var cwTotal = Math.Min(40m, midGrade + quizScore + asnScore + fg.Bonus);
+                total = cwTotal + fg.FinalScore;
+            }
+
+            int totalInt = (int)Math.Round(Math.Clamp(total, 0m, 100m));
+            if (totalInt < 60) return; // Failing — Registration stays as-is.
+
+            // GetByUserIdAsync (used by callers) returns AsNoTracking copies, so
+            // re-fetch a tracked entity by primary key before mutating.
+            var tracked = await _unitOfWork.Registrations.GetByIdAsync(reg.Id);
+            if (tracked == null) return;
+
+            tracked.Progress     = CourseProgress.Completed;
+            tracked.IsPassed     = true;
+            tracked.NumericTotal = totalInt;
+            tracked.Grade        = TotalToGradEnum(totalInt);
+            // StudyYearId / SemesterId / TranscriptYear intentionally not modified.
+
+            await _unitOfWork.Registrations.Update(tracked);
+        }
+
+        /// <summary>Numeric total → Grads enum, mirroring AdminService.DeriveGrade.</summary>
+        private static Grads TotalToGradEnum(int total) => total switch
+        {
+            >= 97 => Grads.A_Plus,
+            >= 93 => Grads.A,
+            >= 90 => Grads.A_Minus,
+            >= 87 => Grads.B_Plus,
+            >= 83 => Grads.B,
+            >= 80 => Grads.B_Minus,
+            >= 77 => Grads.C_Plus,
+            >= 73 => Grads.C,
+            >= 70 => Grads.C_Minus,
+            >= 67 => Grads.D_Plus,
+            >= 60 => Grads.D,
+            _     => Grads.F,
         };
     }
 }

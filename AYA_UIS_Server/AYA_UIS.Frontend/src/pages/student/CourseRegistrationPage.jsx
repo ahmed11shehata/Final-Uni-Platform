@@ -35,11 +35,12 @@ function getPatternBg(pattern, color) {
   return patterns[pattern] || patterns.mosaic;
 }
 
-const FILTERS = ["All","Available","Registered","Locked","Full","Prerequisite"];
+const FILTERS = ["All","Available","Registered","Completed","Locked","Full","Prerequisite"];
 
 const STATUS_CFG = {
   available:    { color:"#22c55e",  label:"Available"     },
   registered:   { color:"#818cf8",  label:"Registered"    },
+  completed:    { color:"#0ea5e9",  label:"Completed"     },
   locked:       { color:"#f59e0b",  label:"Locked"        },
   full:         { color:"#6b7280",  label:"Full"          },
   prerequisite: { color:"#a855f7",  label:"Prerequisite"  },
@@ -153,6 +154,7 @@ export default function CourseRegistrationPage() {
     all:          courses.filter(c => STATUS_CFG[c.status]).length,
     available:    courses.filter(c=>c.status==="available").length,
     registered:   courses.filter(c=>c.status==="registered").length,
+    completed:    courses.filter(c=>c.status==="completed").length,
     locked:       courses.filter(c=>c.status==="locked").length,
     full:         courses.filter(c=>c.status==="full").length,
     prerequisite: courses.filter(c=>c.status==="prerequisite").length,
@@ -467,6 +469,13 @@ function CourseCard({ course, index, remaining, actionLoading, onRegister, onDro
               </svg>
             </span>
           )}
+          {course.status==="completed" && (
+            <span className={styles.checkmark} style={{background:"#0ea5e9"}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </span>
+          )}
           {course.status==="locked" && (
             <span className={styles.lockIcon}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2">
@@ -614,6 +623,18 @@ function CourseCard({ course, index, remaining, actionLoading, onRegister, onDro
                 <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
               </svg>
               Section Full
+            </div>
+          )}
+          {course.status==="completed" && (
+            <div className={styles.fullBtn} style={{
+              background:"rgba(14,165,233,.12)",
+              color:"#0ea5e9",
+              borderColor:"rgba(14,165,233,.35)",
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Course Completed
             </div>
           )}
           {course.status==="locked" && (

@@ -3,7 +3,7 @@
 // Admin "Reset Material" page.
 // Distinct from the existing Academic Year Reset page (year/term reset).
 // Lets the admin select courses, preview impact, and execute the reset
-// after typing the fixed password "Material@123#".
+// after a server-side password confirmation (validated only on the backend).
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,7 +13,6 @@ import {
   materialResetExecute,
 } from "../../services/api/adminApi";
 
-const RESET_PASSWORD = "Material@123#";
 const sp = { type: "spring", stiffness: 360, damping: 28 };
 
 /* ── Lightweight inline styles — match existing admin dark theme ── */
@@ -140,9 +139,28 @@ function CourseTile({ c, selected, onToggle, color }) {
   );
 }
 
-function PasswordModal({ onConfirm, onClose, busy }) {
+function PasswordModal({ onConfirm, onClose, busy, errorMessage, onClearError }) {
   const [pwd, setPwd] = useState("");
-  const ok = pwd === RESET_PASSWORD;
+  const [localError, setLocalError] = useState("");
+
+  const isEmpty = pwd.trim().length === 0;
+  const displayError = localError || errorMessage || "";
+
+  const handleChange = (e) => {
+    setPwd(e.target.value);
+    if (localError) setLocalError("");
+    if (errorMessage && onClearError) onClearError();
+  };
+
+  const handleSubmit = () => {
+    if (isEmpty) {
+      setLocalError("Password is required.");
+      return;
+    }
+    setLocalError("");
+    onConfirm(pwd);
+  };
+
   return (
     <motion.div
       onClick={onClose}
@@ -168,21 +186,48 @@ function PasswordModal({ onConfirm, onClose, busy }) {
             integrity) and <strong>permanently delete</strong> lecture rows + all physical files for the
             selected courses. Type the reset password to continue.
           </p>
-          <input
-            type="password"
-            autoFocus
-            placeholder="Reset password"
-            value={pwd}
-            onChange={(e) => setPwd(e.target.value)}
-            style={S.input}
-          />
+          <form autoComplete="off" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+            {/* Hidden honeypot field discourages browser autofill from targeting the real input */}
+            <input
+              type="password"
+              name="fake-password-autofill-trap"
+              autoComplete="new-password"
+              tabIndex={-1}
+              aria-hidden="true"
+              style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none" }}
+              readOnly
+            />
+            <input
+              type="password"
+              name="material_reset_confirm_token"
+              autoComplete="new-password"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              autoFocus
+              placeholder="Reset password"
+              value={pwd}
+              onChange={handleChange}
+              style={S.input}
+            />
+          </form>
+          {displayError && (
+            <div style={{
+              marginTop: 10, padding: "8px 10px",
+              borderRadius: 9, background: "rgba(239,68,68,.08)",
+              border: "1px solid rgba(239,68,68,.30)", color: "#ef4444",
+              fontSize: 12.5, fontWeight: 700,
+            }}>
+              ⚠ {displayError}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <button type="button" onClick={onClose} disabled={busy} style={S.btn}>Cancel</button>
             <button
               type="button"
-              onClick={() => onConfirm(pwd)}
-              disabled={!ok || busy}
-              style={{ ...S.btnDanger, opacity: ok && !busy ? 1 : 0.5 }}
+              onClick={handleSubmit}
+              disabled={busy || isEmpty}
+              style={{ ...S.btnDanger, opacity: !busy && !isEmpty ? 1 : 0.5 }}
             >
               {busy ? "Resetting…" : "🧹 Reset Material"}
             </button>
@@ -205,6 +250,19 @@ export default function ResetMaterialPage() {
   const [executing, setExecuting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [pwdError, setPwdError] = useState("");
+
+  const openPwdModal = () => {
+    setPwdError("");
+    setError(null);
+    setShowPwd(true);
+  };
+
+  const closePwdModal = () => {
+    if (executing) return;
+    setPwdError("");
+    setShowPwd(false);
+  };
 
   const accent = "#818cf8";
 
@@ -265,6 +323,7 @@ export default function ResetMaterialPage() {
 
   const runExecute = async (pwd) => {
     setError(null);
+    setPwdError("");
     setExecuting(true);
     try {
       const data = await materialResetExecute({
@@ -274,9 +333,17 @@ export default function ResetMaterialPage() {
       });
       setResult(data);
       setPreview(null);
+      setPwdError("");
       setShowPwd(false);
     } catch (e) {
-      setError(e?.response?.data?.error?.message || "Reset failed");
+      const code = e?.response?.data?.error?.code;
+      if (code === "INVALID_PASSWORD") {
+        // Keep modal open; do not leak any hint about the real value.
+        setPwdError("Incorrect reset password.");
+      } else {
+        setError(e?.response?.data?.error?.message || "Reset failed");
+        setShowPwd(false);
+      }
     } finally {
       setExecuting(false);
     }
@@ -356,7 +423,7 @@ export default function ResetMaterialPage() {
             </button>
             <button
               type="button"
-              onClick={() => setShowPwd(true)}
+              onClick={openPwdModal}
               disabled={!preview || blocked || executing}
               style={{ ...S.btnDanger, opacity: !preview || blocked || executing ? 0.55 : 1 }}
             >
@@ -534,7 +601,9 @@ export default function ResetMaterialPage() {
         {showPwd && (
           <PasswordModal
             busy={executing}
-            onClose={() => setShowPwd(false)}
+            errorMessage={pwdError}
+            onClearError={() => setPwdError("")}
+            onClose={closePwdModal}
             onConfirm={runExecute}
           />
         )}

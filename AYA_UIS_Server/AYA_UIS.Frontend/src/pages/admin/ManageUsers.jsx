@@ -379,7 +379,7 @@ function NavCard({ icon, color, title, desc, badge, badgeLabel, onClick }) {
 
 // ── Courses Panel ────────────────────────────────────────────
 function CoursesPanel({ data, studentId, refresh, toast }) {
-  const { student, standing, registeredCourses } = data;
+  const { student, standing, registeredCourses, completedCourses } = data;
   const st = standingMeta(standing?.standingId);
   const max = standing?.maxCredits ?? st.maxCredits;
   const used = (registeredCourses ?? []).reduce((s, c) => s + (c.credits ?? 3), 0);
@@ -392,8 +392,10 @@ function CoursesPanel({ data, studentId, refresh, toast }) {
   const [lockTarget,    setLockTarget]    = useState(null);
   const [lockReason,    setLockReason]    = useState("");
   const [busy,          setBusy]          = useState(false);
+  const [addTopMsg,     setAddTopMsg]     = useState(""); // Phase B: top warning inside Add modal
 
   const openAddModal = async () => {
+    setAddTopMsg("");
     setAddOpen(true);
     if (allCourses.length === 0) {
       setLoadingCrs(true);
@@ -413,24 +415,41 @@ function CoursesPanel({ data, studentId, refresh, toast }) {
     [registeredCourses]
   );
 
+  // Phase B: surface completed courses inside the Add modal as disabled rows
+  // (instead of hiding them entirely). Backend still rejects any re-add attempt
+  // with the clear completion message; the UI reflects state up-front.
+  const completedCodes = useMemo(
+    () => new Set((completedCourses ?? []).map(c => c.code)),
+    [completedCourses]
+  );
+
   const addable = useMemo(() => {
-    let list = allCourses.filter(c => !registeredCodes.has(c.code));
+    let list = allCourses
+      .filter(c => !registeredCodes.has(c.code))
+      .map(c => ({ ...c, _completed: completedCodes.has(c.code) }));
     if (addSearch.trim()) {
       const q = addSearch.toLowerCase();
       list = list.filter(c => c.name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q));
     }
+    // Push completed rows to the bottom so addable courses surface first.
+    list.sort((a, b) => Number(!!a._completed) - Number(!!b._completed));
     return list.slice(0, 30);
-  }, [allCourses, registeredCodes, addSearch]);
+  }, [allCourses, registeredCodes, completedCodes, addSearch]);
 
   const doAdd = async (courseCode) => {
     setBusy(true);
+    setAddTopMsg("");
     try {
       await adminAddCourse(studentId, courseCode);
       await refresh();
       toast(`${courseCode} added`, "success");
       setAddOpen(false);
     } catch (e) {
-      toast(e.message || "Failed to add", "error");
+      const msg = e.message || "Failed to add";
+      // Show the backend rejection message at the top of the Add modal,
+      // not just as a transient toast — this is the contract for completed courses.
+      setAddTopMsg(msg);
+      toast(msg, "error");
     } finally { setBusy(false); }
   };
 
@@ -504,7 +523,7 @@ function CoursesPanel({ data, studentId, refresh, toast }) {
         {addOpen && (
           <motion.div className={styles.overlay}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setAddOpen(false)}>
+            onClick={() => { setAddTopMsg(""); setAddOpen(false); }}>
             <motion.div className={styles.addModal}
               initial={{ scale: 0.88, y: 24, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }} transition={{ type: "spring", stiffness: 360, damping: 26 }}
@@ -514,8 +533,27 @@ function CoursesPanel({ data, studentId, refresh, toast }) {
                   <h3 className={styles.addModalTitle}>Add Course</h3>
                   <p className={styles.addModalSub}>Force-enroll {student.name} in a course</p>
                 </div>
-                <button className={styles.addModalClose} onClick={() => setAddOpen(false)}>{SVG.close}</button>
+                <button className={styles.addModalClose} onClick={() => { setAddTopMsg(""); setAddOpen(false); }}>{SVG.close}</button>
               </div>
+              {/* Phase B: top warning banner — surfaces backend rejection (e.g. completion guard) */}
+              {addTopMsg && (
+                <div style={{
+                  margin: "0 18px 12px",
+                  padding: "9px 12px",
+                  borderRadius: 10,
+                  background: "rgba(239,68,68,.08)",
+                  border: "1px solid rgba(239,68,68,.3)",
+                  color: "#ef4444",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+                  {addTopMsg}
+                </div>
+              )}
               <div className={styles.addModalSearch}>
                 {SVG.search}
                 <input className={styles.addModalIn} placeholder="Search by name or code…"
@@ -525,9 +563,11 @@ function CoursesPanel({ data, studentId, refresh, toast }) {
                 {loadingCrs && <div className={styles.addEmpty}>{SVG.info} Loading courses…</div>}
                 {!loadingCrs && addable.map(c => (
                   <motion.div key={c.code} className={styles.addModalRow}
-                    whileHover={{ background: "var(--hover-bg)" }}>
+                    style={c._completed ? { opacity: 0.62 } : undefined}
+                    whileHover={c._completed ? undefined : { background: "var(--hover-bg)" }}>
                     <div className={styles.addRowLeft}>
-                      <span className={styles.addRowCode} style={{ color: "var(--accent)" }}>{c.code}</span>
+                      <span className={styles.addRowCode}
+                        style={{ color: c._completed ? "#0ea5e9" : "var(--accent)" }}>{c.code}</span>
                       <div>
                         <div className={styles.addRowName}>{c.name}</div>
                         <div className={styles.addRowMeta}>
@@ -535,11 +575,24 @@ function CoursesPanel({ data, studentId, refresh, toast }) {
                         </div>
                       </div>
                     </div>
-                    <motion.button className={styles.addRowBtn}
-                      onClick={() => doAdd(c.code)} disabled={busy}
-                      whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95 }}>
-                      {SVG.plus} Add
-                    </motion.button>
+                    {c._completed ? (
+                      <span style={{
+                        padding: "6px 12px",
+                        borderRadius: 999,
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                        background: "rgba(14,165,233,.12)",
+                        color: "#0ea5e9",
+                        border: "1px solid rgba(14,165,233,.35)",
+                        whiteSpace: "nowrap",
+                      }}>✓ Completed</span>
+                    ) : (
+                      <motion.button className={styles.addRowBtn}
+                        onClick={() => doAdd(c.code)} disabled={busy}
+                        whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.95 }}>
+                        {SVG.plus} Add
+                      </motion.button>
+                    )}
                   </motion.div>
                 ))}
                 {!loadingCrs && addable.length === 0 && (
@@ -864,6 +917,11 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
             year: yr,
             semester: sm,
             total: String(c.total ?? ""),
+            // Phase B: preserve source/permission flags from backend so the UI
+            // can render the red-locked state and block deactivate for
+            // system-completed courses.
+            isSystemCompleted: !!c.isSystemCompleted,
+            canDeactivate: c.canDeactivate !== false,
           };
         }
       }
@@ -901,6 +959,12 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
     setSetupEntries(prev => {
       const next = { ...(prev ?? {}) };
       if (next[code]) {
+        // Phase B: red-locked system-completed courses are NOT deactivatable —
+        // the toggle button should already be disabled, this is a safety net.
+        if (next[code].isSystemCompleted || next[code].canDeactivate === false) {
+          toast("This course is locked by a published grade and cannot be deactivated.", "error");
+          return prev;
+        }
         delete next[code];
       } else {
         next[code] = {
@@ -910,6 +974,8 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
           year: setupCurYear ?? yearNum(student.year),
           semester: 1,
           total: "60",
+          isSystemCompleted: false,
+          canDeactivate: true,
         };
       }
       return next;
@@ -1200,11 +1266,17 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
                       const active = !!entry;
                       const grade = active ? computeGradeFromTotal(entry.total) : null;
                       const gradeClr = grade ? gradeColor(grade) : "var(--text-muted)";
+                      // Phase B: red-locked state for courses completed via published grade.
+                      const sysLocked = !!entry?.isSystemCompleted;
 
                       return (
                         <motion.div
                           key={code}
                           className={`${styles.historyCourseCard} ${active ? styles.historyCourseCardActive : styles.historyCourseCardMuted}`}
+                          style={sysLocked ? {
+                            borderColor: "rgba(239,68,68,.55)",
+                            boxShadow: "0 0 0 1px rgba(239,68,68,.15) inset",
+                          } : undefined}
                           initial={{ opacity: 0, y: 12 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: idx * 0.015, duration: 0.24 }}
@@ -1212,19 +1284,54 @@ function AcademicControlsPanel({ data, studentId, refresh, toast }) {
                         >
                           <div className={styles.historyCourseHead}>
                             <div className={styles.historyCourseHeadMain}>
-                              <span className={styles.historyCourseCode}>{code}</span>
+                              <span className={styles.historyCourseCode}
+                                style={sysLocked ? { color: "#ef4444" } : undefined}>{code}</span>
                               <span className={styles.historyCourseCredits}>{course.credits ?? 3} credit hours</span>
                             </div>
-                            <button
-                              type="button"
-                              className={`${styles.activateCourseBtn} ${active ? styles.activateCourseBtnActive : ""}`}
-                              onClick={() => toggleCourse(course)}
-                            >
-                              {active ? "Activated" : "Activate"}
-                            </button>
+                            {sysLocked ? (
+                              <span style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 5,
+                                padding: "5px 11px",
+                                borderRadius: 999,
+                                fontSize: 11.5,
+                                fontWeight: 800,
+                                background: "rgba(239,68,68,.10)",
+                                color: "#ef4444",
+                                border: "1px solid rgba(239,68,68,.40)",
+                                whiteSpace: "nowrap",
+                              }}>
+                                🔒 Locked
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                className={`${styles.activateCourseBtn} ${active ? styles.activateCourseBtnActive : ""}`}
+                                onClick={() => toggleCourse(course)}
+                              >
+                                {active ? "Activated" : "Activate"}
+                              </button>
+                            )}
                           </div>
 
                           <div className={styles.historyCourseName}>{course.name}</div>
+
+                          {sysLocked && (
+                            <div style={{
+                              marginTop: 6,
+                              padding: "6px 9px",
+                              borderRadius: 8,
+                              background: "rgba(239,68,68,.06)",
+                              border: "1px solid rgba(239,68,68,.25)",
+                              color: "#ef4444",
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              lineHeight: 1.4,
+                            }}>
+                              Completed by published grade. Cannot be deactivated.
+                            </div>
+                          )}
 
                           <div className={styles.historyCardBody}>
                             <div className={styles.choiceBlock}>

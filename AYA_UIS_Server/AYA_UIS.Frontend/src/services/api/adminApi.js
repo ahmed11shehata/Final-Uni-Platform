@@ -282,7 +282,7 @@ export const materialResetPreview = async (dto) => {
 /**
  * POST /api/admin/material-reset/execute
  * dto must include: { courseIds?: number[], selectAll?: boolean, password: string }
- * Backend rejects unless password === "Material@123#".
+ * Password is validated server-side only.
  */
 export const materialResetExecute = async (dto) => {
   const res = await api.post("/admin/material-reset/execute", dto);

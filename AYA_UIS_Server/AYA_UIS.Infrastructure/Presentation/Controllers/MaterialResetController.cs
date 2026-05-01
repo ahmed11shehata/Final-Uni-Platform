@@ -78,9 +78,14 @@ namespace Presentation.Controllers
                 var data = await _service.ExecuteAsync(adminId, request);
                 return Ok(new { success = true, data });
             }
+            catch (BadRequestException ex) when (ex.Message.Contains("password", StringComparison.OrdinalIgnoreCase))
+            {
+                // Wrong/empty password — generic message, no length/value hints, no logging.
+                return BadRequest(new { success = false, error = new { code = "INVALID_PASSWORD", message = "Incorrect reset password." } });
+            }
             catch (BadRequestException ex)
             {
-                // Password mismatch, blocked-pending-submissions, or empty selection.
+                // Blocked-pending-submissions or empty selection.
                 return BadRequest(new { success = false, error = new { code = "RESET_BLOCKED", message = ex.Message } });
             }
         }

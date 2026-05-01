@@ -901,9 +901,25 @@ namespace Services.Implementatios
             if (course == null)
                 throw new NotFoundException($"Course '{dto.CourseCode}' not found.");
 
-            // Check if already registered
-            var isRegistered = await _unitOfWork.Registrations.IsUserRegisteredInCourseAsync(user.Id, course.Id);
-            if (isRegistered)
+            // Phase-A guards (one DB round-trip for both checks):
+            //   (1) Block re-registration of any course the student already passed,
+            //       whether the completion came from a published grade (system) or
+            //       from a manual Academic Setup row (equivalency).
+            //   (2) Block double-registration only for active, non-archived rows.
+            //       Archived rows from a prior Academic Year Reset must allow
+            //       retake, so a previously-failed-then-archived course can be
+            //       added again here.
+            var allRegs = await _unitOfWork.Registrations.GetByUserIdAsync(user.Id);
+            bool alreadyCompleted = allRegs.Any(r =>
+                r.CourseId == course.Id &&
+                r.IsPassed &&
+                r.Progress == CourseProgress.Completed);
+            if (alreadyCompleted)
+                throw new ConflictException("This student has already completed this course.");
+
+            bool hasActiveRegistration = allRegs.Any(r =>
+                r.CourseId == course.Id && !r.IsArchived);
+            if (hasActiveRegistration)
                 throw new ConflictException($"Student is already registered in '{dto.CourseCode}'.");
 
             // Get current study year and semester
@@ -1060,12 +1076,79 @@ namespace Services.Implementatios
             var offerings = (await _unitOfWork.CourseOfferings.GetAllAsync()).ToList();
             var courseYearSemMap = BuildCourseYearSemMap(allCourses, offerings);
 
-            // Load student's equivalency registrations
+            // Load student's equivalency registrations.
+            // Defensive dedupe: legacy data may contain >1 equivalency row per
+            // (UserId, CourseId). Pick the canonical row (lowest Id, prefer one
+            // with a NumericTotal). Render only the canonical row in this view —
+            // the next save will collapse stragglers via the rebuild path below.
             var allRegs = await _unitOfWork.Registrations.GetByUserIdAsync(user.Id);
             var equivRegs = allRegs
                 .Where(r => r.IsEquivalency && r.IsPassed)
                 .ToList();
-            var equivByCourseId = equivRegs.ToDictionary(r => r.CourseId);
+            var equivByCourseId = equivRegs
+                .GroupBy(r => r.CourseId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(r => r.NumericTotal.HasValue)
+                          .ThenBy(r => r.Id)
+                          .First());
+
+            // ── Shared with Student Grades: passed Published FinalGrade ──────
+            // Surface current-term courses whose published grade ≥ 60 as
+            // Completed/Activated in Academic Setup, using exactly the same
+            // effective-total formula as StudentController.GetPublishedFinalGrades.
+            // Equivalency takes precedence when both exist (admin-set history).
+            var activeNonEquivRegs = allRegs
+                .Where(r => !r.IsEquivalency
+                            && !r.IsArchived
+                            && (r.Status == RegistrationStatus.Approved
+                             || r.Status == RegistrationStatus.Pending))
+                .ToList();
+
+            // courseId → (registration, effective total). Built lazily so we
+            // touch midterm/quiz/assignment repos only for active courses.
+            var publishedByCourseId = new Dictionary<int, (Registration reg, int total)>();
+            foreach (var reg in activeNonEquivRegs)
+            {
+                if (equivByCourseId.ContainsKey(reg.CourseId)) continue;
+
+                var fg = await _unitOfWork.FinalGrades.GetAsync(user.Id, reg.CourseId);
+                if (fg == null || !fg.Published) continue;
+
+                decimal total;
+                if (fg.AdminFinalTotal.HasValue)
+                {
+                    total = fg.AdminFinalTotal.Value;
+                }
+                else
+                {
+                    var midterm = await _unitOfWork.MidtermGrades.GetAsync(user.Id, reg.CourseId);
+                    var midGrade = midterm?.Grade ?? 0;
+
+                    decimal quizScore = 0;
+                    foreach (var q in await _unitOfWork.Quizzes.GetQuizzesByCourseId(reg.CourseId))
+                    {
+                        var attempt = await _unitOfWork.Quizzes.GetStudentAttemptAsync(q.Id, user.Id);
+                        if (attempt != null) quizScore += attempt.Score;
+                    }
+
+                    decimal asnScore = 0;
+                    foreach (var a in await _unitOfWork.Assignments.GetAssignmentsByCourseIdAsync(reg.CourseId))
+                    {
+                        var sub = await _unitOfWork.Assignments.GetStudentSubmissionAsync(a.Id, user.Id);
+                        if (sub != null && string.Equals(sub.Status, "Accepted", StringComparison.OrdinalIgnoreCase))
+                            asnScore += sub.Grade ?? 0;
+                    }
+
+                    var cwTotal = Math.Min(40m, midGrade + quizScore + asnScore + fg.Bonus);
+                    total = cwTotal + fg.FinalScore;
+                }
+
+                int totalInt = (int)Math.Round(Math.Clamp(total, 0m, 100m));
+                if (totalInt < 60) continue; // Failed published grade — never marked Completed.
+
+                publishedByCourseId[reg.CourseId] = (reg, totalInt);
+            }
 
             // Compute current credits earned from ALL passed registrations
             int totalCreditsEarned = allRegs
@@ -1117,6 +1200,17 @@ namespace Services.Implementatios
                 kv => kv.Key,
                 kv => kv.Value.SemesterId % 2 == 0 ? 2 : 1);
 
+            // Year/semester for published-passed courses: derive from the
+            // student's active registration row (TranscriptYear if set, else
+            // catalog year; semester from SemesterId odd/even).
+            var publishedYearOverride = publishedByCourseId.ToDictionary(
+                kv => kv.Key,
+                kv => kv.Value.reg.TranscriptYear
+                       ?? (courseYearSemMap.TryGetValue(kv.Key, out var ys0) ? ys0.year : 1));
+            var publishedSemOverride = publishedByCourseId.ToDictionary(
+                kv => kv.Key,
+                kv => kv.Value.reg.SemesterId % 2 == 0 ? 2 : 1);
+
             var yearsDto = new Dictionary<string, AcademicSetupYearDto>();
             for (int yr = 1; yr <= 4; yr++)
             {
@@ -1124,30 +1218,55 @@ namespace Services.Implementatios
                 for (int sem = 1; sem <= 2; sem++)
                 {
                     // Equivalency courses use admin-stored year+semester (no catalog fallback).
+                    // Published-passed current-term courses use registration year+semester.
                     // Non-equivalency catalog courses use courseYearSemMap as before.
                     var coursesInSlot = allCourses
                         .Where(c =>
                         {
                             if (equivByCourseId.ContainsKey(c.Id))
                             {
-                                // Admin-selected year wins; fall back to catalog only if TranscriptYear was never set
                                 int effectiveYear = equivYearOverride.TryGetValue(c.Id, out var ey)
                                     ? ey
                                     : (courseYearSemMap.TryGetValue(c.Id, out var ys0) ? ys0.year : 1);
                                 int effectiveSem = equivSemOverride[c.Id];
                                 return effectiveYear == yr && effectiveSem == sem;
                             }
-                            // Non-equivalency: use catalog placement
+                            if (publishedByCourseId.ContainsKey(c.Id))
+                            {
+                                int effectiveYear = publishedYearOverride[c.Id];
+                                int effectiveSem  = publishedSemOverride[c.Id];
+                                return effectiveYear == yr && effectiveSem == sem;
+                            }
                             if (!courseYearSemMap.TryGetValue(c.Id, out var ys)) return false;
                             return ys.year == yr && ys.sem == sem;
                         })
                         .Select(c =>
                         {
                             equivByCourseId.TryGetValue(c.Id, out var eqReg);
-                            bool isSelected = eqReg != null;
-                            var (_, letter, gpaPoints) = isSelected && eqReg!.NumericTotal.HasValue
-                                ? DeriveGrade(eqReg.NumericTotal.Value)
-                                : (default(Grads), (string?)null, (decimal?)null);
+                            bool isEquivSelected = eqReg != null;
+
+                            bool isPublished = publishedByCourseId.TryGetValue(c.Id, out var pub);
+
+                            int? total = null;
+                            string? letter = null;
+                            decimal? gpaPoints = null;
+
+                            if (isEquivSelected && eqReg!.NumericTotal.HasValue)
+                            {
+                                var d = DeriveGrade(eqReg.NumericTotal.Value);
+                                total = eqReg.NumericTotal.Value;
+                                letter = d.letter;
+                                gpaPoints = d.gpaPoints;
+                            }
+                            else if (isPublished)
+                            {
+                                var d = DeriveGrade(pub.total);
+                                total = pub.total;
+                                letter = d.letter;
+                                gpaPoints = d.gpaPoints;
+                            }
+
+                            bool isSelected = isEquivSelected || isPublished;
 
                             return new AcademicSetupCourseDto
                             {
@@ -1155,10 +1274,16 @@ namespace Services.Implementatios
                                 Name = c.Name,
                                 Credits = c.Credits,
                                 Selected = isSelected,
-                                Total = eqReg?.NumericTotal,
+                                Total = total,
                                 Grade = letter,
                                 GpaPoints = gpaPoints,
-                                IsEquivalency = isSelected
+                                // IsEquivalency only when admin-set history; published-current-term
+                                // courses surface as Selected but not equivalency.
+                                IsEquivalency = isEquivSelected,
+                                // Phase B flags: distinguish system-completed (red locked,
+                                // not deactivatable) from manual equivalency (deactivatable).
+                                IsSystemCompleted = isPublished && !isEquivSelected,
+                                CanDeactivate    = !(isPublished && !isEquivSelected),
                             };
                         })
                         .OrderBy(c => c.CourseCode)
@@ -1327,7 +1452,18 @@ namespace Services.Implementatios
                 .Select(r => r.CourseId)
                 .ToHashSet();
 
-            // Remove old equivalency registrations for this student (tracked query)
+            // Remove old equivalency registrations for this student (tracked query).
+            //
+            // Phase-A dedupe contract:
+            //   * This delete-and-reinsert pattern makes the save idempotent — pressing
+            //     Save twice with the same payload yields the same row count.
+            //   * Only equivalency rows are touched. System-completed rows (real
+            //     published grades, IsEquivalency=false, Progress=Completed,
+            //     IsPassed=true) are intentionally NOT deleted here, so admin
+            //     deselecting them in Academic Setup is a no-op (cannot deactivate
+            //     a published-grade completion from this endpoint).
+            //   * Failed attempts and FinalGrade rows are never deleted from this
+            //     path — they remain visible in Student Grades / Manage User Grades.
             var existingEquivRegs = allUserRegs;
             var existingEquivIds = existingEquivRegs
                 .Where(r => r.IsEquivalency)
@@ -1368,6 +1504,31 @@ namespace Services.Implementatios
                         fg.Published       = true;
                         await _unitOfWork.FinalGrades.UpdateAsync(fg);
                     }
+
+                    // Phase B: allow admin to edit year/semester of a system-completed
+                    // course from Academic Setup. We mirror the change into the existing
+                    // Registration row (TranscriptYear + SemesterId). Total/grade/passed
+                    // are re-applied here so the row stays consistent with the FinalGrade
+                    // even if the publish-sync helper hasn't run yet.
+                    var currentReg = allUserRegs.FirstOrDefault(r =>
+                        r.CourseId == course.Id && !r.IsEquivalency && !r.IsArchived &&
+                        (r.Status == RegistrationStatus.Approved || r.Status == RegistrationStatus.Pending));
+                    if (currentReg != null)
+                    {
+                        var trackedReg = await _unitOfWork.Registrations.GetByIdAsync(currentReg.Id);
+                        if (trackedReg != null)
+                        {
+                            trackedReg.TranscriptYear = yearKey;
+                            int targetSemId = adminSemester == 2 ? (sem2?.Id ?? defaultSemId) : defaultSemId;
+                            trackedReg.SemesterId    = targetSemId;
+                            trackedReg.NumericTotal  = total;
+                            trackedReg.Grade         = gradeEnum;
+                            trackedReg.IsPassed      = true;
+                            trackedReg.Progress      = CourseProgress.Completed;
+                            await _unitOfWork.Registrations.Update(trackedReg);
+                        }
+                    }
+
                     continue; // No equivalency registration needed
                 }
 
